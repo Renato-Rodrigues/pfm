@@ -1,0 +1,12 @@
+^LICENSE\.md$
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.buildlibrary$
+^\.pre-commit-config\.yaml$
+^\.github$
+^codecov\.yml$
+^\.lintr$
+^tests/\.lintr$
+^Makefile$
+^.*CITATION\.cff$
+^\.git$
