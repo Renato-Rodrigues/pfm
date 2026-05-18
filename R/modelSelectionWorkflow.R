@@ -22,6 +22,8 @@
 #' @param regionMappingFixedEffects Character or NULL. Region mapping file for fixed
 #'   effects. If \code{NULL}, region fixed effects are omitted.
 #'   Default: \code{"regionmappingH12.csv"}.
+#' @param timeTrend Logical. If \code{TRUE} (default), adds a linear time trend.
+#' @param criterion Character. Model selection criterion (\code{"AIC"}, \code{"BIC"}, etc.).
 #' @param testMode Character. \code{"incremental"} or \code{"combinations"}. Default: \code{"incremental"}.
 #' @param useFirth Logical. If \code{TRUE} (default), uses Firth's penalized
 #'   likelihood logistic regression for the adoption stage.
@@ -57,12 +59,13 @@
 #'
 #' @author Renato Rodrigues
 #'
-#' @importFrom dplyr %>% mutate select arrange filter
+#' @importFrom dplyr mutate select arrange filter relocate case_when any_of
+#' @importFrom rlang .data
 #' @importFrom tidyr pivot_wider
 #'
 #' @export
 #'
-modelSelectionWorkflow <- function(
+modelSelectionWorkflow <- function( # nolint: cyclocomp_linter.
     aggregate = TRUE,
     y = 2000:2022,
     outputRegionMappingFile = "regionmappingH12.csv",
@@ -218,7 +221,7 @@ modelSelectionWorkflow <- function(
 
   # --- 4. Summary Tables ---
   # Consolidate all best coefficients into a formatted group-based summary table
-  baseCoeffs <- bestCoefficients %>%
+  baseCoeffs <- bestCoefficients |>
     dplyr::mutate(
       group = dplyr::case_when(
         .data$term == "(Intercept)" ~ "Intercept",
@@ -234,15 +237,18 @@ modelSelectionWorkflow <- function(
     )
 
   pivotCoeffs <- function(df, valCol, rnd = 3) {
-    df %>%
-      dplyr::mutate(val = round(.data[[valCol]], rnd)) %>%
-      dplyr::select(.data$group, driver = .data$term, .data$val, .data$type) %>%
-      tidyr::pivot_wider(names_from = .data$type, values_from = .data$val) %>%
+    df |>
+      dplyr::mutate(val = round(get(valCol), rnd)) |>
+      dplyr::select(.data$group, driver = .data$term, .data$val, .data$type) |>
+      tidyr::pivot_wider(names_from = "type", values_from = "val") |>
       dplyr::arrange(match(.data$group, c(
         "Intercept", "Actor Power Index", "Actor Power", "Institutional Quality",
         "Interaction Term", "Control", "Time Trend", "Region Fixed Effects"
-      ))) %>%
-      dplyr::relocate("group", "driver", dplyr::any_of(c("Bulk_adoption", "Diffuse_adoption", "Bulk_stringency", "Diffuse_stringency")))
+      ))) |>
+      dplyr::relocate(
+        .data$group, .data$driver,
+        dplyr::any_of(c("Bulk_adoption", "Diffuse_adoption", "Bulk_stringency", "Diffuse_stringency"))
+      )
   }
 
   coeffSummaryTable <- list(
@@ -254,19 +260,22 @@ modelSelectionWorkflow <- function(
 
   # --- 5. Group Analysis Table ---
   groupAnalysisTable <- do.call(rbind, groupAnalysisRows)
-  groupAnalysisTable <- groupAnalysisTable %>%
+  groupAnalysisTable <- groupAnalysisTable |>
     dplyr::mutate(
-      `ANOVA (Deviance) Chi-Sq` = round(.data$chisq, 2),
-      `ANOVA (Deviance) p-value` = ifelse(is.na(.data$pValue), "",
-        paste0(round(.data$pValue, 3), ifelse(.data$pValue < 0.05, " (Significant at p < 0.05)", " (Non-Significant)"))
+      "ANOVA (Deviance) Chi-Sq" = round(.data$chisq, 2),
+      "ANOVA (Deviance) p-value" = ifelse(is.na(.data$pValue), "",
+        paste0(
+          round(.data$pValue, 3),
+          ifelse(.data$pValue < 0.05, " (Significant at p < 0.05)", " (Non-Significant)")
+        )
       ),
-      `Pseudo-R2 contribution` = paste0(round(.data$deltaR2 * 100, 2), "%")
-    ) %>%
+      "Pseudo-R2 contribution" = paste0(round(.data$deltaR2 * 100, 2), "%")
+    ) |>
     dplyr::select(.data$sector, .data$stage, .data$group, .data$predictors,
-      `significant predictors` = .data$significantPredictors,
-      `ANOVA (Deviance) Chi-Sq`, `ANOVA (Deviance) p-value`, `Pseudo-R2 contribution`
-    ) %>%
-    relocate(.data$stage, .data$group) %>%
+      "significant predictors" = .data$significantPredictors,
+      "ANOVA (Deviance) Chi-Sq", "ANOVA (Deviance) p-value", "Pseudo-R2 contribution"
+    ) |>
+    dplyr::relocate(.data$stage, .data$group) |>
     dplyr::arrange(
       match(.data$stage, c("adoption", "stringency")),
       match(.data$group, c(
@@ -280,7 +289,7 @@ modelSelectionWorkflow <- function(
   for (sec in sectors) {
     fullWorkflowSummary <- paste0(fullWorkflowSummary, "Sector: ", sec, "\n")
     fullWorkflowSummary <- paste0(fullWorkflowSummary, "Equation:\n")
-    
+
     for (stg in stages) {
       comboName <- paste(sec, stg, sep = "_")
       if (comboName %in% names(selections)) {
@@ -298,7 +307,7 @@ modelSelectionWorkflow <- function(
       }
     }
   }
-  
+
   fullWorkflowSummary <- paste0(
     fullWorkflowSummary,
     "---\nSignificance Legend:\n*** p < 0.01\n** p < 0.05\n* p < 0.1\n"

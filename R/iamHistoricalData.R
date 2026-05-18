@@ -35,7 +35,7 @@ iamHistoricalData <- function(aggregate = FALSE, outputRegionMappingFile = "regi
   histPe <- calcOutput("PE",
     subtype = "IEA", ieaVersion = "latest",
     aggregate = FALSE, warnNA = FALSE
-  )[, , mappingHistPe$histPe] %>%
+  )[, , mappingHistPe$histPe] |>
     toolAggregate(rel = mappingHistPe, dim = 3.1, from = "histPe", to = "remind")
 
   # --- Secondary energy
@@ -45,7 +45,7 @@ iamHistoricalData <- function(aggregate = FALSE, outputRegionMappingFile = "regi
     "SE|Electricity|Wind (EJ/yr)", "wind",
     "SE|Electricity (EJ/yr)", "seel"
   )
-  genEmber <- calcOutput("Ember", subtype = "generation", aggregate = FALSE)[, , mappingEmber$ember] %>%
+  genEmber <- calcOutput("Ember", subtype = "generation", aggregate = FALSE)[, , mappingEmber$ember] |>
     toolAggregate(rel = mappingEmber, dim = 3.1, from = "ember", to = "remind") * 1e-3
 
   # --- Final energy
@@ -61,7 +61,7 @@ iamHistoricalData <- function(aggregate = FALSE, outputRegionMappingFile = "regi
   histFe <- calcOutput("FE",
     source = "IEA", ieaVersion = "latest",
     aggregate = FALSE, warnNA = FALSE
-  )[, , mappingHistFe$histFe] %>%
+  )[, , mappingHistFe$histFe] |>
     toolAggregate(rel = mappingHistFe, dim = 3.1, from = "histFe", to = "remind")
 
   # hist

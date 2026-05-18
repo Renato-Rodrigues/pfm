@@ -116,9 +116,9 @@ modelEstimationWorkflow <- function(
   message("Data loaded: ", paste(dim(data), collapse = " x "))
 
   # --- 2. Estimate models for each sector ---
-  all_models <- list()
-  all_coefficients <- list()
-  all_model_stats <- list()
+  allModels <- list()
+  allCoefficients <- list()
+  allModelStats <- list()
 
   for (s in sectors) {
     message("\n=== Sector: ", s, " ===")
@@ -159,28 +159,32 @@ modelEstimationWorkflow <- function(
     )
     message("  Stage 2 complete. Converged: ", stringencyResult$model$converged)
 
-    all_models[[s]] <- list(
+    allModels[[s]] <- list(
       adoption   = adoptionResult,
       stringency = stringencyResult,
       summary    = paste0(
         "=== ", s, " Sector Equations ===\n\n",
         "ADOPTION STAGE:\n",
-        formatModelEquation(adoption_coeffs, actorPowerIndex, actorPowerDrivers, instQualityDrivers, controlDrivers, includeLegend = FALSE),
+        formatModelEquation(
+          adoptionCoeffs, actorPowerIndex, actorPowerDrivers, instQualityDrivers, controlDrivers, includeLegend = FALSE
+        ),
         "\n\nSTRINGENCY STAGE:\n",
-        formatModelEquation(stringency_coeffs, actorPowerIndex, actorPowerDrivers, instQualityDrivers, controlDrivers, includeLegend = TRUE)
+        formatModelEquation(
+          stringencyCoeffs, actorPowerIndex, actorPowerDrivers, instQualityDrivers, controlDrivers, includeLegend = TRUE
+        )
       )
     )
 
     # Collect coefficients
-    adoption_coeffs <- .coeftestToDataFrame(adoptionResult$coeftest)
-    adoption_coeffs$sector <- s
-    adoption_coeffs$stage <- "Adoption"
+    adoptionCoeffs <- .coeftestToDataFrame(adoptionResult$coeftest)
+    adoptionCoeffs$sector <- s
+    adoptionCoeffs$stage <- "Adoption"
 
-    stringency_coeffs <- .coeftestToDataFrame(stringencyResult$coeftest)
-    stringency_coeffs$sector <- s
-    stringency_coeffs$stage <- "Stringency"
+    stringencyCoeffs <- .coeftestToDataFrame(stringencyResult$coeftest)
+    stringencyCoeffs$sector <- s
+    stringencyCoeffs$stage <- "Stringency"
 
-    all_coefficients[[s]] <- rbind(adoption_coeffs, stringency_coeffs)
+    allCoefficients[[s]] <- rbind(adoptionCoeffs, stringencyCoeffs)
 
     # Collect model stats
     # AIC for logistf needs manual calculation if fit$aic is NULL
@@ -190,21 +194,20 @@ modelEstimationWorkflow <- function(
       }
       return(m$aic)
     }
-    
     getNobs <- function(m) {
       if (inherits(m, "logistf")) return(m$n)
       if (inherits(m, "glm")) return(length(m$y))
       return(NA)
     }
 
-    adoption_stats <- data.frame(
+    adoptionStats <- data.frame(
       sector = s,
       stage = "Adoption",
       Observations = getNobs(adoptionResult$model),
       AIC = round(getAIC(adoptionResult$model), 2),
       Converged = adoptionResult$model$converged,
       Equation = formatModelEquation(
-        coefficients = adoption_coeffs,
+        coefficients = adoptionCoeffs,
         actorPowerIndex = actorPowerIndex,
         actorPowerDrivers = actorPowerDrivers,
         instQualityDrivers = instQualityDrivers,
@@ -212,14 +215,14 @@ modelEstimationWorkflow <- function(
       )
     )
 
-    stringency_stats <- data.frame(
+    stringencyStats <- data.frame(
       sector = s,
       stage = "Stringency",
       Observations = getNobs(stringencyResult$model),
       AIC = round(getAIC(stringencyResult$model), 2),
       Converged = stringencyResult$model$converged,
       Equation = formatModelEquation(
-        coefficients = stringency_coeffs,
+        coefficients = stringencyCoeffs,
         actorPowerIndex = actorPowerIndex,
         actorPowerDrivers = actorPowerDrivers,
         instQualityDrivers = instQualityDrivers,
@@ -227,24 +230,23 @@ modelEstimationWorkflow <- function(
       )
     )
 
-    all_model_stats[[s]] <- rbind(adoption_stats, stringency_stats)
+    allModelStats[[s]] <- rbind(adoptionStats, stringencyStats)
   }
 
   # Combine all coefficients and model stats into single data frames
-  combined_coefficients <- do.call(rbind, all_coefficients)
-  combined_model_stats <- do.call(rbind, all_model_stats)
-  rownames(combined_coefficients) <- NULL
-  rownames(combined_model_stats) <- NULL
+  combinedCoefficients <- do.call(rbind, allCoefficients)
+  combinedModelStats <- do.call(rbind, allModelStats)
+  rownames(combinedCoefficients) <- NULL
+  rownames(combinedModelStats) <- NULL
 
   # --- 3. Full Workflow Summary ---
   fullWorkflowSummary <- ""
   for (s in sectors) {
     fullWorkflowSummary <- paste0(fullWorkflowSummary, "Sector: ", s, "\n")
     fullWorkflowSummary <- paste0(fullWorkflowSummary, "Equation:\n")
-    
     # Adoption
     fullWorkflowSummary <- paste0(fullWorkflowSummary, formatModelEquation(
-      coefficients = .coeftestToDataFrame(all_models[[s]]$adoption$coeftest),
+      coefficients = .coeftestToDataFrame(allModels[[s]]$adoption$coeftest),
       actorPowerIndex = actorPowerIndex,
       actorPowerDrivers = actorPowerDrivers,
       instQualityDrivers = instQualityDrivers,
@@ -255,7 +257,7 @@ modelEstimationWorkflow <- function(
 
     # Stringency
     fullWorkflowSummary <- paste0(fullWorkflowSummary, formatModelEquation(
-      coefficients = .coeftestToDataFrame(all_models[[s]]$stringency$coeftest),
+      coefficients = .coeftestToDataFrame(allModels[[s]]$stringency$coeftest),
       actorPowerIndex = actorPowerIndex,
       actorPowerDrivers = actorPowerDrivers,
       instQualityDrivers = instQualityDrivers,
@@ -264,7 +266,7 @@ modelEstimationWorkflow <- function(
       prefix = "  stringency ~ "
     ), "\n\n")
   }
-  
+
   fullWorkflowSummary <- paste0(
     fullWorkflowSummary,
     "---\nSignificance Legend:\n*** p < 0.01\n** p < 0.05\n* p < 0.1\n"
@@ -275,12 +277,12 @@ modelEstimationWorkflow <- function(
   message("MODEL ESTIMATION WORKFLOW COMPLETE")
   message(paste(rep("=", 60), collapse = ""))
   message("\n--- Combined Model Statistics ---")
-  print(combined_model_stats)
+  print(combinedModelStats)
 
   return(list(
-    models = all_models,
-    coefficients = combined_coefficients,
-    model_stats = combined_model_stats,
+    models = allModels,
+    coefficients = combinedCoefficients,
+    model_stats = combinedModelStats,
     workflowSummary = fullWorkflowSummary
   ))
 }

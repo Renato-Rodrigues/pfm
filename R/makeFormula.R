@@ -6,7 +6,8 @@
 #' @param iq Character vector. Institutional Quality driver names to include.
 #' @param ap Character vector. Actor Power driver names to include.
 #' @param ctrl Character vector. Control variables to include.
-#' @param feLevels Character vector. Specific region fixed effects levels to include, or \code{"regionFE"} for all levels.
+#' @param feLevels Character vector. Specific region fixed effects levels to
+#'   include, or \code{"regionFE"} for all levels.
 #' @param timeTrend Logical. If \code{TRUE}, adds a linear time trend to the model.
 #'
 #' @return A \code{formula} object representing the regression model.

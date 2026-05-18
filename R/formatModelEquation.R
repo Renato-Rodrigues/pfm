@@ -14,6 +14,7 @@
 #' @return A character string containing the formatted equation.
 #'
 #' @importFrom dplyr mutate case_when group_by summarise
+#' @importFrom rlang .data
 #' @importFrom stringr str_pad
 #' @export
 formatModelEquation <- function(coefficients, actorPowerIndex = NULL, actorPowerDrivers = NULL,
@@ -25,84 +26,86 @@ formatModelEquation <- function(coefficients, actorPowerIndex = NULL, actorPower
   indent <- stringr::str_pad("", nchar(prefix), "right")
 
   # Helper for significance stars
-  get_stars <- function(p) {
+  getStars <- function(p) {
     if (is.na(p)) return("")
     if (p < 0.01) return("***")
     if (p < 0.05) return("**")
-    if (p < 0.1)  return("*")
+    if (p < 0.1) return("*")
     return("")
   }
 
   # Helper for formatting individual terms
-  format_term <- function(estimate, term, pValue, is_intercept = FALSE) {
-    stars <- get_stars(pValue)
+  formatTerm <- function(estimate, term, pValue, isIntercept = FALSE) {
+    stars <- getStars(pValue)
     val   <- abs(round(estimate, 3))
     sign  <- if (estimate >= 0) "+ " else "- "
-    if (is_intercept) {
+    if (isIntercept) {
       return(paste0(if (estimate < 0) "- " else "", val, stars))
     } else {
       # Clean up term name if it's safe R-named but needs to look pretty
-      clean_term <- gsub("\\.", " ", term)
-      return(paste0(sign, val, stars, "[", clean_term, "]"))
+      cleanTerm <- gsub("\\.", " ", term)
+      return(paste0(sign, val, stars, "[", cleanTerm, "]"))
     }
   }
 
   # Ensure names are matched against what's in the coefficients
   # In pfm, we often use make.names() for predictors.
-  safeAPI <- if (!is.null(actorPowerIndex)) make.names(actorPowerIndex) else NULL
-  safeAPD <- if (!is.null(actorPowerDrivers)) make.names(actorPowerDrivers) else NULL
-  safeIQD <- if (!is.null(instQualityDrivers)) make.names(instQualityDrivers) else NULL
-  safeCD  <- if (!is.null(controlDrivers)) make.names(controlDrivers) else NULL
+  safeAPI <- if (!is.null(actorPowerIndex)) make.names(actorPowerIndex) else NULL # nolint: object_usage_linter.
+  safeAPD <- if (!is.null(actorPowerDrivers)) make.names(actorPowerDrivers) else NULL # nolint: object_usage_linter.
+  safeIQD <- if (!is.null(instQualityDrivers)) make.names(instQualityDrivers) else NULL # nolint: object_usage_linter.
+  safeCD  <- if (!is.null(controlDrivers)) make.names(controlDrivers) else NULL # nolint: object_usage_linter.
 
   # Grouping logic
   # Note: Use unquoted column names for dplyr
-  df <- coefficients %>%
+  df <- coefficients |>
     dplyr::mutate(
       group = dplyr::case_when(
-        term == "(Intercept)" ~ "1_intercept",
-        term == safeAPI | term %in% safeAPD ~ "2_actor",
-        term %in% safeIQD ~ "3_inst",
-        grepl("_x_", term) ~ "4_interaction",
-        term %in% safeCD ~ "5_controls",
-        term == "timeTrend" ~ "6_time",
-        grepl("regionFE", term) ~ "7_fixed_effects",
+        .data$term == "(Intercept)" ~ "1_intercept",
+        .data$term == safeAPI | .data$term %in% safeAPD ~ "2_actor",
+        .data$term %in% safeIQD ~ "3_inst",
+        grepl("_x_", .data$term) ~ "4_interaction",
+        .data$term %in% safeCD ~ "5_controls",
+        .data$term == "timeTrend" ~ "6_time",
+        grepl("regionFE", .data$term) ~ "7_fixed_effects",
         TRUE ~ "5_controls"
       ),
-      term_txt = mapply(format_term, estimate, term, pValue, term == "(Intercept)")
-    ) %>%
-    dplyr::group_by(group) %>%
-    dplyr::summarise(group_txt = paste(term_txt, collapse = " "), .groups = "drop")
+      term_txt = mapply( # nolint: undesirable_function_linter.
+        formatTerm, .data$estimate, .data$term, .data$pValue, .data$term == "(Intercept)"
+      )
+    ) |>
+    dplyr::group_by(.data$group) |>
+    dplyr::summarise(group_txt = paste(.data$term_txt, collapse = " "), .groups = "drop")
 
   # Build the final string
-  eq_parts <- stats::setNames(df$group_txt, df$group)
-  
+  eqParts <- stats::setNames(df$group_txt, df$group)
+
   # Initialize the variable
   out <- prefix
-  
+
   # Intercept line
-  if ("1_intercept" %in% names(eq_parts)) {
-    out <- paste0(out, eq_parts["1_intercept"])
+  if ("1_intercept" %in% names(eqParts)) {
+    out <- paste0(out, eqParts["1_intercept"])
   }
-  
-  ordered_groups <- c("2_actor", "3_inst", "4_interaction", "5_controls", "6_time", "7_fixed_effects")
-  for (g in ordered_groups) {
-    if (g %in% names(eq_parts)) {
+
+  orderedGroups <- c("2_actor", "3_inst", "4_interaction", "5_controls", "6_time", "7_fixed_effects")
+  for (g in orderedGroups) {
+    if (g %in% names(eqParts)) {
       # Add a newline and indentation for each group
-      out <- paste0(out, "\n", indent, eq_parts[g])
+      out <- paste0(out, "\n", indent, eqParts[g])
     }
   }
-  
+
   # Add Legend if requested
   if (isTRUE(includeLegend)) {
-    legend_text <- paste0(
+    legendText <- paste0(
       "\n---\n",
       "Significance Legend:\n",
       "*** p < 0.01\n",
       "** p < 0.05\n",
       "* p < 0.1\n"
     )
-    out <- paste0(out, legend_text)
+    out <- paste0(out, legendText)
   }
-  
+
   return(out)
 }

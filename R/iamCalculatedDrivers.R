@@ -1,5 +1,6 @@
 #' Calculated drivers
 #'
+#' @param data A [`magpie`][magclass::magclass] object.
 #' @return A [`magpie`][magclass::magclass] object with calculated drivers
 #' @author Renato Rodrigues
 #'
@@ -14,7 +15,8 @@ iamCalculatedDrivers <- function(data) {
     "Fossil share in Industry", "VRE share", "Electrification"
   )
   result <- new.magpie(
-    cells_and_regions = getRegions(data), years = getYears(data), names = driverList, fill = 0
+    cells_and_regions = getRegions(data), # nolint: undesirable_function_linter.
+    years = getYears(data), names = driverList, fill = 0
   )
   result[, , "Coal primary energy share"] <-
     data[, , "pecoal"] / data[, , "petotal"]

@@ -28,8 +28,8 @@
 #' @importFrom logistf logistf logistf.control
 #' @importFrom sandwich vcovCL
 #' @importFrom lmtest coeftest
-fitAndDiagnose <- function(fml, df, depVar, stage, family, useFirth, nullLoglik, n,
-                           maxZThreshold = 15) { # <<< NEW PARAMETER
+fitAndDiagnose <- function(fml, df, depVar, stage, family, useFirth, nullLoglik, n, # nolint: cyclocomp_linter.
+                           maxZThreshold = 15) {
   warnEnv <- new.env()
   warnEnv$msg <- FALSE
   warnEnv$reason <- NULL
@@ -70,7 +70,7 @@ fitAndDiagnose <- function(fml, df, depVar, stage, family, useFirth, nullLoglik,
         },
         warning = function(w) {
           if (grepl("Maximum number of iterations", w$message, ignore.case = TRUE) ||
-            grepl("did not converge", w$message, ignore.case = TRUE)) {
+                grepl("did not converge", w$message, ignore.case = TRUE)) {
             warnEnv$msg <- TRUE
             warnEnv$reason <- "Algorithm did not converge (Max iterations exceeded)"
           }

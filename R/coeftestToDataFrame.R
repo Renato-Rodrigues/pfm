@@ -3,7 +3,8 @@
 #'
 #' @param coeftestObj Matrix/coeftest object. The coefficient validation output to process.
 #'
-#' @return A tidy Data.frame featuring columns: \code{term}, \code{estimate}, \code{stdError}, \code{statistic}, \code{pValue}.
+#' @return A tidy Data.frame featuring columns: \code{term}, \code{estimate},
+#'   \code{stdError}, \code{statistic}, \code{pValue}.
 #'
 #' @author Renato Rodrigues
 #' @keywords internal

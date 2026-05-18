@@ -22,7 +22,7 @@
 #'
 #' @keywords internal
 #' @export
-buildModelFormula <- function(depVar, actorPowerDrivers, actorPowerIndex,
+buildModelFormula <- function(depVar, actorPowerDrivers, actorPowerIndex, # nolint: cyclocomp_linter.
                               instQualityDrivers, controlDrivers,
                               regionMappingFixedEffects,
                               timeTrend = TRUE) {
@@ -32,8 +32,8 @@ buildModelFormula <- function(depVar, actorPowerDrivers, actorPowerIndex,
   #    it takes priority as the sole Actor Power main effect.
   # 2. Otherwise, use individual drivers as main effects.
   if (!is.null(actorPowerIndex) &&
-    !is.null(actorPowerDrivers) &&
-    any(actorPowerIndex %in% actorPowerDrivers)) {
+        !is.null(actorPowerDrivers) &&
+        any(actorPowerIndex %in% actorPowerDrivers)) {
     # Include all api indices that are requested as main effects
     rhs <- c(rhs, make.names(intersect(actorPowerIndex, actorPowerDrivers)))
   } else if (!is.null(actorPowerDrivers) && length(actorPowerDrivers) > 0) {
@@ -47,7 +47,7 @@ buildModelFormula <- function(depVar, actorPowerDrivers, actorPowerIndex,
 
   # Interaction: each actorPowerIndex × each institutional quality variable
   if (!is.null(actorPowerIndex) && !is.null(instQualityDrivers) &&
-    length(instQualityDrivers) > 0) {
+        length(instQualityDrivers) > 0) {
     for (api in actorPowerIndex) {
       intTerms <- paste0(make.names(api), "_x_", make.names(instQualityDrivers))
       rhs <- c(rhs, intTerms)

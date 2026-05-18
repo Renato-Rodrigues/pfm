@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it using the metadata from this file.
+type: software
+title: 'pfm: Political Feasibility Module (PFM) for IAMs'
+version: 0.2.0
+date-released: '2026-05-18'
+abstract: Econometric model for the political feasibility of carbon pricing in integrated
+  assessment models. Implements the two-stage hurdle model (adoption + stringency)
+  for Bulk and Diffuse sectors. Consumes magpie objects from mrpfm.
+authors:
+- family-names: Rodrigues
+  given-names: Renato
+  email: renato.rodrigues@pik-potsdam.de
+  orcid: https://orcid.org/0000-0002-5863-5514
+- family-names: Kriegler
+  given-names: Elmar
+  email: kriegler@pik-potsdam.de
+  orcid: https://orcid.org/0000-0002-3307-2647
+license: MIT
+repository-code: https://github.com/pik-piam/pfm
+

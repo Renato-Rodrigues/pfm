@@ -10,3 +10,9 @@
 ^Makefile$
 ^.*CITATION\.cff$
 ^\.git$
+^workflow$
+^\.claude$
+^.lintr$
+^tests/.lintr$
+^_pkgdown\.yml$
+^.*CITATION.cff$

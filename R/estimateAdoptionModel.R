@@ -20,6 +20,8 @@
 #'   variable. If provided, it is used for interaction terms. It only acts
 #'   as a main effect if its name is also in \code{actorPowerDrivers}.
 #'   \code{NULL} to exclude the interaction.
+#' @param instQualityDrivers Character vector of Institutional Quality driver names.
+#' @param controlDrivers Character vector of control variable names.
 #' @param regionMappingFixedEffects Character or NULL. Region mapping file used to define the
 #'   fixed-effects grouping. If \code{NULL}, region fixed effects are omitted.
 #'   Default: \code{"regionmappingH12.csv"}.
@@ -48,6 +50,7 @@
 #' @importFrom lmtest coeftest
 #' @importFrom sandwich vcovCL
 #' @importFrom logistf logistf
+#' @importFrom utils head
 #'
 #' @export
 #'

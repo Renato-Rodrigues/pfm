@@ -47,7 +47,7 @@ actorPowerIndex <- function(
     "Incumbent Power|Bulk", "Incumbent Power|Diffuse"
   )
   out <- new.magpie(
-    cells_and_regions = getRegions(data), years = getYears(data),
+    cells_and_regions = magclass::getItems(data, dim = 1), years = getYears(data),
     names = outNames, fill = 0
   )
 
@@ -62,18 +62,18 @@ actorPowerIndex <- function(
   # --- Calculate Innovator Power ---
   out[, , "Innovator Power|Bulk"] <-
     ((coeff$bulk$innovators_power$vre * vre) + (coeff$bulk$innovators_power$elec * elec)) /
-      sumInnovBulk
+    sumInnovBulk
   out[, , "Innovator Power|Diffuse"] <-
     ((coeff$diffuse$innovators_power$vre * vre) + (coeff$diffuse$innovators_power$elec * elec)) /
-      sumInnovDiffuse
+    sumInnovDiffuse
 
   # --- Calculate Incumbent Power ---
   out[, , "Incumbent Power|Bulk"] <-
     ((coeff$bulk$incumbents_power$coal * coal) + (coeff$bulk$incumbents_power$oilgas * oilgas) +
-      (coeff$bulk$incumbents_power$fossilInd * fossilInd)) / sumIncumbBulk
+     (coeff$bulk$incumbents_power$fossilInd * fossilInd)) / sumIncumbBulk
   out[, , "Incumbent Power|Diffuse"] <-
     ((coeff$diffuse$incumbents_power$coal * coal) + (coeff$diffuse$incumbents_power$oilgas * oilgas) +
-      (coeff$diffuse$incumbents_power$fossilInd * fossilInd)) / sumIncumbDiffuse
+     (coeff$diffuse$incumbents_power$fossilInd * fossilInd)) / sumIncumbDiffuse
 
   # --- Calculate overall Actor Power Index ---
   out[, , "Actor Power Index|Bulk"] <-

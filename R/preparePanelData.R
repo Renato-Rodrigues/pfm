@@ -28,7 +28,7 @@
 #' @export
 #'
 #' @author Renato Rodrigues
-preparePanelData <- function(data, sector, actorPowerDrivers,
+preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocomp_linter.
                              actorPowerIndex, instQualityDrivers,
                              controlDrivers, regionMappingFixedEffects,
                              lag = 1) {
@@ -37,7 +37,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers,
     return(data)
   }
 
-  regions <- magclass::getRegions(data)
+  regions <- magclass::getRegions(data) # nolint: undesirable_function_linter.
   years <- magclass::getYears(data, as.integer = TRUE)
 
   # Dependent variable name
@@ -57,7 +57,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers,
   )
 
   availableVars <- magclass::getNames(data)
-  has_ecp <- ecpName %in% availableVars
+  hasEcp <- ecpName %in% availableVars
 
   # Verify all requested predictor variables exist (excluding internally computed lags)
   missing <- setdiff(allVarsNeeded, availableVars)
@@ -80,7 +80,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers,
       row$timeTrend <- yi # linear time trend (1, 2, 3, ...)
 
       # Dependent variable
-      if (has_ecp) {
+      if (hasEcp) {
         val <- as.numeric(data[r, years[yi], ecpName])
         row$ecp <- if (is.finite(val)) val else NA_real_
       } else {
@@ -88,13 +88,13 @@ preparePanelData <- function(data, sector, actorPowerDrivers,
       }
 
       # Fetch driver values from the lagged year index (yi - lag)
-      yi_lag <- yi - lag
+      yiLag <- yi - lag
 
       # Compute lagged dependent variables
-      if (has_ecp) {
-        val_lag <- if (yi_lag >= 1) as.numeric(data[r, years[yi_lag], ecpName]) else NA_real_
-        row$lagged_ecp <- if (is.finite(val_lag)) val_lag else NA_real_
-        row$lagged_adoption <- if (is.finite(val_lag)) as.integer(val_lag > 0) else NA_integer_
+      if (hasEcp) {
+        valLag <- if (yiLag >= 1) as.numeric(data[r, years[yiLag], ecpName]) else NA_real_
+        row$lagged_ecp <- if (is.finite(valLag)) valLag else NA_real_
+        row$lagged_adoption <- if (is.finite(valLag)) as.integer(valLag > 0) else NA_integer_
       } else {
         row$lagged_ecp <- NA_real_
         row$lagged_adoption <- NA_integer_
@@ -103,16 +103,19 @@ preparePanelData <- function(data, sector, actorPowerDrivers,
       # Actor Power Index
       if (!is.null(apiName)) {
         for (i in seq_along(actorPowerIndex)) {
-          val_i <- if (yi_lag >= 1) as.numeric(data[r, years[yi_lag], apiName[i]]) else NA_real_
-          row[[make.names(actorPowerIndex[i])]] <- if (is.finite(val_i)) val_i else NA_real_
+          valI <- if (yiLag >= 1) as.numeric(data[r, years[yiLag], apiName[i]]) else NA_real_
+          row[[make.names(actorPowerIndex[i])]] <- if (is.finite(valI)) valI else NA_real_
         }
       }
 
       # All other drivers
-      clean_drivers <- setdiff(c(actorPowerDrivers, instQualityDrivers, controlDrivers), c("lagged_ecp", "lagged_adoption"))
-      for (v in clean_drivers) {
+      cleanDrivers <- setdiff(
+        c(actorPowerDrivers, instQualityDrivers, controlDrivers),
+        c("lagged_ecp", "lagged_adoption")
+      )
+      for (v in cleanDrivers) {
         safeName <- make.names(v)
-        val <- if (yi_lag >= 1) as.numeric(data[r, years[yi_lag], v]) else NA_real_
+        val <- if (yiLag >= 1) as.numeric(data[r, years[yiLag], v]) else NA_real_
         row[[safeName]] <- if (is.finite(val)) val else NA_real_
       }
 
@@ -151,7 +154,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers,
   }
 
   # --- Remove rows with NA in dependent variable (only if ECP was provided) ---
-  if (has_ecp) {
+  if (hasEcp) {
     df <- df[!is.na(df$ecp), , drop = FALSE]
   }
 

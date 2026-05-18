@@ -1,5 +1,6 @@
 #' @title performGroupAnalysis
-#' @description Analyzes the drop-one block variance contribution and formal ANOVA statistics for the final evaluated model.
+#' @description Analyzes the drop-one block variance contribution and formal
+#'   ANOVA statistics for the final evaluated model.
 #'
 #' @param bestModel List. The final selected model object structure from the modelSelection sequence.
 #' @param df Data.frame. The dataset used for fitting.
@@ -12,13 +13,16 @@
 #' @param timeTrend Logical. Flag indicating if a baseline linear time trend was factored.
 #' @param .msg Function. Diagnostic messaging output function.
 #'
-#' @return A nested nested list detailing pseudo-R2 change, test statistics, and significance probabilities per predictor block mapping.
+#' @return A nested nested list detailing pseudo-R2 change, test statistics,
+#'   and significance probabilities per predictor block mapping.
 #'
 #' @author Renato Rodrigues
 #' @keywords internal
 #'
 #' @importFrom stats terms as.formula anova deviance
-performGroupAnalysis <- function(bestModel, df, depVar, stage, family, useFirth, nullLoglik, n, timeTrend, .msg) {
+performGroupAnalysis <- function( # nolint: cyclocomp_linter.
+  bestModel, df, depVar, stage, family, useFirth, nullLoglik, n, timeTrend, .msg
+) {
   .msg("\n============================================================")
   .msg("FINAL MODEL GROUP CONTRIBUTION ANALYSIS (DROP-ONE & ANOVA)")
   .msg("============================================================")

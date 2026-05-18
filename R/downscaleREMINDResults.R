@@ -32,7 +32,7 @@ downscaleREMINDResults <- function(gdxFile = "fulldata.gdx", aggregate = FALSE,
 
   # --- Primary energy
   prodPe <- gdx::readGDX(gdxFile, "vm_prodPe", field = "l", react = "silent", restore_zeros = FALSE)[, yearsList, ]
-  remindData <- new.magpie(cells_and_regions = getRegions(prodPe), years = yearsList, names = vars, fill = 0)
+  remindData <- new.magpie(cells_and_regions = getItems(prodPe, dim = 1), years = yearsList, names = vars, fill = 0)
   remindData[, , peVars[!peVars == "petotal"]] <- prodPe[, , peVars[!peVars == "petotal"]]
   remindData[, , "petotal"] <- setNames(dimSums(prodPe, dim = 3), "petotal")
 

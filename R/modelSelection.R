@@ -11,8 +11,10 @@
 #' @param instQualityDrivers Character vector of Institutional Quality drivers.
 #' @param controlDrivers Character vector of control variable names.
 #' @param regionMappingFixedEffects Character or NULL. Region mapping file.
+#' @param baselineIQ List. Baseline IQ drivers for each stage.
 #' @param timeTrend Logical. Add a linear time trend (can be applied from start). Default: \code{TRUE}.
-#' @param useFirth Logical. If \code{TRUE}, uses bias-reduced estimation (Firth-type) for both adoption (Logit) and stringency (GLM) stages.
+#' @param useFirth Logical. If \code{TRUE}, uses bias-reduced estimation
+#'   (Firth-type) for both adoption (Logit) and stringency (GLM) stages.
 #' @param criterion Character. \code{"AIC"}, \code{"BIC"}, \code{"AICc"},
 #'   \code{"HQIC"}, or \code{"pseudoR2"} for best model.
 #' @param regionFEMode Character. \code{"block"} or \code{"individual"} for fixed effects.
@@ -87,9 +89,10 @@
 #' @importFrom lmtest coeftest
 #' @importFrom sandwich vcovCL
 #' @importFrom logistf logistf
+#' @importFrom utils flush.console combn
 #'
 #' @export
-modelSelection <- function(
+modelSelection <- function( # nolint: cyclocomp_linter.
     data,
     sector = "Bulk",
     stage = "adoption",
@@ -225,11 +228,15 @@ modelSelection <- function(
       if (lowerIsBetter) {
         if (newV < bestV) {
           res$new <- paste0(name, " (", round(newV, 2), " < ", round(bestV, 2), ")")
-        } else if (newV > bestV) res$best <- paste0(name, " (", round(bestV, 2), " < ", round(newV, 2), ")")
+        } else if (newV > bestV) {
+          res$best <- paste0(name, " (", round(bestV, 2), " < ", round(newV, 2), ")")
+        }
       } else {
         if (newV > bestV) {
           res$new <- paste0(name, " (", round(newV, 4), " > ", round(bestV, 4), ")")
-        } else if (newV < bestV) res$best <- paste0(name, " (", round(bestV, 4), " > ", round(newV, 4), ")")
+        } else if (newV < bestV) {
+          res$best <- paste0(name, " (", round(bestV, 4), " > ", round(newV, 4), ")")
+        }
       }
       res
     }
@@ -348,7 +355,7 @@ modelSelection <- function(
         return(list(addedItem))
       }
       combos <- list(addedItem)
-      for (i in 1:length(baseList)) {
+      for (i in seq_along(baseList)) {
         combsOfI <- combn(baseList, i, simplify = FALSE)
         for (comb in combsOfI) combos <- c(combos, list(c(comb, addedItem)))
       }
@@ -425,7 +432,11 @@ modelSelection <- function(
       stepBestModel <- phaseBestModel
       for (iqSet in candSubsets) {
         desc <- paste0("Test IQ: [", paste(iqSet, collapse = ", "), "]")
-        res <- .fitStep(phaseBestModel[["api"]], iqSet, phaseBestModel[["ap"]], phaseBestModel[["ctrl"]], phaseBestModel[["feLevels"]], "Phase 2: IQ Selection", desc)
+        res <- .fitStep(
+          phaseBestModel[["api"]], iqSet, phaseBestModel[["ap"]],
+          phaseBestModel[["ctrl"]], phaseBestModel[["feLevels"]],
+          "Phase 2: IQ Selection", desc
+        )
         stepOut <- .logStep(res, stepCounter, criterion)
         stepsList[[stepCounter]] <- stepOut
         evalLogs <- c(evalLogs, stepOut$msg)
@@ -453,7 +464,11 @@ modelSelection <- function(
       stepBestModel <- phaseBestModel
       for (apSet in candSubsets) {
         desc <- paste0("Test AP Combo: [", paste(apSet, collapse = ", "), "]")
-        res <- .fitStep(phaseBestModel[["api"]], phaseBestModel[["iq"]], apSet, phaseBestModel[["ctrl"]], phaseBestModel[["feLevels"]], "Phase 3: AP Combos", desc)
+        res <- .fitStep(
+          phaseBestModel[["api"]], phaseBestModel[["iq"]], apSet,
+          phaseBestModel[["ctrl"]], phaseBestModel[["feLevels"]],
+          "Phase 3: AP Combos", desc
+        )
         stepOut <- .logStep(res, stepCounter, criterion)
         stepsList[[stepCounter]] <- stepOut
         evalLogs <- c(evalLogs, stepOut$msg)
@@ -482,7 +497,10 @@ modelSelection <- function(
       stepBestModel <- phaseBestModel
       for (ctrlSet in candSubsets) {
         desc <- paste0("Test Ctrl: [", paste(ctrlSet, collapse = ", "), "]")
-        res <- .fitStep(phaseBestModel[["api"]], phaseBestModel[["iq"]], phaseBestModel[["ap"]], ctrlSet, phaseBestModel[["feLevels"]], "Phase 4: Ctrl Selection", desc)
+        res <- .fitStep(
+          phaseBestModel[["api"]], phaseBestModel[["iq"]], phaseBestModel[["ap"]],
+          ctrlSet, phaseBestModel[["feLevels"]], "Phase 4: Ctrl Selection", desc
+        )
         stepOut <- .logStep(res, stepCounter, criterion)
         stepsList[[stepCounter]] <- stepOut
         evalLogs <- c(evalLogs, stepOut$msg)
@@ -495,7 +513,7 @@ modelSelection <- function(
       phaseBestModel <- stepBestModel
     }
     grandBestModel <- phaseBestModel
-  } else { # testMode == "combinations"
+  } else {
     # === PHASE 1, 2, 3 Combined ===
     pCmbMsg <- "--- Combinations Mode: Phase 1, 2, 3 Combined ---"
     .msg(pCmbMsg)
@@ -515,7 +533,8 @@ modelSelection <- function(
         apArg <- if (apCfg$type == "ap") apCfg$val else NULL
         feArg <- if (!is.null(regionMappingFixedEffects) && regionFEMode == "block") "regionFE" else NULL
 
-        desc <- paste0("Combos: IQ[", paste(iqSet, collapse = ","), "] ", apCfg$type, "[", paste(apCfg$val, collapse = ","), "]")
+        desc <- paste0("Combos: IQ[", paste(iqSet, collapse = ","),
+                       "] ", apCfg$type, "[", paste(apCfg$val, collapse = ","), "]")
         res <- .fitStep(apiArg, iqSet, apArg, baseCtrl, feArg, "Combos P1-3", desc)
         stepOut <- .logStep(res, stepCounter, criterion)
         stepsList[[stepCounter]] <- stepOut
@@ -542,7 +561,10 @@ modelSelection <- function(
       stepBestModel <- phaseBestModel
       for (ctrlSet in candSubsets) {
         desc <- paste0("Test Ctrl: [", paste(ctrlSet, collapse = ", "), "]")
-        res <- .fitStep(phaseBestModel[["api"]], phaseBestModel[["iq"]], phaseBestModel[["ap"]], ctrlSet, phaseBestModel[["feLevels"]], "Phase 4: Ctrl Selection", desc)
+        res <- .fitStep(
+          phaseBestModel[["api"]], phaseBestModel[["iq"]], phaseBestModel[["ap"]],
+          ctrlSet, phaseBestModel[["feLevels"]], "Phase 4: Ctrl Selection", desc
+        )
         stepOut <- .logStep(res, stepCounter, criterion)
         stepsList[[stepCounter]] <- stepOut
         evalLogs <- c(evalLogs, stepOut$msg)
@@ -597,7 +619,9 @@ modelSelection <- function(
   .msg("\n", recommendation)
   evalLogs <- c(evalLogs, "", recommendation)
 
-  groupAnalysis <- performGroupAnalysis(bestGlobalModel, df, depVar, stage, family, useFirth, nullLoglik, n, timeTrend, .msg)
+  groupAnalysis <- performGroupAnalysis(
+    bestGlobalModel, df, depVar, stage, family, useFirth, nullLoglik, n, timeTrend, .msg
+  )
 
   return(list(
     bestModel       = bestGlobalModel,

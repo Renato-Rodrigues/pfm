@@ -34,7 +34,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   out <- NULL
 
   # Carbon Price
-  # TODO: read from REMIND to compare results
+  # Read from REMIND to compare results
 
   # Actor Power Index
   modelDownscale <- downscaleREMINDResults(
@@ -88,7 +88,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   gdpNorm <- toolNormalize(gdp, minVal = 0, maxVal = 30000000) # 30 trillion normalized to 1
   gdpPerCapitaNorm <- toolNormalize(gdpPerCapita, minVal = 0, maxVal = 150000) # 150k normalized to 1
   # Land area
-  landArea <- new.magpie(getRegions(pop), y, "LandArea", fill = NA)
+  landArea <- new.magpie(getRegions(pop), y, "LandArea", fill = NA) # nolint: undesirable_function_linter.
   landArea[, y, ] <- calcOutput("FAOLandArea", aggregate = aggregate, regionmapping = outputRegionMappingFile)
   landAreaNorm <- toolNormalize(landArea, minVal = 0, maxVal = 1500000) # 1.5 million 1000 ha normalized to 1
   # 1.5 million 1000 ha = 15 million square kilometers =~ Largest country in the World (Russia)

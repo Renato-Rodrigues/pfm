@@ -4,7 +4,9 @@
 #' @param data A \code{data.frame} or a \code{magpie} object (panel data).
 #' @param drivers Character vector of driver names to include in the correlation matrix.
 #' @param method Character. Correlation method: "pearson", "spearman", or "kendall". Defaults to "pearson".
-#' @param use Character. Handling of missing values: "everything", "all.obs", "complete.obs", "na.or.complete", or "pairwise.complete.obs". Defaults to "pairwise.complete.obs".
+#' @param use Character. Handling of missing values: "everything", "all.obs",
+#'   "complete.obs", "na.or.complete", or "pairwise.complete.obs".
+#'   Defaults to "pairwise.complete.obs".
 #'
 #' @return A data.frame representing the correlation matrix with driver names as the first column.
 #'
