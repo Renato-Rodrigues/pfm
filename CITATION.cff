@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: If you use this software, please cite it using the metadata from this file.
 type: software
 title: 'pfm: Political Feasibility Module (PFM) for IAMs'
-version: 0.2.1
+version: 0.2.2
 date-released: '2026-05-19'
 abstract: Econometric model for the political feasibility of carbon pricing in integrated
   assessment models. Implements the two-stage hurdle model (adoption + stringency)

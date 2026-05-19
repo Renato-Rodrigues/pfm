@@ -84,8 +84,8 @@ modelEstimationWorkflow <- function(
     ),
     actorPowerIndex = "Actor Power Index",
     instQualityDrivers = c(
-      "Government Effectiveness", "Control of Corruption",
-      "Voice and Accountability", "Political Stability", "Regulatory Quality", "Rule of Law"
+      "Government Effectiveness (WGI)", "Control of Corruption (WGI)",
+      "Voice and Accountability (WGI)", "Political Stability (WGI)", "Regulatory Quality (WGI)", "Rule of Law (WGI)"
     ),
     controlDrivers = c(
       "Population", "GDP per Capita", "Land Area",

@@ -105,8 +105,8 @@ modelSelection <- function( # nolint: cyclocomp_linter.
     ),
     actorPowerIndex = c("Actor Power Index", "Incumbent Power"),
     instQualityDrivers = c(
-      "Government Effectiveness", "Control of Corruption",
-      "Voice and Accountability", "Political Stability", "Regulatory Quality", "Rule of Law"
+      "Government Effectiveness (WGI)", "Control of Corruption (WGI)",
+      "Voice and Accountability (WGI)", "Political Stability (WGI)", "Regulatory Quality (WGI)", "Rule of Law (WGI)"
     ),
     controlDrivers = c(
       "Population", "GDP per Capita", "Land Area",
@@ -115,7 +115,7 @@ modelSelection <- function( # nolint: cyclocomp_linter.
       "Gender Inequality Index", "Energy Intensity"
     ),
     regionMappingFixedEffects = "regionmappingH12.csv",
-    baselineIQ = list(adoption = "Government Effectiveness", stringency = "Government Effectiveness"),
+    baselineIQ = list(adoption = "Government Effectiveness (WGI)", stringency = "Government Effectiveness (WGI)"),
     timeTrend = TRUE,
     useFirth = TRUE,
     criterion = "AIC",

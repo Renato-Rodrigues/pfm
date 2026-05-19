@@ -1,6 +1,6 @@
 # Political Feasibility Module (PFM) for IAMs
 
-R package **pfm**, version **0.2.1**
+R package **pfm**, version **0.2.2**
 
    [![R build status](https://github.com/pik-piam/pfm/workflows/check/badge.svg)](https://github.com/pik-piam/pfm/actions) [![codecov](https://codecov.io/gh/pik-piam/pfm/branch/master/graph/badge.svg)](https://app.codecov.io/gh/pik-piam/pfm) 
 
@@ -40,7 +40,7 @@ In case of questions / problems please contact Renato Rodrigues <renato.rodrigue
 
 To cite package **pfm** in publications use:
 
-Rodrigues R, Kriegler E (2026). "pfm: Political Feasibility Module (PFM) for IAMs." Version: 0.2.1, <https://github.com/pik-piam/pfm>.
+Rodrigues R, Kriegler E (2026). "pfm: Political Feasibility Module (PFM) for IAMs." Version: 0.2.2, <https://github.com/pik-piam/pfm>.
 
 A BibTeX entry for LaTeX users is
 
@@ -51,6 +51,6 @@ A BibTeX entry for LaTeX users is
   date = {2026-05-19},
   year = {2026},
   url = {https://github.com/pik-piam/pfm},
-  note = {Version: 0.2.1},
+  note = {Version: 0.2.2},
 }
 ```

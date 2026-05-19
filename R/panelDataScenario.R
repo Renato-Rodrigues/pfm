@@ -62,12 +62,12 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   wgiNorm <- toolNormalize(wgiInt, targetRange = c(0, 1))
   out <- mbind(
     out,
-    wgiNorm[, y, "Voice and Accountability"],
-    wgiNorm[, y, "Political Stability"],
-    wgiNorm[, y, "Regulatory Quality"],
-    setNames(sspExt[, y, "SSP2.Rule-of-Law Index"], "Rule of Law"),
-    setNames(sspExt[, y, "SSP2.Governance Index|Government Effectiveness"], "Government Effectiveness"),
-    setNames(sspExt[, y, "SSP2.Governance Index|Control of Corruption"], "Control of Corruption")
+    wgiNorm[, y, "Voice and Accountability (WGI)"],
+    wgiNorm[, y, "Political Stability (WGI)"],
+    wgiNorm[, y, "Regulatory Quality (WGI)"],
+    setNames(sspExt[, y, "SSP2.Rule-of-Law Index"], "Rule of Law (WGI)"),
+    setNames(sspExt[, y, "SSP2.Governance Index|Government Effectiveness"], "Government Effectiveness (WGI)"),
+    setNames(sspExt[, y, "SSP2.Governance Index|Control of Corruption"], "Control of Corruption (WGI)")
   )
 
   # V-Dem governance indicators — kept constant, no SSP projections available
