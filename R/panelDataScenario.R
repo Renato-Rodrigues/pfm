@@ -56,7 +56,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
     subtype = "drivers_SSP2",
     aggregate = aggregate, regionmapping = outputRegionMappingFile
   )
-  # wgi - simple assumtpion - keep it constant
+  # WGI — simple assumption: keep constant across scenario years
   wgi <- calcOutput("WGIindicator", aggregate = aggregate, regionmapping = outputRegionMappingFile)
   wgiInt <- toolTimeInterpolation(wgi, y)
   wgiNorm <- toolNormalize(wgiInt, targetRange = c(0, 1))
@@ -69,6 +69,12 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
     setNames(sspExt[, y, "SSP2.Governance Index|Government Effectiveness"], "Government Effectiveness"),
     setNames(sspExt[, y, "SSP2.Governance Index|Control of Corruption"], "Control of Corruption")
   )
+
+  # V-Dem governance indicators — kept constant, no SSP projections available
+  vdem <- calcOutput("VDem", aggregate = aggregate, regionmapping = outputRegionMappingFile)
+  vdemInt <- toolTimeInterpolation(vdem, y)
+  vdemNorm <- toolNormalize(vdemInt, minVal = 0, maxVal = 1, targetRange = c(0, 1))
+  out <- mbind(out, vdemNorm[, y, ])
 
   # Control Variables
   # GDP per capita

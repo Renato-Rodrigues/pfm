@@ -58,6 +58,12 @@ panelDataHistorical <- function(aggregate = TRUE,
   wgiNorm <- toolNormalize(wgiInt, targetRange = c(0, 1))
   out <- mbind(out, wgiNorm[, y, ])
 
+  # V-Dem governance indicators (rule of law and accountability)
+  vdem <- calcOutput("VDem", aggregate = aggregate, regionmapping = outputRegionMappingFile)
+  vdemInt <- toolTimeInterpolation(vdem, y)
+  vdemNorm <- toolNormalize(vdemInt, minVal = 0, maxVal = 1, targetRange = c(0, 1))
+  out <- mbind(out, vdemNorm[, y, ])
+
   # Control Variables
   # GDP per capita
   pop <- calcOutput("PopulationPast", aggregate = aggregate, regionmapping = outputRegionMappingFile)

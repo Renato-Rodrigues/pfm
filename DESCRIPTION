@@ -1,8 +1,8 @@
 Type: Package
 Package: pfm
 Title: Political Feasibility Module (PFM) for IAMs
-Version: 0.2.0
-Date: 2026-05-18
+Version: 0.2.1
+Date: 2026-05-19
 Authors@R: c(
     person("Renato", "Rodrigues", , "renato.rodrigues@pik-potsdam.de", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-5863-5514")),
