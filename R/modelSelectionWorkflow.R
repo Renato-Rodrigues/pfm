@@ -108,7 +108,8 @@ modelSelectionWorkflow <- function( # nolint: cyclocomp_linter.
     stabilityShift = 0,
     logTransform = TRUE,
     includeLaggedECP = FALSE,
-    panelData = NULL) {
+    panelData = NULL,
+    modelDir = getOption("pfm.modelDir", NULL)) {
   # --- 1. Load data once ---
   if (is.null(panelData)) {
     message("Loading historical panel data...")
@@ -151,7 +152,8 @@ modelSelectionWorkflow <- function( # nolint: cyclocomp_linter.
         timeTrend = timeTrend,
         criterion = criterion,
         useFirth = useFirth,
-        stabilityShift = stabilityShift
+        stabilityShift = stabilityShift,
+        modelDir = modelDir
       )
       selections[[comboName]] <- sel
 

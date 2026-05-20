@@ -1,0 +1,194 @@
+#' Assemble a PFMModel from a fit result and its training context
+#'
+#' Accepts either a \code{\link{fitAndDiagnose}} result list (which already
+#' carries all diagnostic fields) or the bare fit objects from
+#' \code{\link{estimateAdoptionModel}} / \code{\link{estimatePriceStringencyModel}}
+#' (where diagnostics are computed here). In both cases the training data and
+#' context arguments are required.
+#'
+#' @param fit List. Output of \code{fitAndDiagnose}, or a list with at minimum
+#'   \code{model}, \code{coeftest}, \code{vcov}, and \code{formula}.
+#' @param training_data data.frame. The df actually passed to glm/logistf.
+#' @param sector Character. \code{"Bulk"} or \code{"Diffuse"}.
+#' @param stage Character. \code{"adoption"} or \code{"stringency"}.
+#' @param family Character. \code{"logistf"}, \code{"Gamma"}, or \code{"gaussian"}.
+#' @param useFirth Logical.
+#' @param label Character. Optional human label stored in the manifest.
+#'
+#' @return A \code{\link{PFMModel}} object.
+#'
+#' @importFrom stats cor fitted terms
+#' @importFrom utils packageVersion
+#' @keywords internal
+buildPFMModel <- function(fit, training_data, sector, stage, family, useFirth, label = "") {
+
+  fml <- fit$formula
+  ids <- computeModelId(fml, training_data)
+
+  # --- Fitted values ---
+  fittedVals <- if (!is.null(fit$model)) {
+    tryCatch(as.numeric(fitted(fit$model)), error = function(e) numeric(0))
+  } else {
+    numeric(0)
+  }
+
+  # --- Training year range ---
+  trainingYears <- if ("year" %in% names(training_data)) {
+    as.integer(range(training_data$year, na.rm = TRUE))
+  } else {
+    integer(0)
+  }
+
+  # --- Correlation matrices on formula variables ---
+  correlations <- .buildCorrelations(fml, training_data)
+
+  # --- Diagnostics: use fitAndDiagnose fields if present, else compute ---
+  diag <- .extractDiagnostics(fit, training_data)
+
+  newPFMModel(
+    id             = ids[["id"]],
+    id_full        = ids[["id_full"]],
+    created_at     = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
+    label          = label,
+    pfm_version    = as.character(utils::packageVersion("pfm")),
+    sector         = sector,
+    stage          = stage,
+    formula        = fml,
+    family         = family,
+    training_years = trainingYears,
+    useFirth       = isTRUE(useFirth),
+    training_data  = training_data,
+    data_hash      = ids[["data_hash"]],
+    model          = fit$model,
+    coeftest       = fit$coeftest,
+    vcov           = fit$vcov,
+    fitted_values  = fittedVals,
+    correlations   = correlations,
+    diagnostics    = diag,
+    projections    = NULL
+  )
+}
+
+# Build Pearson and Spearman correlation matrices for the numeric predictors
+# that appear in the model formula.
+.buildCorrelations <- function(fml, df) {
+  termLabels <- tryCatch(attr(stats::terms(fml), "term.labels"), error = function(e) character(0))
+  # Keep only simple (non-interaction) terms that are numeric columns in df
+  simpleTerms <- termLabels[!grepl(":", termLabels)]
+  numCols <- simpleTerms[simpleTerms %in% names(df) & vapply(df[simpleTerms], is.numeric, logical(1))]
+
+  if (length(numCols) < 2) {
+    return(list(pearson = matrix(nrow = 0, ncol = 0), spearman = matrix(nrow = 0, ncol = 0)))
+  }
+
+  subDf <- df[, numCols, drop = FALSE]
+  list(
+    pearson  = cor(subDf, use = "pairwise.complete.obs", method = "pearson"),
+    spearman = cor(subDf, use = "pairwise.complete.obs", method = "spearman")
+  )
+}
+
+# Extract or compute diagnostics from a fit result.
+# If the fit came from fitAndDiagnose, all fields are already present.
+# If it came from estimateAdoptionModel/estimatePriceStringencyModel, compute the missing ones.
+.extractDiagnostics <- function(fit, df) {
+  # Fields present in fitAndDiagnose output
+  hasFull <- all(c("aic", "bic", "aicc", "hqic", "loglik", "pseudoR2",
+                   "nPredictors", "nSignificant", "kOverN",
+                   "overfitting", "separation", "converged") %in% names(fit))
+
+  nObs      <- nrow(df)
+  nCountries <- if ("country" %in% names(df)) length(unique(df$country)) else
+    if ("iso3c" %in% names(df)) length(unique(df$iso3c)) else NA_integer_
+
+  if (hasFull) {
+    return(list(
+      aic             = fit$aic,
+      bic             = fit$bic,
+      aicc            = fit$aicc,
+      hqic            = fit$hqic,
+      loglik          = fit$loglik,
+      pseudoR2        = fit$pseudoR2,
+      nPredictors     = as.integer(fit$nPredictors),
+      nObs            = as.integer(nObs),
+      nCountries      = as.integer(nCountries),
+      nSignificant    = as.integer(fit$nSignificant),
+      kOverN          = fit$kOverN,
+      overfitting     = isTRUE(fit$overfitting),
+      separation      = isTRUE(fit$separation),
+      highZ           = isTRUE(fit$highZ),
+      maxAbsZ         = fit$maxAbsZ %||% NA_real_,
+      converged       = isTRUE(fit$converged),
+      maxitWarning    = isTRUE(fit$maxitWarning),
+      rejectionReason = fit$rejectionReason %||% NA_character_,
+      vif             = list(
+        values  = fit$vifRaw %||% numeric(0),
+        maxVIF  = fit$maxVIF %||% NA_real_,
+        highVIF = isTRUE(fit$highVIF),
+        flagged = fit$vifFlagged %||% character(0)
+      )
+    ))
+  }
+
+  # Bare fit from estimateAdoptionModel / estimatePriceStringencyModel
+  m   <- fit$model
+  fml <- fit$formula
+  k   <- if (!is.null(m)) length(stats::coef(m)) else NA_integer_
+
+  loglik <- tryCatch({
+    if (inherits(m, "logistf")) as.numeric(m$loglik["full"]) else as.numeric(stats::logLik(m))
+  }, error = function(e) NA_real_)
+
+  aic <- tryCatch({
+    if (inherits(m, "logistf")) -2 * loglik + 2 * k else m$aic
+  }, error = function(e) NA_real_)
+
+  bic <- tryCatch(BIC(m), error = function(e) NA_real_)
+  aicc <- if (!is.na(aic) && !is.na(k) && !is.na(nObs)) {
+    aic + (2 * k * (k + 1)) / max(nObs - k - 1, 1)
+  } else NA_real_
+  hqic <- if (!is.na(loglik) && !is.na(k) && !is.na(nObs)) {
+    -2 * loglik + 2 * k * log(log(nObs))
+  } else NA_real_
+
+  converged <- tryCatch({
+    if (inherits(m, "logistf")) !is.null(m$coefficients) && !any(is.na(m$coefficients))
+    else isTRUE(m$converged)
+  }, error = function(e) NA)
+
+  pVals <- tryCatch(fit$coeftest[, 4], error = function(e) numeric(0))
+  nSig  <- sum(pVals < 0.05, na.rm = TRUE)
+  kOverN <- if (!is.na(k) && nObs > 0) k / nObs else NA_real_
+
+  vifRes <- tryCatch(computeVIF(data = df, formula = fml), error = function(e) NULL)
+
+  list(
+    aic             = aic,
+    bic             = bic,
+    aicc            = aicc,
+    hqic            = hqic,
+    loglik          = loglik,
+    pseudoR2        = NA_real_,
+    nPredictors     = as.integer(k),
+    nObs            = as.integer(nObs),
+    nCountries      = as.integer(nCountries),
+    nSignificant    = as.integer(nSig),
+    kOverN          = kOverN,
+    overfitting     = if (!is.na(kOverN)) kOverN > 0.1 else NA,
+    separation      = NA,
+    highZ           = NA,
+    maxAbsZ         = NA_real_,
+    converged       = converged,
+    maxitWarning    = FALSE,
+    rejectionReason = NA_character_,
+    vif             = list(
+      values  = if (!is.null(vifRes)) vifRes$values  else numeric(0),
+      maxVIF  = if (!is.null(vifRes)) vifRes$maxVIF  else NA_real_,
+      highVIF = if (!is.null(vifRes)) vifRes$highVIF else NA,
+      flagged = if (!is.null(vifRes)) vifRes$flagged else character(0)
+    )
+  )
+}
+
+# Null-coalescing helper (local to this file; pfm-reports also defines one)
+`%||%` <- function(x, y) if (!is.null(x)) x else y

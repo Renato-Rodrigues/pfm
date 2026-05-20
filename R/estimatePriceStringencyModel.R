@@ -44,6 +44,10 @@
 #'   (via \code{brglm2::brglmFit}) for the GLM estimation. Default: \code{FALSE}.
 #' @param includeLaggedECP Logical. If \code{TRUE}, includes the lagged
 #'   carbon price (\code{lagged_ecp}) as a predictor. Default: \code{FALSE}.
+#' @param modelDir Character or NULL. Directory for saving/loading \code{PFMModel}
+#'   files. Defaults to \code{getOption("pfm.modelDir", NULL)}. Set to \code{NULL}
+#'   to disable persistence.
+#' @param label Character. Optional human label stored in the saved model manifest.
 #'
 #' @return A list with elements:
 #'   \describe{
@@ -88,7 +92,9 @@ estimatePriceStringencyModel <- function(
     logTransform = TRUE,
     lag = 1,
     useFirth = FALSE,
-    includeLaggedECP = FALSE) {
+    includeLaggedECP = FALSE,
+    modelDir = getOption("pfm.modelDir", NULL),
+    label = "") {
   # --- 1. Prepare data.frame ---
   df <- preparePanelData(
     data = data,
@@ -126,7 +132,8 @@ estimatePriceStringencyModel <- function(
     controlDrivers <- c(controlDrivers, "lagged_ecp")
   }
 
-  # --- 3. Build formula ---
+  # --- 2c. Cache check: return saved model if formula + data unchanged ---
+  # (formula built after data prep so we check after steps 1-2b)
   fml <- buildModelFormula(
     depVar = "ecp",
     actorPowerDrivers = actorPowerDrivers,
@@ -136,6 +143,23 @@ estimatePriceStringencyModel <- function(
     regionMappingFixedEffects = regionMappingFixedEffects,
     timeTrend = timeTrend
   )
+
+  if (!is.null(modelDir)) {
+    ids <- computeModelId(fml, df)
+    cachedPath <- file.path(modelDir, paste0(ids[["id"]], ".rds"))
+    if (file.exists(cachedPath)) {
+      message("  [cache hit] Loading stringency model ", ids[["id"]], " from disk.")
+      cached <- loadPFMModel(ids[["id"]], modelDir)
+      return(list(
+        model    = cached$model,
+        coeftest = cached$coeftest,
+        vcov     = cached$vcov,
+        sector   = sector,
+        family   = family,
+        formula  = fml
+      ))
+    }
+  }
 
   # --- 4. Choose GLM family ---
   if (family == "Gamma") {
@@ -160,12 +184,29 @@ estimatePriceStringencyModel <- function(
   vcovClust <- sandwich::vcovCL(fit, cluster = df$regionFE, type = "HC1")
   robustTest <- lmtest::coeftest(fit, vcov. = vcovClust)
 
-  return(list(
+  result <- list(
     model    = fit,
     coeftest = robustTest,
     vcov     = vcovClust,
     sector   = sector,
     family   = family,
     formula  = fml
-  ))
+  )
+
+  # --- 7. Save PFMModel if modelDir is configured ---
+  if (!is.null(modelDir)) {
+    pfmModel <- buildPFMModel(
+      fit           = result,
+      training_data = df,
+      sector        = sector,
+      stage         = "stringency",
+      family        = family,
+      useFirth      = useFirth,
+      label         = label
+    )
+    savePFMModel(pfmModel, modelDir)
+    message("  [saved] Stringency model ", pfmModel$id, " -> ", modelDir)
+  }
+
+  result
 }

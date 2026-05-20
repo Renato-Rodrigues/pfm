@@ -100,7 +100,8 @@ modelEstimationWorkflow <- function(
     lag = 1,
     includeLaggedAdoption = FALSE,
     includeLaggedECP = FALSE,
-    panelData = NULL) {
+    panelData = NULL,
+    modelDir = getOption("pfm.modelDir", NULL)) {
   # --- 1. Load data ---
   if (is.null(panelData)) {
     message("Loading historical panel data...")
@@ -136,7 +137,8 @@ modelEstimationWorkflow <- function(
       timeTrend = timeTrend,
       useFirth = useFirth,
       lag = lag,
-      includeLaggedAdoption = includeLaggedAdoption
+      includeLaggedAdoption = includeLaggedAdoption,
+      modelDir = modelDir
     )
     message("  Stage 1 complete. Converged: ", adoptionResult$model$converged)
 
@@ -155,7 +157,8 @@ modelEstimationWorkflow <- function(
       logTransform = logTransform,
       lag = lag,
       useFirth = useFirth,
-      includeLaggedECP = includeLaggedECP
+      includeLaggedECP = includeLaggedECP,
+      modelDir = modelDir
     )
     message("  Stage 2 complete. Converged: ", stringencyResult$model$converged)
 

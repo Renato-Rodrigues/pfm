@@ -33,6 +33,10 @@
 #' @param lag Integer. Time lag for drivers in years. Default: \code{1}.
 #' @param includeLaggedAdoption Logical. If \code{TRUE}, includes the lagged
 #'   adoption status (\code{adoption_lagged}) as a predictor. Default: \code{FALSE}.
+#' @param modelDir Character or NULL. Directory for saving/loading \code{PFMModel}
+#'   files. Defaults to \code{getOption("pfm.modelDir", NULL)}. Set to \code{NULL}
+#'   to disable persistence (default when the option is not set).
+#' @param label Character. Optional human label stored in the saved model manifest.
 #'
 #' @return A list with elements:
 #'   \describe{
@@ -77,7 +81,9 @@ estimateAdoptionModel <- function(
     timeTrend = TRUE,
     useFirth = TRUE,
     lag = 1,
-    includeLaggedAdoption = FALSE) {
+    includeLaggedAdoption = FALSE,
+    modelDir = getOption("pfm.modelDir", NULL),
+    label = "") {
   # --- 1. Prepare data.frame ---
   df <- preparePanelData(
     data = data,
@@ -108,6 +114,23 @@ estimateAdoptionModel <- function(
     timeTrend = timeTrend
   )
 
+  # --- 3b. Cache check: return saved model if formula + data unchanged ---
+  if (!is.null(modelDir)) {
+    ids <- computeModelId(fml, df)
+    cachedPath <- file.path(modelDir, paste0(ids[["id"]], ".rds"))
+    if (file.exists(cachedPath)) {
+      message("  [cache hit] Loading adoption model ", ids[["id"]], " from disk.")
+      cached <- loadPFMModel(ids[["id"]], modelDir)
+      return(list(
+        model    = cached$model,
+        coeftest = cached$coeftest,
+        vcov     = cached$vcov,
+        sector   = sector,
+        formula  = fml
+      ))
+    }
+  }
+
   # --- 4. Estimate model ---
   if (isTRUE(useFirth)) {
     # Firth's penalized likelihood logistic regression
@@ -135,11 +158,28 @@ estimateAdoptionModel <- function(
     robustTest <- lmtest::coeftest(fit, vcov. = vcovMat)
   }
 
-  return(list(
+  result <- list(
     model    = fit,
     coeftest = robustTest,
     vcov     = vcovMat,
     sector   = sector,
     formula  = fml
-  ))
+  )
+
+  # --- 5. Save PFMModel if modelDir is configured ---
+  if (!is.null(modelDir)) {
+    pfmModel <- buildPFMModel(
+      fit           = result,
+      training_data = df,
+      sector        = sector,
+      stage         = "adoption",
+      family        = "logistf",
+      useFirth      = useFirth,
+      label         = label
+    )
+    savePFMModel(pfmModel, modelDir)
+    message("  [saved] Adoption model ", pfmModel$id, " -> ", modelDir)
+  }
+
+  result
 }

@@ -83,6 +83,10 @@
 #'       confirm the formal statistical significance of each extracted group.}
 #'     \item{\code{sector}, \code{stage}, \code{testMode}}{Tracking arguments for the selection workflow.}
 #'   }
+#' @param modelDir Character or NULL. Directory for saving/loading \code{PFMModel} files.
+#'   Defaults to \code{getOption("pfm.modelDir", NULL)}. Each candidate model evaluated during
+#'   selection is saved immediately after fitting. On subsequent runs with the same data and
+#'   formula, the saved model is loaded from disk instead of re-fitted.
 #' @author Renato Rodrigues
 #'
 #' @importFrom stats glm binomial Gamma gaussian as.formula BIC logLik
@@ -122,7 +126,8 @@ modelSelection <- function( # nolint: cyclocomp_linter.
     regionFEMode = "block",
     stabilityShift = 0,
     logTransform = TRUE,
-    lag = 1) {
+    lag = 1,
+    modelDir = getOption("pfm.modelDir", NULL)) {
   # --- 1. Argument validation ---
   stage <- match.arg(stage, c("adoption", "stringency"))
   testMode <- match.arg(testMode, c("incremental", "combinations"))
@@ -285,9 +290,41 @@ modelSelection <- function( # nolint: cyclocomp_linter.
 
   .fitStep <- function(api, iq, ap, ctrl, feLevels, phaseDesc, shortDesc) {
     fml <- makeFormula(depVar, api, iq, ap, ctrl, feLevels, timeTrend)
-    # Note: preparePanelData was already called with 'lag' during data prep in modelSelection.
-    # However, if fitStep needs to re-prepare data (it doesn't, it uses 'df'), we are fine.
-    # But wait, does fitStep need the lag? No, it uses 'df' which is already lagged.
+
+    # Cache check: skip re-estimation if this formula + data was already fitted
+    if (!is.null(modelDir)) {
+      ids <- computeModelId(fml, df)
+      cachedPath <- file.path(modelDir, paste0(ids[["id"]], ".rds"))
+      if (file.exists(cachedPath)) {
+        .msg("  [cache hit] ", ids[["id"]], " — skipping re-fit for: ", shortDesc)
+        cached <- loadPFMModel(ids[["id"]], modelDir)
+        fit <- list(
+          model = cached$model, coeftest = cached$coeftest, vcov = cached$vcov,
+          formula = fml,
+          aic = cached$diagnostics$aic, bic = cached$diagnostics$bic,
+          aicc = cached$diagnostics$aicc, hqic = cached$diagnostics$hqic,
+          loglik = cached$diagnostics$loglik, pseudoR2 = cached$diagnostics$pseudoR2,
+          nPredictors = cached$diagnostics$nPredictors,
+          nSignificant = cached$diagnostics$nSignificant,
+          kOverN = cached$diagnostics$kOverN,
+          overfitting = cached$diagnostics$overfitting,
+          separation = cached$diagnostics$separation,
+          highZ = cached$diagnostics$highZ,
+          maxAbsZ = cached$diagnostics$maxAbsZ,
+          converged = cached$diagnostics$converged,
+          maxitWarning = cached$diagnostics$maxitWarning,
+          rejectionReason = cached$diagnostics$rejectionReason,
+          maxVIF = cached$diagnostics$vif$maxVIF,
+          highVIF = cached$diagnostics$vif$highVIF,
+          vifFlagged = cached$diagnostics$vif$flagged,
+          vifRaw = cached$diagnostics$vif$values,
+          phase = phaseDesc, description = shortDesc,
+          api = api, iq = iq, ap = ap, ctrl = ctrl, feLevels = feLevels
+        )
+        return(fit)
+      }
+    }
+
     fit <- fitAndDiagnose(fml, df, depVar, stage, family, useFirth, nullLoglik, n)
     fit$phase <- phaseDesc
     if (isTRUE(fit$maxitWarning)) {
@@ -299,6 +336,21 @@ modelSelection <- function( # nolint: cyclocomp_linter.
     fit$ap <- ap
     fit$ctrl <- ctrl
     fit$feLevels <- feLevels
+
+    # Save PFMModel immediately after fitting
+    if (!is.null(modelDir)) {
+      pfmModel <- buildPFMModel(
+        fit           = fit,
+        training_data = df,
+        sector        = sector,
+        stage         = stage,
+        family        = if (stage == "adoption") "logistf" else family,
+        useFirth      = useFirth,
+        label         = shortDesc
+      )
+      savePFMModel(pfmModel, modelDir)
+    }
+
     return(fit)
   }
 

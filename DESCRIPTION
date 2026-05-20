@@ -32,7 +32,9 @@ Imports:
     tibble,
     stats,
     utils,
-    rlang
+    rlang,
+    digest,
+    jsonlite
 Suggests:
     testthat,
     withr
