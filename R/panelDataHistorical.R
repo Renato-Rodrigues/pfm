@@ -47,6 +47,7 @@ panelDataHistorical <- function(aggregate = TRUE,
   histAPI <- actorPowerIndex(histCalculatedDrivers, coeff = coeff)
   out <- mbind(out, histAPI[, y, c(
     "Actor Power Index|Bulk", "Actor Power Index|Diffuse",
+    "Innovator Power|Bulk", "Innovator Power|Diffuse",
     "Incumbent Power|Bulk", "Incumbent Power|Diffuse"
   )])
   # Actor Power Index Drivers
@@ -54,6 +55,9 @@ panelDataHistorical <- function(aggregate = TRUE,
 
   # Institution Quality Drivers
   wgi <- calcOutput("WGIindicator", aggregate = aggregate, regionmapping = outputRegionMappingFile)
+  if (!any(grepl("\\(WGI\\)", magclass::getNames(wgi)))) {
+    magclass::getNames(wgi) <- paste0(magclass::getNames(wgi), " (WGI)")
+  }
   wgiInt <- toolTimeInterpolation(wgi, y)
   wgiNorm <- toolNormalize(wgiInt, targetRange = c(0, 1))
   out <- mbind(out, wgiNorm[, y, ])

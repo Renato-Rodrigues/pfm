@@ -33,7 +33,6 @@ iamHistoricalData <- function(aggregate = FALSE, outputRegionMappingFile = "regi
     "PE (EJ/yr)", "petotal"
   )
   histPe <- calcOutput("PE",
-    subtype = "IEA", ieaVersion = "latest",
     aggregate = FALSE, warnNA = FALSE
   )[, , mappingHistPe$histPe] |>
     toolAggregate(rel = mappingHistPe, dim = 3.1, from = "histPe", to = "remind")
@@ -59,7 +58,6 @@ iamHistoricalData <- function(aggregate = FALSE, outputRegionMappingFile = "regi
     "FE (EJ/yr)", "fe_total"
   )
   histFe <- calcOutput("FE",
-    source = "IEA", ieaVersion = "latest",
     aggregate = FALSE, warnNA = FALSE
   )[, , mappingHistFe$histFe] |>
     toolAggregate(rel = mappingHistFe, dim = 3.1, from = "histFe", to = "remind")

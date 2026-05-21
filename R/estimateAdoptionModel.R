@@ -82,6 +82,7 @@ estimateAdoptionModel <- function(
     useFirth = TRUE,
     lag = 1,
     includeLaggedAdoption = FALSE,
+    interactRegionFE = FALSE,
     modelDir = getOption("pfm.modelDir", NULL),
     label = "") {
   # --- 1. Prepare data.frame ---
@@ -111,7 +112,8 @@ estimateAdoptionModel <- function(
     instQualityDrivers = instQualityDrivers,
     controlDrivers = controlDrivers,
     regionMappingFixedEffects = regionMappingFixedEffects,
-    timeTrend = timeTrend
+    timeTrend = timeTrend,
+    interactRegionFE = interactRegionFE
   )
 
   # --- 3b. Cache check: return saved model if formula + data unchanged ---

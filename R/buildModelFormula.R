@@ -25,18 +25,12 @@
 buildModelFormula <- function(depVar, actorPowerDrivers, actorPowerIndex, # nolint: cyclocomp_linter.
                               instQualityDrivers, controlDrivers,
                               regionMappingFixedEffects,
-                              timeTrend = TRUE) {
+                              timeTrend = TRUE,
+                              interactRegionFE = FALSE) {
   rhs <- c()
 
-  # 1. If actorPowerIndex is explicitly in the actorPowerDrivers list,
-  #    it takes priority as the sole Actor Power main effect.
-  # 2. Otherwise, use individual drivers as main effects.
-  if (!is.null(actorPowerIndex) &&
-        !is.null(actorPowerDrivers) &&
-        any(actorPowerIndex %in% actorPowerDrivers)) {
-    # Include all api indices that are requested as main effects
-    rhs <- c(rhs, make.names(intersect(actorPowerIndex, actorPowerDrivers)))
-  } else if (!is.null(actorPowerDrivers) && length(actorPowerDrivers) > 0) {
+  # Actor Power Main Effects: exactly what is passed in actorPowerDrivers
+  if (!is.null(actorPowerDrivers) && length(actorPowerDrivers) > 0) {
     rhs <- c(rhs, make.names(actorPowerDrivers))
   }
 
@@ -51,6 +45,14 @@ buildModelFormula <- function(depVar, actorPowerDrivers, actorPowerIndex, # noli
     for (api in actorPowerIndex) {
       intTerms <- paste0(make.names(api), "_x_", make.names(instQualityDrivers))
       rhs <- c(rhs, intTerms)
+    }
+  }
+
+  # Interaction: each actorPowerIndex × regionFE
+  if (isTRUE(interactRegionFE) && !is.null(actorPowerIndex) && !is.null(regionMappingFixedEffects)) {
+    for (api in actorPowerIndex) {
+      # Use colon ':' for standard R interaction with factors
+      rhs <- c(rhs, paste0(make.names(api), ":regionFE"))
     }
   }
 

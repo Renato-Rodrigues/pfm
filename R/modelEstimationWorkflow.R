@@ -100,6 +100,7 @@ modelEstimationWorkflow <- function(
     lag = 1,
     includeLaggedAdoption = FALSE,
     includeLaggedECP = FALSE,
+    interactRegionFE = FALSE,
     panelData = NULL,
     modelDir = getOption("pfm.modelDir", NULL)) {
   # --- 1. Load data ---
@@ -138,6 +139,7 @@ modelEstimationWorkflow <- function(
       useFirth = useFirth,
       lag = lag,
       includeLaggedAdoption = includeLaggedAdoption,
+      interactRegionFE = interactRegionFE,
       modelDir = modelDir
     )
     message("  Stage 1 complete. Converged: ", adoptionResult$model$converged)
@@ -158,9 +160,19 @@ modelEstimationWorkflow <- function(
       lag = lag,
       useFirth = useFirth,
       includeLaggedECP = includeLaggedECP,
+      interactRegionFE = interactRegionFE,
       modelDir = modelDir
     )
     message("  Stage 2 complete. Converged: ", stringencyResult$model$converged)
+
+    # Collect coefficients
+    adoptionCoeffs <- .coeftestToDataFrame(adoptionResult$coeftest)
+    adoptionCoeffs$sector <- s
+    adoptionCoeffs$stage <- "Adoption"
+
+    stringencyCoeffs <- .coeftestToDataFrame(stringencyResult$coeftest)
+    stringencyCoeffs$sector <- s
+    stringencyCoeffs$stage <- "Stringency"
 
     allModels[[s]] <- list(
       adoption   = adoptionResult,
@@ -177,15 +189,6 @@ modelEstimationWorkflow <- function(
         )
       )
     )
-
-    # Collect coefficients
-    adoptionCoeffs <- .coeftestToDataFrame(adoptionResult$coeftest)
-    adoptionCoeffs$sector <- s
-    adoptionCoeffs$stage <- "Adoption"
-
-    stringencyCoeffs <- .coeftestToDataFrame(stringencyResult$coeftest)
-    stringencyCoeffs$sector <- s
-    stringencyCoeffs$stage <- "Stringency"
 
     allCoefficients[[s]] <- rbind(adoptionCoeffs, stringencyCoeffs)
 

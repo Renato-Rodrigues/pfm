@@ -93,6 +93,7 @@ estimatePriceStringencyModel <- function(
     lag = 1,
     useFirth = FALSE,
     includeLaggedECP = FALSE,
+    interactRegionFE = FALSE,
     modelDir = getOption("pfm.modelDir", NULL),
     label = "") {
   # --- 1. Prepare data.frame ---
@@ -141,7 +142,8 @@ estimatePriceStringencyModel <- function(
     instQualityDrivers = instQualityDrivers,
     controlDrivers = controlDrivers,
     regionMappingFixedEffects = regionMappingFixedEffects,
-    timeTrend = timeTrend
+    timeTrend = timeTrend,
+    interactRegionFE = interactRegionFE
   )
 
   if (!is.null(modelDir)) {

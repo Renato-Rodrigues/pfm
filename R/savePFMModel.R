@@ -71,36 +71,53 @@ listPFMModels <- function(dir = getOption("pfm.modelDir")) {
   if (!file.exists(idxPath)) return(data.frame())
   idx <- jsonlite::fromJSON(idxPath, simplifyDataFrame = TRUE)
   if (length(idx) == 0) return(data.frame())
+
+  # Ensure all expected columns exist in the returned data.frame to prevent downstream selection errors
+  expectedCols <- c(
+    "id", "id_full", "created_at", "label", "pfm_version", "sector", "stage",
+    "formula", "family", "training_year_min", "training_year_max", "useFirth",
+    "data_hash", "aic", "bic", "aicc", "pseudoR2", "nObs", "nCountries",
+    "converged", "separation", "highVIF", "has_projections"
+  )
+  for (col in expectedCols) {
+    if (!col %in% colnames(idx)) {
+      idx[[col]] <- NA
+    }
+  }
+  idx <- idx[, expectedCols, drop = FALSE]
   idx
 }
 
-# Internal: add or update one entry in index.json.
 .updatePFMModelIndex <- function(model, dir) {
   idxPath <- file.path(dir, "index.json")
 
+  null2na <- function(val, default = NA) {
+    if (is.null(val) || length(val) == 0) default else val
+  }
+
   entry <- data.frame(
-    id              = model$id,
-    id_full         = model$id_full,
-    created_at      = model$created_at,
-    label           = model$label,
-    pfm_version     = model$pfm_version,
-    sector          = model$sector,
-    stage           = model$stage,
+    id              = null2na(model$id, ""),
+    id_full         = null2na(model$id_full, ""),
+    created_at      = null2na(model$created_at, ""),
+    label           = null2na(model$label, ""),
+    pfm_version     = null2na(model$pfm_version, ""),
+    sector          = null2na(model$sector, ""),
+    stage           = null2na(model$stage, ""),
     formula         = paste(deparse(model$formula, width.cutoff = 500), collapse = " "),
-    family          = model$family,
+    family          = null2na(model$family, ""),
     training_year_min = if (length(model$training_years) == 2) model$training_years[1] else NA_integer_,
     training_year_max = if (length(model$training_years) == 2) model$training_years[2] else NA_integer_,
-    useFirth        = model$useFirth,
-    data_hash       = model$data_hash,
-    aic             = model$diagnostics$aic,
-    bic             = model$diagnostics$bic,
-    aicc            = model$diagnostics$aicc,
-    pseudoR2        = model$diagnostics$pseudoR2,
-    nObs            = model$diagnostics$nObs,
-    nCountries      = model$diagnostics$nCountries,
-    converged       = model$diagnostics$converged,
-    separation      = model$diagnostics$separation,
-    highVIF         = model$diagnostics$vif$highVIF,
+    useFirth        = null2na(model$useFirth, NA),
+    data_hash       = null2na(model$data_hash, ""),
+    aic             = null2na(model$diagnostics$aic, NA_real_),
+    bic             = null2na(model$diagnostics$bic, NA_real_),
+    aicc            = null2na(model$diagnostics$aicc, NA_real_),
+    pseudoR2        = null2na(model$diagnostics$pseudoR2, NA_real_),
+    nObs            = null2na(model$diagnostics$nObs, NA_integer_),
+    nCountries      = null2na(model$diagnostics$nCountries, NA_integer_),
+    converged       = null2na(model$diagnostics$converged, NA),
+    separation      = null2na(model$diagnostics$separation, NA),
+    highVIF         = null2na(model$diagnostics$vif$highVIF, NA),
     has_projections = !is.null(model$projections),
     stringsAsFactors = FALSE
   )
@@ -109,6 +126,16 @@ listPFMModels <- function(dir = getOption("pfm.modelDir")) {
     tryCatch(jsonlite::fromJSON(idxPath, simplifyDataFrame = TRUE), error = function(e) data.frame())
   } else {
     data.frame()
+  }
+
+  target_cols <- colnames(entry)
+  if (nrow(existing) > 0) {
+    for (col in target_cols) {
+      if (!col %in% colnames(existing)) {
+        existing[[col]] <- NA
+      }
+    }
+    existing <- existing[, target_cols, drop = FALSE]
   }
 
   if (nrow(existing) > 0 && model$id %in% existing$id) {

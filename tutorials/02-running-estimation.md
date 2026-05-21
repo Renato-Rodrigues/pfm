@@ -42,7 +42,8 @@ panelData <- modelData$panelData
 ```r
 madrat::setConfig(
   forcecache  = TRUE,
-  cachefolder = "path/to/madrat/cache"
+  cachefolder = "path/to/madrat/cache",
+  mappingfolder = "path/to/madrat/mappings"
 )
 panelData <- panelDataHistorical(
   aggregate               = TRUE,

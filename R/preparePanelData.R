@@ -50,9 +50,17 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
     NULL
   }
 
+  known_indices <- c("Actor Power Index", "Innovator Power", "Incumbent Power")
+
+  # Function to get the correct magpie name for a driver
+  getMagpieName <- function(name, sector) {
+    if (name %in% known_indices) paste0(name, "|", sector) else name
+  }
+
   # Collect all predictor names we need from the magpie object
   allVarsNeeded <- c(
-    apiName, actorPowerDrivers,
+    apiName, 
+    sapply(actorPowerDrivers, getMagpieName, sector = sector),
     instQualityDrivers, controlDrivers
   )
 
@@ -113,9 +121,13 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
         c(actorPowerDrivers, instQualityDrivers, controlDrivers),
         c("lagged_ecp", "lagged_adoption")
       )
+      # Do not process variables again if they were already processed via actorPowerIndex
+      cleanDrivers <- setdiff(cleanDrivers, actorPowerIndex)
+
       for (v in cleanDrivers) {
         safeName <- make.names(v)
-        val <- if (yiLag >= 1) as.numeric(data[r, years[yiLag], v]) else NA_real_
+        vMagpie <- getMagpieName(v, sector)
+        val <- if (yiLag >= 1) as.numeric(data[r, years[yiLag], vMagpie]) else NA_real_
         row[[safeName]] <- if (is.finite(val)) val else NA_real_
       }
 

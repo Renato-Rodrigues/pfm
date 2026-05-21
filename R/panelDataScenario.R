@@ -58,6 +58,9 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   )
   # WGI — simple assumption: keep constant across scenario years
   wgi <- calcOutput("WGIindicator", aggregate = aggregate, regionmapping = outputRegionMappingFile)
+  if (!any(grepl("\\(WGI\\)", magclass::getNames(wgi)))) {
+    magclass::getNames(wgi) <- paste0(magclass::getNames(wgi), " (WGI)")
+  }
   wgiInt <- toolTimeInterpolation(wgi, y)
   wgiNorm <- toolNormalize(wgiInt, targetRange = c(0, 1))
   out <- mbind(
