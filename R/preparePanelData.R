@@ -37,6 +37,9 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
     return(data)
   }
 
+  # Convert magpie object to standard 3D array for extreme speedup in indexing
+  data_arr <- as.array(data)
+
   regions <- magclass::getRegions(data) # nolint: undesirable_function_linter.
   years <- magclass::getYears(data, as.integer = TRUE)
 
@@ -89,7 +92,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
 
       # Dependent variable
       if (hasEcp) {
-        val <- as.numeric(data[r, years[yi], ecpName])
+        val <- data_arr[r, yi, ecpName]
         row$ecp <- if (is.finite(val)) val else NA_real_
       } else {
         row$ecp <- NA_real_
@@ -100,7 +103,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
 
       # Compute lagged dependent variables
       if (hasEcp) {
-        valLag <- if (yiLag >= 1) as.numeric(data[r, years[yiLag], ecpName]) else NA_real_
+        valLag <- if (yiLag >= 1) data_arr[r, yiLag, ecpName] else NA_real_
         row$lagged_ecp <- if (is.finite(valLag)) valLag else NA_real_
         row$lagged_adoption <- if (is.finite(valLag)) as.integer(valLag > 0) else NA_integer_
       } else {
@@ -111,7 +114,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
       # Actor Power Index
       if (!is.null(apiName)) {
         for (i in seq_along(actorPowerIndex)) {
-          valI <- if (yiLag >= 1) as.numeric(data[r, years[yiLag], apiName[i]]) else NA_real_
+          valI <- if (yiLag >= 1) data_arr[r, yiLag, apiName[i]] else NA_real_
           row[[make.names(actorPowerIndex[i])]] <- if (is.finite(valI)) valI else NA_real_
         }
       }
@@ -127,7 +130,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
       for (v in cleanDrivers) {
         safeName <- make.names(v)
         vMagpie <- getMagpieName(v, sector)
-        val <- if (yiLag >= 1) as.numeric(data[r, years[yiLag], vMagpie]) else NA_real_
+        val <- if (yiLag >= 1) data_arr[r, yiLag, vMagpie] else NA_real_
         row[[safeName]] <- if (is.finite(val)) val else NA_real_
       }
 
@@ -135,8 +138,17 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
       idx <- idx + 1
     }
   }
-
-  df <- do.call(rbind, lapply(rows, as.data.frame, stringsAsFactors = FALSE))
+  
+  if (length(rows) == 0) {
+    df <- data.frame()
+  } else {
+    col_names <- names(rows[[1]])
+    cols <- lapply(col_names, function(nm) {
+      sapply(rows, `[[`, nm)
+    })
+    names(cols) <- col_names
+    df <- as.data.frame(cols, stringsAsFactors = FALSE)
+  }
 
   # --- Add region fixed effects ---
   if (!is.null(regionMappingFixedEffects)) {

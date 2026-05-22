@@ -37,6 +37,8 @@
 #'   files. Defaults to \code{getOption("pfm.modelDir", NULL)}. Set to \code{NULL}
 #'   to disable persistence (default when the option is not set).
 #' @param label Character. Optional human label stored in the saved model manifest.
+#' @param verbose Logical. If \code{TRUE} (default), prints progress messages when
+#'   loading from cache or estimating.
 #'
 #' @return A list with elements:
 #'   \describe{
@@ -84,7 +86,8 @@ estimateAdoptionModel <- function(
     includeLaggedAdoption = FALSE,
     interactRegionFE = FALSE,
     modelDir = getOption("pfm.modelDir", NULL),
-    label = "") {
+    label = "",
+    verbose = TRUE) {
   # --- 1. Prepare data.frame ---
   df <- preparePanelData(
     data = data,
@@ -121,7 +124,9 @@ estimateAdoptionModel <- function(
     ids <- computeModelId(fml, df)
     cachedPath <- file.path(modelDir, paste0(ids[["id"]], ".rds"))
     if (file.exists(cachedPath)) {
-      message("  [cache hit] Loading adoption model ", ids[["id"]], " from disk.")
+      if (isTRUE(verbose)) {
+        message("  [cache hit] Loading adoption model ", ids[["id"]], " from disk.")
+      }
       cached <- loadPFMModel(ids[["id"]], modelDir)
       return(list(
         model    = cached$model,
@@ -134,6 +139,9 @@ estimateAdoptionModel <- function(
   }
 
   # --- 4. Estimate model ---
+  if (isTRUE(verbose)) {
+    message("  [running] Estimating adoption model (", sector, " sector)...")
+  }
   if (isTRUE(useFirth)) {
     # Firth's penalized likelihood logistic regression
     fit <- logistf::logistf(fml, data = df)
@@ -180,7 +188,9 @@ estimateAdoptionModel <- function(
       label         = label
     )
     savePFMModel(pfmModel, modelDir)
-    message("  [saved] Adoption model ", pfmModel$id, " -> ", modelDir)
+    if (isTRUE(verbose)) {
+      message("  [saved] Adoption model ", pfmModel$id, " -> ", modelDir)
+    }
   }
 
   result

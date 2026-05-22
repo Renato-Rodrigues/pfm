@@ -48,6 +48,8 @@
 #'   files. Defaults to \code{getOption("pfm.modelDir", NULL)}. Set to \code{NULL}
 #'   to disable persistence.
 #' @param label Character. Optional human label stored in the saved model manifest.
+#' @param verbose Logical. If \code{TRUE} (default), prints progress messages when
+#'   loading from cache or estimating.
 #'
 #' @return A list with elements:
 #'   \describe{
@@ -95,7 +97,8 @@ estimatePriceStringencyModel <- function(
     includeLaggedECP = FALSE,
     interactRegionFE = FALSE,
     modelDir = getOption("pfm.modelDir", NULL),
-    label = "") {
+    label = "",
+    verbose = TRUE) {
   # --- 1. Prepare data.frame ---
   df <- preparePanelData(
     data = data,
@@ -114,7 +117,9 @@ estimatePriceStringencyModel <- function(
   # --- 2b. Optional log-transform ---
   if (isTRUE(logTransform)) {
     df$ecp <- log(1 + df$ecp)
-    message("Log-transform applied: ecp -> log(1 + ecp)")
+    if (isTRUE(verbose)) {
+      message("Log-transform applied: ecp -> log(1 + ecp)")
+    }
   }
 
   if (nrow(df) < 5) {
@@ -150,7 +155,9 @@ estimatePriceStringencyModel <- function(
     ids <- computeModelId(fml, df)
     cachedPath <- file.path(modelDir, paste0(ids[["id"]], ".rds"))
     if (file.exists(cachedPath)) {
-      message("  [cache hit] Loading stringency model ", ids[["id"]], " from disk.")
+      if (isTRUE(verbose)) {
+        message("  [cache hit] Loading stringency model ", ids[["id"]], " from disk.")
+      }
       cached <- loadPFMModel(ids[["id"]], modelDir)
       return(list(
         model    = cached$model,
@@ -164,6 +171,9 @@ estimatePriceStringencyModel <- function(
   }
 
   # --- 4. Choose GLM family ---
+  if (isTRUE(verbose)) {
+    message("  [running] Estimating stringency model (", sector, " sector)...")
+  }
   if (family == "Gamma") {
     glmFamily <- Gamma(link = "log")
   } else if (family == "gaussian") {
@@ -207,7 +217,9 @@ estimatePriceStringencyModel <- function(
       label         = label
     )
     savePFMModel(pfmModel, modelDir)
-    message("  [saved] Stringency model ", pfmModel$id, " -> ", modelDir)
+    if (isTRUE(verbose)) {
+      message("  [saved] Stringency model ", pfmModel$id, " -> ", modelDir)
+    }
   }
 
   result

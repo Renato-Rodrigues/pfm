@@ -38,6 +38,7 @@
 #'   Default: \code{FALSE}.
 #' @param panelData Optional \code{magpie} object or \code{data.frame}. If provided,
 #'   skips loading and processing historical data via \code{panelDataHistorical}.
+#' @param verbose Logical. If \code{TRUE} (default), prints progress messages during estimation.
 #'
 #' @return A list containing:
 #'   \describe{
@@ -102,10 +103,13 @@ modelEstimationWorkflow <- function(
     includeLaggedECP = FALSE,
     interactRegionFE = FALSE,
     panelData = NULL,
-    modelDir = getOption("pfm.modelDir", NULL)) {
+    modelDir = getOption("pfm.modelDir", NULL),
+    verbose = TRUE) {
   # --- 1. Load data ---
   if (is.null(panelData)) {
-    message("Loading historical panel data...")
+    if (isTRUE(verbose)) {
+      message("Loading historical panel data...")
+    }
     data <- panelDataHistorical(
       aggregate = aggregate,
       y = y,
@@ -115,7 +119,9 @@ modelEstimationWorkflow <- function(
   } else {
     data <- panelData
   }
-  message("Data loaded: ", paste(dim(data), collapse = " x "))
+  if (isTRUE(verbose)) {
+    message("Data loaded: ", paste(dim(data), collapse = " x "))
+  }
 
   # --- 2. Estimate models for each sector ---
   allModels <- list()
@@ -123,10 +129,14 @@ modelEstimationWorkflow <- function(
   allModelStats <- list()
 
   for (s in sectors) {
-    message("\n=== Sector: ", s, " ===")
+    if (isTRUE(verbose)) {
+      message("\n=== Sector: ", s, " ===")
+    }
 
     # Stage 1: Adoption
-    message("  Stage 1: Estimating Adoption (Logit)...")
+    if (isTRUE(verbose)) {
+      message("  Stage 1: Estimating Adoption (Logit)...")
+    }
     adoptionResult <- estimateAdoptionModel(
       data = data,
       sector = s,
@@ -140,12 +150,17 @@ modelEstimationWorkflow <- function(
       lag = lag,
       includeLaggedAdoption = includeLaggedAdoption,
       interactRegionFE = interactRegionFE,
-      modelDir = modelDir
+      modelDir = modelDir,
+      verbose = verbose
     )
-    message("  Stage 1 complete. Converged: ", adoptionResult$model$converged)
+    if (isTRUE(verbose)) {
+      message("  Stage 1 complete. Converged: ", adoptionResult$model$converged)
+    }
 
     # Stage 2: Stringency
-    message("  Stage 2: Estimating Stringency (GLM, family = ", family, ")...")
+    if (isTRUE(verbose)) {
+      message("  Stage 2: Estimating Stringency (GLM, family = ", family, ")...")
+    }
     stringencyResult <- estimatePriceStringencyModel(
       data = data,
       sector = s,
@@ -161,9 +176,12 @@ modelEstimationWorkflow <- function(
       useFirth = useFirth,
       includeLaggedECP = includeLaggedECP,
       interactRegionFE = interactRegionFE,
-      modelDir = modelDir
+      modelDir = modelDir,
+      verbose = verbose
     )
-    message("  Stage 2 complete. Converged: ", stringencyResult$model$converged)
+    if (isTRUE(verbose)) {
+      message("  Stage 2 complete. Converged: ", stringencyResult$model$converged)
+    }
 
     # Collect coefficients
     adoptionCoeffs <- .coeftestToDataFrame(adoptionResult$coeftest)
@@ -279,11 +297,13 @@ modelEstimationWorkflow <- function(
   )
 
   # --- 4. Print summaries ---
-  message("\n", paste(rep("=", 60), collapse = ""))
-  message("MODEL ESTIMATION WORKFLOW COMPLETE")
-  message(paste(rep("=", 60), collapse = ""))
-  message("\n--- Combined Model Statistics ---")
-  print(combinedModelStats)
+  if (isTRUE(verbose)) {
+    message("\n", paste(rep("=", 60), collapse = ""))
+    message("MODEL ESTIMATION WORKFLOW COMPLETE")
+    message(paste(rep("=", 60), collapse = ""))
+    message("\n--- Combined Model Statistics ---")
+    print(combinedModelStats)
+  }
 
   return(list(
     models = allModels,
