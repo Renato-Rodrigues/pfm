@@ -19,6 +19,8 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
                               y = c(seq(2005, 2060, 5), seq(2070, 2110, 10), 2130, 2150),
                               gdxRegionMappingFile = "regionmappingH12.csv",
                               outputRegionMappingFile = "regionmappingH12.csv",
+                              alignScenario = TRUE,
+                              movingAverage = 5,
                               coeff = list(
                                 bulk = list(
                                   actor_power = list(innov = 1, incumb = 1),
@@ -62,21 +64,37 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
     magclass::getNames(wgi) <- paste0(magclass::getNames(wgi), " (WGI)")
   }
   wgiInt <- toolTimeInterpolation(wgi, y)
-  wgiNorm <- toolNormalize(wgiInt, targetRange = c(0, 1))
+
+  # Calculate dynamic global country-level baseline bounds
+  wgiCnt <- calcOutput("WGIindicator", aggregate = FALSE)
+  if (!any(grepl("\\(WGI\\)", magclass::getNames(wgiCnt)))) {
+    magclass::getNames(wgiCnt) <- paste0(magclass::getNames(wgiCnt), " (WGI)")
+  }
+  wgiMin <- apply(wgiCnt, 3, min, na.rm = TRUE)
+  wgiMax <- apply(wgiCnt, 3, max, na.rm = TRUE)
+
+  wgiNorm <- toolNormalize(wgiInt, minVal = wgiMin, maxVal = wgiMax, targetRange = c(0, 1))
+
   out <- mbind(
     out,
     wgiNorm[, y, "Voice and Accountability (WGI)"],
     wgiNorm[, y, "Political Stability (WGI)"],
     wgiNorm[, y, "Regulatory Quality (WGI)"],
-    setNames(sspExt[, y, "SSP2.Rule-of-Law Index"], "Rule of Law (WGI)"),
-    setNames(sspExt[, y, "SSP2.Governance Index|Government Effectiveness"], "Government Effectiveness (WGI)"),
-    setNames(sspExt[, y, "SSP2.Governance Index|Control of Corruption"], "Control of Corruption (WGI)")
+    magclass::setNames(sspExt[, y, "SSP2.Rule-of-Law Index"], "Rule of Law (WGI)"),
+    magclass::setNames(sspExt[, y, "SSP2.Governance Index|Government Effectiveness"], "Government Effectiveness (WGI)"),
+    magclass::setNames(sspExt[, y, "SSP2.Governance Index|Control of Corruption"], "Control of Corruption (WGI)")
   )
 
   # V-Dem governance indicators — kept constant, no SSP projections available
   vdem <- calcOutput("VDem", aggregate = aggregate, regionmapping = outputRegionMappingFile)
   vdemInt <- toolTimeInterpolation(vdem, y)
-  vdemNorm <- toolNormalize(vdemInt, minVal = 0, maxVal = 1, targetRange = c(0, 1))
+
+  # Calculate dynamic global country-level baseline bounds
+  vdemCnt <- calcOutput("VDem", aggregate = FALSE)
+  vdemMin <- apply(vdemCnt, 3, min, na.rm = TRUE)
+  vdemMax <- apply(vdemCnt, 3, max, na.rm = TRUE)
+
+  vdemNorm <- toolNormalize(vdemInt, minVal = vdemMin, maxVal = vdemMax, targetRange = c(0, 1))
   out <- mbind(out, vdemNorm[, y, ])
 
   # Control Variables
@@ -116,6 +134,45 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
     setNames(sspExt[, y, "SSP2.Gender Inequality Index"], "Gender Inequality Index"),
     setNames(energyIntensityNorm[, y, "SSP2"], "Energy Intensity")
   )
+
+  if (alignScenario) {
+    # Generate the exact historical baseline data
+    # (use y = seq(1990, max(y)) or similar to ensure overlap, e.g., year 2020)
+    # We retrieve the historical data for 2020 explicitly.
+    histPanel <- panelDataHistorical(
+      aggregate = aggregate,
+      y = 2000:2022,
+      outputRegionMappingFile = outputRegionMappingFile,
+      movingAverage = movingAverage,
+      coeff = coeff
+    )
+    
+    # The stitch year will be 2020 (as both out and histPanel are expected to have it, 
+    # but we take the intersection safely)
+    availYears <- intersect(magclass::getYears(out, as.integer = TRUE), magclass::getYears(histPanel, as.integer = TRUE))
+    if (length(availYears) > 0) {
+      stitchYear <- max(availYears)
+      
+      # Exclude strictly constant variables that are already perfectly anchored
+      constants <- c("Voice and Accountability (WGI)", "Political Stability (WGI)", 
+                     "Regulatory Quality (WGI)", magclass::getNames(vdemNorm))
+      
+      # Determine which variables can be stitched
+      varsToAlign <- intersect(magclass::getNames(out), magclass::getNames(histPanel))
+      varsToAlign <- setdiff(varsToAlign, constants)
+      
+      for (v in varsToAlign) {
+        # Calculate offset at the stitching year (historical - scenario)
+        offset <- magclass::setYears(histPanel[, stitchYear, v], NULL) - magclass::setYears(out[, stitchYear, v], NULL)
+        
+        # Shift the entire projection by the constant numerical offset
+        # We do not apply any artificial bounds here (no clamping to [0, 1]) 
+        # to ensure the scenario curve's mathematical slope is perfectly preserved
+        # and variables can naturally exceed historical maximums without flatlining.
+        out[, , v] <- out[, , v] + offset
+      }
+    }
+  }
 
   return(out)
 }

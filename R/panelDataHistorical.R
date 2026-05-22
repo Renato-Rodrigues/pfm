@@ -16,6 +16,7 @@
 panelDataHistorical <- function(aggregate = TRUE,
                                 y = 2000:2022,
                                 outputRegionMappingFile = "regionmappingH12.csv",
+                                movingAverage = NULL,
                                 coeff = list(
                                   bulk = list(
                                     actor_power = list(innov = 1, incumb = 1),
@@ -59,13 +60,28 @@ panelDataHistorical <- function(aggregate = TRUE,
     magclass::getNames(wgi) <- paste0(magclass::getNames(wgi), " (WGI)")
   }
   wgiInt <- toolTimeInterpolation(wgi, y)
-  wgiNorm <- toolNormalize(wgiInt, targetRange = c(0, 1))
+
+  # Calculate dynamic global country-level baseline bounds
+  wgiCnt <- calcOutput("WGIindicator", aggregate = FALSE)
+  if (!any(grepl("\\(WGI\\)", magclass::getNames(wgiCnt)))) {
+    magclass::getNames(wgiCnt) <- paste0(magclass::getNames(wgiCnt), " (WGI)")
+  }
+  wgiMin <- apply(wgiCnt, 3, min, na.rm = TRUE)
+  wgiMax <- apply(wgiCnt, 3, max, na.rm = TRUE)
+
+  wgiNorm <- toolNormalize(wgiInt, minVal = wgiMin, maxVal = wgiMax, targetRange = c(0, 1))
   out <- mbind(out, wgiNorm[, y, ])
 
   # V-Dem governance indicators (rule of law and accountability)
   vdem <- calcOutput("VDem", aggregate = aggregate, regionmapping = outputRegionMappingFile)
   vdemInt <- toolTimeInterpolation(vdem, y)
-  vdemNorm <- toolNormalize(vdemInt, minVal = 0, maxVal = 1, targetRange = c(0, 1))
+
+  # Calculate dynamic global country-level baseline bounds
+  vdemCnt <- calcOutput("VDem", aggregate = FALSE)
+  vdemMin <- apply(vdemCnt, 3, min, na.rm = TRUE)
+  vdemMax <- apply(vdemCnt, 3, max, na.rm = TRUE)
+
+  vdemNorm <- toolNormalize(vdemInt, minVal = vdemMin, maxVal = vdemMax, targetRange = c(0, 1))
   out <- mbind(out, vdemNorm[, y, ])
 
   # Control Variables
@@ -105,6 +121,22 @@ panelDataHistorical <- function(aggregate = TRUE,
     setNames(sspExt[, y, "SSP2.Gender Inequality Index"], "Gender Inequality Index"),
     setNames(energyIntensityNorm[, y, ], "Energy Intensity")
   )
+
+  if (!is.null(movingAverage) && is.numeric(movingAverage) && movingAverage > 1) {
+    if (dim(out)[2] > 1) {
+      # Apply centered moving average correction along the year dimension
+      # It smoothly shrinks the window at the boundaries to prevent NA losses
+      sma <- function(v, k) {
+        if (all(is.na(v))) return(v)
+        half <- floor(k / 2)
+        n <- length(v)
+        sapply(seq_len(n), function(i) mean(v[max(1, i - half):min(n, i + half)], na.rm = TRUE))
+      }
+      smoothedOut <- out
+      smoothedOut[, , ] <- aperm(apply(as.array(out), c(1, 3), sma, k = movingAverage), c(2, 1, 3))
+      out <- smoothedOut
+    }
+  }
 
   return(out)
 }
