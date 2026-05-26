@@ -80,6 +80,7 @@ downscaleREMINDResults <- function(gdxFile = "fulldata.gdx", aggregate = FALSE,
       x = out, rel = outMappingFile,
       from = "CountryCode", to = "RegionCode", zeroWeight = "setNA"
     )
+    out[is.na(out)] <- 0
   }
 
   return(out)

@@ -18,16 +18,23 @@ iamCalculatedDrivers <- function(data) {
     cells_and_regions = getRegions(data), # nolint: undesirable_function_linter.
     years = getYears(data), names = driverList, fill = 0
   )
+  # Safe division helper
+  safe_div <- function(num, den) {
+    val <- num / den
+    val[!is.finite(val)] <- 0
+    return(val)
+  }
+  
   result[, , "Coal primary energy share"] <-
-    data[, , "pecoal"] / data[, , "petotal"]
+    safe_div(data[, , "pecoal"], data[, , "petotal"])
   result[, , "Oil/Gas primary energy share"] <-
-    (data[, , "pegas"] + data[, , "peoil"]) / data[, , "petotal"]
+    safe_div(data[, , "pegas"] + data[, , "peoil"], data[, , "petotal"])
   result[, , "Fossil share in Industry"] <-
-    data[, , "fe_indst_fossil"] / data[, , "fe_indst"]
+    safe_div(data[, , "fe_indst_fossil"], data[, , "fe_indst"])
   result[, , "VRE share"] <-
-    (data[, , "wind"] + data[, , "solar"]) / data[, , "seel"]
+    safe_div(data[, , "wind"] + data[, , "solar"], data[, , "seel"])
   result[, , "Electrification"] <-
-    data[, , "fe_seel"] / data[, , "fe_total"]
+    safe_div(data[, , "fe_seel"], data[, , "fe_total"])
 
   return(result)
 }

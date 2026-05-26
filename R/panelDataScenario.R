@@ -64,6 +64,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
     magclass::getNames(wgi) <- paste0(magclass::getNames(wgi), " (WGI)")
   }
   wgiInt <- toolTimeInterpolation(wgi, y)
+  wgiInt <- mrpfm::toolImputeMedians(wgiInt)
 
   # Calculate dynamic global country-level baseline bounds
   wgiCnt <- calcOutput("WGIindicator", aggregate = FALSE)
@@ -88,6 +89,10 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   # V-Dem governance indicators — kept constant, no SSP projections available
   vdem <- calcOutput("VDem", aggregate = aggregate, regionmapping = outputRegionMappingFile)
   vdemInt <- toolTimeInterpolation(vdem, y)
+  # Regions with all-NA or < 2 historical points are skipped by toolTimeInterpolation;
+  # fill any remaining NAs with regional/global medians so they don't cascade as NA
+  # through complete.cases() in downstream panel data preparation.
+  vdemInt <- mrpfm::toolImputeMedians(vdemInt)
 
   # Calculate dynamic global country-level baseline bounds
   vdemCnt <- calcOutput("VDem", aggregate = FALSE)

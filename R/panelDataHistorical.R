@@ -60,6 +60,7 @@ panelDataHistorical <- function(aggregate = TRUE,
     magclass::getNames(wgi) <- paste0(magclass::getNames(wgi), " (WGI)")
   }
   wgiInt <- toolTimeInterpolation(wgi, y)
+  wgiInt <- mrpfm::toolImputeMedians(wgiInt)
 
   # Calculate dynamic global country-level baseline bounds
   wgiCnt <- calcOutput("WGIindicator", aggregate = FALSE)
@@ -75,6 +76,9 @@ panelDataHistorical <- function(aggregate = TRUE,
   # V-Dem governance indicators (rule of law and accountability)
   vdem <- calcOutput("VDem", aggregate = aggregate, regionmapping = outputRegionMappingFile)
   vdemInt <- toolTimeInterpolation(vdem, y)
+  # Guard against regions that survive aggregation with < 2 valid data points
+  # (toolTimeInterpolation skips those, leaving NAs that drop rows in preparePanelData).
+  vdemInt <- mrpfm::toolImputeMedians(vdemInt)
 
   # Calculate dynamic global country-level baseline bounds
   vdemCnt <- calcOutput("VDem", aggregate = FALSE)
