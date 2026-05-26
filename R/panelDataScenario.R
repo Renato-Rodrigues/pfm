@@ -59,12 +59,12 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
     subtype = "drivers_SSP2",
     aggregate = aggregate, regionmapping = outputRegionMappingFile
   )
-  # WGI — simple assumption: keep constant across scenario years
+  # WGI — logistic convergence to 75th global percentile by 2150 (midpoint 2080); no scenario-specific projections available
   wgi <- calcOutput("WGIindicator", aggregate = aggregate, regionmapping = outputRegionMappingFile)
   if (!any(grepl("\\(WGI\\)", magclass::getNames(wgi)))) {
     magclass::getNames(wgi) <- paste0(magclass::getNames(wgi), " (WGI)")
   }
-  wgiInt <- toolTimeInterpolation(wgi, y)
+  wgiInt <- mrpfm::toolProjectScenario(wgi, y, shape = "logistic", midpointYear = 2080, convergenceYear = 2150)
   wgiInt <- mrpfm::toolImputeMedians(wgiInt)
 
   # Calculate dynamic global country-level baseline bounds
@@ -87,12 +87,9 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
     magclass::setNames(sspExt[, y, "SSP2.Governance Index|Control of Corruption"], "Control of Corruption (WGI)")
   )
 
-  # V-Dem governance indicators — kept constant, no SSP projections available
+  # V-Dem governance indicators — logistic convergence to 75th global percentile by 2150 (midpoint 2080); no scenario-specific projections available
   vdem <- calcOutput("VDem", aggregate = aggregate, regionmapping = outputRegionMappingFile)
-  vdemInt <- toolTimeInterpolation(vdem, y)
-  # Regions with all-NA or < 2 historical points are skipped by toolTimeInterpolation;
-  # fill any remaining NAs with regional/global medians so they don't cascade as NA
-  # through complete.cases() in downstream panel data preparation.
+  vdemInt <- mrpfm::toolProjectScenario(vdem, y, shape = "logistic", midpointYear = 2080, convergenceYear = 2150)
   vdemInt <- mrpfm::toolImputeMedians(vdemInt)
 
   # Calculate dynamic global country-level baseline bounds
