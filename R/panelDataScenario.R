@@ -164,10 +164,10 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
                      "Regulatory Quality (WGI)", magclass::getNames(vdemNorm))
       
       # Determine which variables can be stitched
-      varsToAlign <- intersect(magclass::getNames(out), magclass::getNames(histPanel))
-      varsToAlign <- setdiff(varsToAlign, constants)
+      varsToHarmonize <- intersect(magclass::getNames(out), magclass::getNames(histPanel))
+      varsToHarmonize <- setdiff(varsToHarmonize, constants)
       
-      for (v in varsToAlign) {
+      for (v in varsToHarmonize) {
         # Calculate offset at the stitching year (historical - scenario)
         offset <- magclass::setYears(histPanel[, stitchYear, v], NULL) - magclass::setYears(out[, stitchYear, v], NULL)
         
