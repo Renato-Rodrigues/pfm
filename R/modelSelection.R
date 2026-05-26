@@ -127,7 +127,8 @@ modelSelection <- function( # nolint: cyclocomp_linter.
     stabilityShift = 0,
     logTransform = TRUE,
     lag = 1,
-    modelDir = getOption("pfm.modelDir", NULL)) {
+    modelDir = getOption("pfm.modelDir", NULL),
+    maxit = 3000) {
   # --- 1. Argument validation ---
   stage <- match.arg(stage, c("adoption", "stringency"))
   testMode <- match.arg(testMode, c("incremental", "combinations"))
@@ -325,7 +326,7 @@ modelSelection <- function( # nolint: cyclocomp_linter.
       }
     }
 
-    fit <- fitAndDiagnose(fml, df, depVar, stage, family, useFirth, nullLoglik, n)
+    fit <- fitAndDiagnose(fml, df, depVar, stage, family, useFirth, nullLoglik, n, maxit = maxit)
     fit$phase <- phaseDesc
     if (isTRUE(fit$maxitWarning)) {
       shortDesc <- paste0(shortDesc, " [Max Iterations Exceeded]")

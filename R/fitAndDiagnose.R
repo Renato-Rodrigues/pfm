@@ -29,7 +29,7 @@
 #' @importFrom sandwich vcovCL
 #' @importFrom lmtest coeftest
 fitAndDiagnose <- function(fml, df, depVar, stage, family, useFirth, nullLoglik, n, # nolint: cyclocomp_linter.
-                           maxZThreshold = 15) {
+                           maxZThreshold = 15, maxit = 3000) {
   warnEnv <- new.env()
   warnEnv$msg <- FALSE
   warnEnv$reason <- NULL
@@ -52,9 +52,9 @@ fitAndDiagnose <- function(fml, df, depVar, stage, family, useFirth, nullLoglik,
         {
           if (stage == "adoption") {
             if (isTRUE(useFirth)) {
-              logistf::logistf(fml, data = df, control = logistf::logistf.control(maxit = 300))
+              logistf::logistf(fml, data = df, control = logistf::logistf.control(maxit = maxit))
             } else {
-              glm(fml, data = df, family = binomial(link = "logit"))
+              glm(fml, data = df, family = binomial(link = "logit"), control = list(maxit = maxit))
             }
           } else {
             glmFamily <- if (family == "Gamma") Gamma(link = "log") else gaussian(link = "log")
@@ -62,9 +62,9 @@ fitAndDiagnose <- function(fml, df, depVar, stage, family, useFirth, nullLoglik,
               if (!requireNamespace("brglm2", quietly = TRUE)) {
                 stop("Package 'brglm2' is required for bias-reduced estimation. Please install it.")
               }
-              glm(fml, data = df, family = glmFamily, method = brglm2::brglmFit)
+              glm(fml, data = df, family = glmFamily, method = brglm2::brglmFit, control = list(maxit = maxit))
             } else {
-              glm(fml, data = df, family = glmFamily)
+              glm(fml, data = df, family = glmFamily, control = list(maxit = maxit))
             }
           }
         },

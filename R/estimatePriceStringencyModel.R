@@ -98,7 +98,8 @@ estimatePriceStringencyModel <- function(
     interactRegionFE = FALSE,
     modelDir = getOption("pfm.modelDir", NULL),
     label = "",
-    verbose = TRUE) {
+    verbose = TRUE,
+    maxit = 3000) {
   # --- 1. Prepare data.frame ---
   df <- preparePanelData(
     data = data,
@@ -187,9 +188,9 @@ estimatePriceStringencyModel <- function(
     if (!requireNamespace("brglm2", quietly = TRUE)) {
       stop("Package 'brglm2' is required for bias-reduced estimation. Please install it.")
     }
-    fit <- stats::glm(fml, data = df, family = glmFamily, method = brglm2::brglmFit, control = list(maxit = 1000))
+    fit <- stats::glm(fml, data = df, family = glmFamily, method = brglm2::brglmFit, control = list(maxit = maxit))
   } else {
-    fit <- stats::glm(fml, data = df, family = glmFamily, control = list(maxit = 1000))
+    fit <- stats::glm(fml, data = df, family = glmFamily, control = list(maxit = maxit))
     # If the standard GLM failed to converge, try providing robust starting values
     if (!fit$converged) {
       if (isTRUE(verbose)) message("  [fallback] GLM failed to converge. Attempting robust starting values...")
@@ -202,7 +203,7 @@ estimatePriceStringencyModel <- function(
       
       # Re-attempt GLM with these starting values
       fit2 <- tryCatch({
-        stats::glm(fml, data = df, family = glmFamily, control = list(maxit = 1000), start = coef(init_fit))
+        stats::glm(fml, data = df, family = glmFamily, control = list(maxit = maxit), start = coef(init_fit))
       }, error = function(e) fit, warning = function(w) fit)
       
       if (isTRUE(fit2$converged)) {

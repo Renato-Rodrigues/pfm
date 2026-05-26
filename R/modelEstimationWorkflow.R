@@ -104,7 +104,8 @@ modelEstimationWorkflow <- function(
     interactRegionFE = FALSE,
     panelData = NULL,
     modelDir = getOption("pfm.modelDir", NULL),
-    verbose = TRUE) {
+    verbose = TRUE,
+    maxit = 3000) {
   # --- 1. Load data ---
   if (is.null(panelData)) {
     if (isTRUE(verbose)) {
@@ -151,7 +152,8 @@ modelEstimationWorkflow <- function(
       includeLaggedAdoption = includeLaggedAdoption,
       interactRegionFE = interactRegionFE,
       modelDir = modelDir,
-      verbose = verbose
+      verbose = verbose,
+      maxit = maxit
     )
     if (isTRUE(verbose)) {
       message("  Stage 1 complete. Converged: ", adoptionResult$model$converged)
@@ -177,7 +179,8 @@ modelEstimationWorkflow <- function(
       includeLaggedECP = includeLaggedECP,
       interactRegionFE = interactRegionFE,
       modelDir = modelDir,
-      verbose = verbose
+      verbose = verbose,
+      maxit = maxit
     )
     if (isTRUE(verbose)) {
       message("  Stage 2 complete. Converged: ", stringencyResult$model$converged)

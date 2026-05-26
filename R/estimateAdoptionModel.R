@@ -87,7 +87,8 @@ estimateAdoptionModel <- function(
     interactRegionFE = FALSE,
     modelDir = getOption("pfm.modelDir", NULL),
     label = "",
-    verbose = TRUE) {
+    verbose = TRUE,
+    maxit = 3000) {
   # --- 1. Prepare data.frame ---
   df <- preparePanelData(
     data = data,
@@ -144,7 +145,7 @@ estimateAdoptionModel <- function(
   }
   if (isTRUE(useFirth)) {
     # Firth's penalized likelihood logistic regression
-    fit <- logistf::logistf(fml, data = df, control = logistf::logistf.control(maxit = 1000, maxstep = 5))
+    fit <- logistf::logistf(fml, data = df, control = logistf::logistf.control(maxit = maxit, maxstep = 5))
 
     # Construct a coeftest-like matrix.
     # logistf uses Profile Likelihood for p-values (prob) and standard errors (var)
@@ -160,7 +161,7 @@ estimateAdoptionModel <- function(
     fit$converged <- !is.null(fit$coefficients) && !any(is.na(fit$coefficients))
   } else {
     # Standard logistic regression
-    fit <- glm(fml, data = df, family = binomial(link = "logit"), control = list(maxit = 1000))
+    fit <- glm(fml, data = df, family = binomial(link = "logit"), control = list(maxit = maxit))
 
     # Clustered SE by region (if regionFE exists)
     clusterVar <- if ("regionFE" %in% names(df)) df$regionFE else NULL
