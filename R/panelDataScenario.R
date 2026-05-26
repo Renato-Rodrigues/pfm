@@ -19,7 +19,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
                               y = c(seq(2005, 2060, 5), seq(2070, 2110, 10), 2130, 2150),
                               gdxRegionMappingFile = "regionmappingH12.csv",
                               outputRegionMappingFile = "regionmappingH12.csv",
-                              alignScenario = TRUE,
+                              harmonizeScenario = TRUE,
                               movingAverage = 5,
                               coeff = list(
                                 bulk = list(
@@ -32,7 +32,8 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
                                   innovators_power = list(vre = 0.5, elec = 1),
                                   incumbents_power = list(coal = 0.2, oilgas = 0.2, fossilInd = 1)
                                 )
-                              )) {
+                              ),
+                              harmonizeScenarioYear = 2040) {
   out <- NULL
 
   # Carbon Price
@@ -140,7 +141,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
     setNames(energyIntensityNorm[, y, "SSP2"], "Energy Intensity")
   )
 
-  if (alignScenario) {
+  if (harmonizeScenario) {
     # Generate the exact historical baseline data
     # (use y = seq(1990, max(y)) or similar to ensure overlap, e.g., year 2020)
     # We retrieve the historical data for 2020 explicitly.
@@ -170,11 +171,20 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
         # Calculate offset at the stitching year (historical - scenario)
         offset <- magclass::setYears(histPanel[, stitchYear, v], NULL) - magclass::setYears(out[, stitchYear, v], NULL)
         
-        # Shift the entire projection by the constant numerical offset
-        # We do not apply any artificial bounds here (no clamping to [0, 1]) 
-        # to ensure the scenario curve's mathematical slope is perfectly preserved
-        # and variables can naturally exceed historical maximums without flatlining.
-        out[, , v] <- out[, , v] + offset
+        # Harmonize scenario data progressively in the pre-defined time period:
+        # Apply 100% of the offset at or before stitchYear and fade it out linearly
+        # until it reaches 0% at the limit harmonization year (harmonizeScenarioYear).
+        projectionYears <- magclass::getYears(out, as.integer = TRUE)
+        for (year_val in projectionYears) {
+          if (year_val <= stitchYear) {
+            weight <- 1.0
+          } else if (year_val >= harmonizeScenarioYear) {
+            weight <- 0.0
+          } else {
+            weight <- (harmonizeScenarioYear - year_val) / (harmonizeScenarioYear - stitchYear)
+          }
+          out[, year_val, v] <- out[, year_val, v] + offset * weight
+        }
       }
     }
   }
