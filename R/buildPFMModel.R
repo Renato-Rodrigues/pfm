@@ -75,7 +75,12 @@ buildPFMModel <- function(fit, training_data, sector, stage, family, useFirth, l
   termLabels <- tryCatch(attr(stats::terms(fml), "term.labels"), error = function(e) character(0))
   # Keep only simple (non-interaction) terms that are numeric columns in df
   simpleTerms <- termLabels[!grepl(":", termLabels)]
-  numCols <- simpleTerms[simpleTerms %in% names(df) & vapply(df[simpleTerms], is.numeric, logical(1))]
+  existingTerms <- simpleTerms[simpleTerms %in% names(df)]
+  numCols <- if (length(existingTerms) > 0) {
+    existingTerms[vapply(df[existingTerms], is.numeric, logical(1))]
+  } else {
+    character(0)
+  }
 
   if (length(numCols) < 2) {
     return(list(pearson = matrix(nrow = 0, ncol = 0), spearman = matrix(nrow = 0, ncol = 0)))
