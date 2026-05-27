@@ -4,6 +4,10 @@
 #'
 #' @param aggregate boolean, if true aggregates to region mapping defined at outputRegionMappingFile
 #' @param outputRegionMappingFile string with path to output mapping file
+#' @param gdxRegionMappingFile string with path to the REMIND region mapping file used to define
+#'   the country universe. Defaults to \code{"regionmappingH12.csv"}. Set to the same mapping
+#'   used in the REMIND GDX (e.g. \code{"regionmappingEU21.csv"}) so that the returned country
+#'   set is consistent with the disaggregation target.
 #'
 #' @return A list with historical [`magpie`][magclass::magclass] objects.
 #' @author Renato Rodrigues
@@ -13,7 +17,8 @@
 #'
 #' @export
 #'
-iamHistoricalData <- function(aggregate = FALSE, outputRegionMappingFile = "regionmappingH12.csv") {
+iamHistoricalData <- function(aggregate = FALSE, outputRegionMappingFile = "regionmappingH12.csv",
+                               gdxRegionMappingFile = "regionmappingH12.csv") {
   peVars <- c("pecoal", "peoil", "pegas", "pewin", "pesol", "peur", "pehyd", "pegeo", "petotal")
   seVars <- c("wind", "solar", "seel")
   feVars <- c("fe_indst_fossil", "fe_indst", "fe_seel", "fe_total")
@@ -69,7 +74,7 @@ iamHistoricalData <- function(aggregate = FALSE, outputRegionMappingFile = "regi
     getYears(histFe, as.integer = TRUE)
   )))
 
-  countries <- toolGetMapping("regionmappingH12.csv", type = "regional", where = "mappingfolder")$CountryCode
+  countries <- toolGetMapping(gdxRegionMappingFile, type = "regional", where = "mappingfolder")$CountryCode
   histData <- new.magpie(cells_and_regions = countries, years = histYears, names = vars)
   histData[, getYears(histPe), peVars] <- histPe[, getYears(histPe), peVars]
   histData[, getYears(genEmber), seVars] <- genEmber[, getYears(genEmber), seVars]

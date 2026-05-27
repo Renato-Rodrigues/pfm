@@ -10,7 +10,7 @@
 #' @return A [`magpie`][magclass::magclass] object with downscaled REMIND data.
 #' @author Renato Rodrigues
 #'
-#' @importFrom magclass getNames<- getYears getRegions new.magpie ndata
+#' @importFrom magclass getItems getYears new.magpie dimSums setNames
 #' @importFrom gdx readGDX
 #'
 #' @export
@@ -54,22 +54,29 @@ downscaleREMINDResults <- function(gdxFile = "fulldata.gdx", aggregate = FALSE,
   remindData[, , "fe_seel"] <- dimSums(demFeSector[, , "seel"], dim = 3, na.rm = TRUE)
   remindData[, , "fe_total"] <- dimSums(demFeSector, dim = 3, na.rm = TRUE)
 
-  # Conversion weights
-  weightRemindData <- new.magpie(
-    cells_and_regions = remindMappingFile$CountryCode,
-    years = getYears(remindData), names = vars, fill = 0
+  # Historical country data used as IPF prior (country universe from the same mapping as the GDX)
+  histData <- iamHistoricalData(gdxRegionMappingFile = gdxRegionMappingFile)
+  histData[histData < 0] <- 0
+
+  # IPF group specification: each group's component vars and denominator/total var.
+  # IPF balances historical country fuel-mix structure against H12 REMIND totals,
+  # guaranteeing share consistency (numerator <= denominator) at every country.
+  groups <- list(
+    pe       = list(vars = c("pecoal", "peoil", "pegas", "pewin", "pesol", "peur", "pehyd", "pegeo"),
+                    denom = "petotal"),
+    se       = list(vars = c("wind", "solar"),
+                    denom = "seel"),
+    fe_indst = list(vars = c("fe_indst_fossil"),
+                    denom = "fe_indst"),
+    fe_total = list(vars = c("fe_seel"),
+                    denom = "fe_total")
   )
 
-  # Fetch historical data outputs
-  histData <- iamHistoricalData()
-  weightRemindData <- toolTimeInterpolation(histData, interpolatedYears = yearsList)
-  # Remove negative values (EST has negative values for pecoal)
-  weightRemindData[weightRemindData < 0] <- 0
-
-  # output object
-  out <- toolAggregate(
-    x = remindData, weight = weightRemindData,
-    rel = remindMappingFile, from = "RegionCode", to = "CountryCode", zeroWeight = "setNA"
+  out <- mrpfm::toolIPFDownscale(
+    prior   = histData,
+    remind  = remindData,
+    groups  = groups,
+    mapping = remindMappingFile
   )
   out[is.na(out)] <- 0
   out <- toolCountryFill(out, fill = 0)
