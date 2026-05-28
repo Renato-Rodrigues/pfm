@@ -49,6 +49,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   modelAPI <- actorPowerIndex(modelCalculatedDrivers, coeff)
   out <- mbind(out, modelAPI[, y, c(
     "Actor Power Index|Bulk", "Actor Power Index|Diffuse",
+    "Innovator Power|Bulk", "Innovator Power|Diffuse",
     "Incumbent Power|Bulk", "Incumbent Power|Diffuse"
   )])
   # Actor Power Index Drivers
