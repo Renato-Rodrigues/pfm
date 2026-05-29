@@ -12,7 +12,8 @@ iamCalculatedDrivers <- function(data) {
   # add calculated drivers
   driverList <- c(
     "Coal primary energy share", "Oil/Gas primary energy share",
-    "Fossil share in Industry", "VRE share", "Electrification"
+    "Fossil share in Industry", "VRE share", "Electrification",
+    "Clean primary energy share", "Biofuel Displacement", "Hydro Nuclear Share"
   )
   result <- new.magpie(
     cells_and_regions = getRegions(data), # nolint: undesirable_function_linter.
@@ -54,6 +55,23 @@ iamCalculatedDrivers <- function(data) {
     clamp01(safe_div(data[, , "wind"] + data[, , "solar"], data[, , "seel"]), "VRE share")
   result[, , "Electrification"] <-
     clamp01(safe_div(data[, , "fe_seel"], data[, , "fe_total"]), "Electrification")
+  result[, , "Clean primary energy share"] <-
+    clamp01(safe_div(
+      data[, , "pehyd"] + data[, , "peur"] + data[, , "pewin"] + data[, , "pesol"] + data[, , "pegeo"],
+      data[, , "petotal"]
+    ), "Clean primary energy share")
+
+  # Biofuel share of transport liquid fuels — fe_liqbio_tran / fe_liqtran
+  # Captures liquid biofuel (ethanol, biodiesel) as a fraction of all transport liquids.
+  # Represents the organized constituency (ethanol/biodiesel producers) that gains
+  # from carbon pricing on fossil fuels in transport.
+  result[, , "Biofuel Displacement"] <-
+    clamp01(safe_div(data[, , "fe_liqbio_tran"], data[, , "fe_liqtran"]), "Biofuel Displacement")
+
+  # Hydro + nuclear share of primary energy — control variable for inherited clean energy base.
+  # Not in Innovator Power; enters the panel data as a structural control.
+  result[, , "Hydro Nuclear Share"] <-
+    clamp01(safe_div(data[, , "pehyd"] + data[, , "peur"], data[, , "petotal"]), "Hydro Nuclear Share")
 
   return(result)
 }

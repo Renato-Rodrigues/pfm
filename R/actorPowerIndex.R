@@ -25,7 +25,7 @@ actorPowerIndex <- function(
       ),
       diffuse = list(
         actor_power = list(innov = 1, incumb = 1),
-        innovators_power = list(vre = 0.5, elec = 1),
+        innovators_power = list(vre = 0.5, elec = 1, biofuel = 0.4),
         incumbents_power = list(coal = 0.2, oilgas = 0.2, fossilInd = 1)
       )
     )) {
@@ -39,6 +39,8 @@ actorPowerIndex <- function(
   fossilInd <- data[, , "Fossil share in Industry"]
   vre <- data[, , "VRE share"]
   elec <- data[, , "Electrification"]
+  cleanPE <- data[, , "Clean primary energy share"]
+  biofuel <- data[, , "Biofuel Displacement"]
 
   # Pre-allocate output arrays for indices across Sectors ("Bulk", "Diffuse")
   outNames <- c(
@@ -55,17 +57,17 @@ actorPowerIndex <- function(
   sumIncumbBulk <- coeff$bulk$incumbents_power$coal + coeff$bulk$incumbents_power$oilgas +
     coeff$bulk$incumbents_power$fossilInd
 
-  sumInnovDiffuse <- coeff$diffuse$innovators_power$vre + coeff$diffuse$innovators_power$elec
+  sumInnovDiffuse <- coeff$diffuse$innovators_power$vre + coeff$diffuse$innovators_power$elec +
+    coeff$diffuse$innovators_power$biofuel
   sumIncumbDiffuse <- coeff$diffuse$incumbents_power$coal + coeff$diffuse$incumbents_power$oilgas +
     coeff$diffuse$incumbents_power$fossilInd
 
   # --- Calculate Innovator Power ---
   out[, , "Innovator Power|Bulk"] <-
-    ((coeff$bulk$innovators_power$vre * vre) + (coeff$bulk$innovators_power$elec * elec)) /
-    sumInnovBulk
+    ((coeff$bulk$innovators_power$vre * vre) + (coeff$bulk$innovators_power$elec * elec)) / sumInnovBulk
   out[, , "Innovator Power|Diffuse"] <-
-    ((coeff$diffuse$innovators_power$vre * vre) + (coeff$diffuse$innovators_power$elec * elec)) /
-    sumInnovDiffuse
+    ((coeff$diffuse$innovators_power$vre * vre) + (coeff$diffuse$innovators_power$elec * elec) +
+     (coeff$diffuse$innovators_power$biofuel * biofuel)) / sumInnovDiffuse
 
   # --- Calculate Incumbent Power ---
   out[, , "Incumbent Power|Bulk"] <-

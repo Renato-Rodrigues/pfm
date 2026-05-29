@@ -27,7 +27,7 @@ downscaleREMINDResults <- function(gdxFile = "fulldata.gdx", aggregate = FALSE,
   # Read remindData from gdx
   peVars <- c("pecoal", "peoil", "pegas", "pewin", "pesol", "peur", "pehyd", "pegeo", "petotal")
   seVars <- c("wind", "solar", "seel")
-  feVars <- c("fe_indst_fossil", "fe_indst", "fe_seel", "fe_total")
+  feVars <- c("fe_indst_fossil", "fe_indst", "fe_seel", "fe_total", "fe_liqbio_tran", "fe_liqtran")
   vars <- c(peVars, seVars, feVars)
 
   # --- Primary energy
@@ -54,6 +54,14 @@ downscaleREMINDResults <- function(gdxFile = "fulldata.gdx", aggregate = FALSE,
   remindData[, , "fe_seel"] <- dimSums(demFeSector[, , "seel"], dim = 3, na.rm = TRUE)
   remindData[, , "fe_total"] <- dimSums(demFeSector, dim = 3, na.rm = TRUE)
 
+  # Transport liquid biofuels — use vm_demFeSector_afterTax (seliqbio in trans, all fuel types + markets)
+  demFeSectorTax <- gdx::readGDX(gdxFile, "vm_demFeSector_afterTax",
+    field = "l", react = "silent", restore_zeros = FALSE
+  )[, yearsList, ]
+  remindData[, , "fe_liqbio_tran"] <- dimSums(demFeSectorTax[, , "trans"][, , "seliqbio"], dim = 3, na.rm = TRUE)
+  fe_liqfos_remind <- dimSums(demFeSectorTax[, , "trans"][, , "seliqfos"], dim = 3, na.rm = TRUE)
+  remindData[, , "fe_liqtran"] <- remindData[, , "fe_liqbio_tran"] + fe_liqfos_remind
+
   # Historical country data used as IPF prior (country universe from the same mapping as the GDX)
   histData <- iamHistoricalData(gdxRegionMappingFile = gdxRegionMappingFile)
   histData[histData < 0] <- 0
@@ -68,8 +76,10 @@ downscaleREMINDResults <- function(gdxFile = "fulldata.gdx", aggregate = FALSE,
                     denom = "seel"),
     fe_indst = list(vars = c("fe_indst_fossil"),
                     denom = "fe_indst"),
-    fe_total = list(vars = c("fe_seel"),
-                    denom = "fe_total")
+    fe_total   = list(vars = c("fe_seel"),
+                      denom = "fe_total"),
+    fe_tran_liq = list(vars = c("fe_liqbio_tran"),
+                       denom = "fe_liqtran")
   )
 
   out <- mrpfm::toolIPFDownscale(

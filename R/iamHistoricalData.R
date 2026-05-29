@@ -21,7 +21,7 @@ iamHistoricalData <- function(aggregate = FALSE, outputRegionMappingFile = "regi
                                gdxRegionMappingFile = "regionmappingH12.csv") {
   peVars <- c("pecoal", "peoil", "pegas", "pewin", "pesol", "peur", "pehyd", "pegeo", "petotal")
   seVars <- c("wind", "solar", "seel")
-  feVars <- c("fe_indst_fossil", "fe_indst", "fe_seel", "fe_total")
+  feVars <- c("fe_indst_fossil", "fe_indst", "fe_seel", "fe_total", "fe_liqbio_tran", "fe_liqtran")
   vars <- c(peVars, seVars, feVars)
 
   # --- Primary energy
@@ -62,10 +62,11 @@ iamHistoricalData <- function(aggregate = FALSE, outputRegionMappingFile = "regi
     "FE|Electricity (EJ/yr)", "fe_seel",
     "FE (EJ/yr)", "fe_total"
   )
-  histFe <- calcOutput("FE",
-    aggregate = FALSE, warnNA = FALSE
-  )[, , mappingHistFe$histFe] |>
+  histFe_all <- calcOutput("FE", aggregate = FALSE, warnNA = FALSE)
+  histFe <- histFe_all[, , mappingHistFe$histFe] |>
     toolAggregate(rel = mappingHistFe, dim = 3.1, from = "histFe", to = "remind")
+  fe_liqbio_tran <- histFe_all[, , "FE|Transport|Liquids|Biomass (EJ/yr)"]
+  fe_liqfos_tran <- histFe_all[, , "FE|Transport|Liquids|Fossil (EJ/yr)"]
 
   # hist
   histYears <- sort(unique(c(
@@ -78,7 +79,11 @@ iamHistoricalData <- function(aggregate = FALSE, outputRegionMappingFile = "regi
   histData <- new.magpie(cells_and_regions = countries, years = histYears, names = vars)
   histData[, getYears(histPe), peVars] <- histPe[, getYears(histPe), peVars]
   histData[, getYears(genEmber), seVars] <- genEmber[, getYears(genEmber), seVars]
-  histData[, getYears(histFe), feVars] <- histFe[, getYears(histFe), feVars]
+  histData[, getYears(histFe), feVars[feVars %in% getNames(histFe)]] <-
+    histFe[, getYears(histFe), feVars[feVars %in% getNames(histFe)]]
+  liqYrs <- intersect(getYears(fe_liqbio_tran), getYears(histData))
+  histData[, liqYrs, "fe_liqbio_tran"] <- fe_liqbio_tran[, liqYrs, ]
+  histData[, liqYrs, "fe_liqtran"] <- pmax(fe_liqbio_tran[, liqYrs, ] + fe_liqfos_tran[, liqYrs, ], 0)
 
   if (aggregate) {
     outMappingFile <- toolGetMapping(outputRegionMappingFile, type = "regional", where = "mappingfolder")
