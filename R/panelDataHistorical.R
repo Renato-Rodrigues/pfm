@@ -16,7 +16,7 @@
 panelDataHistorical <- function(aggregate = TRUE,
                                 y = 2000:2022,
                                 outputRegionMappingFile = "regionmappingH12.csv",
-                                movingAverage = NULL,
+                                movingAverage = 5,
                                 coeff = list(
                                   bulk = list(
                                     actor_power = list(innov = 1, incumb = 1),
@@ -89,30 +89,39 @@ panelDataHistorical <- function(aggregate = TRUE,
   out <- mbind(out, vdemNorm[, y, ])
 
   # Control Variables
-  # GDP per capita
   pop <- calcOutput("PopulationPast", aggregate = aggregate, regionmapping = outputRegionMappingFile)
   gdp <- calcOutput("GDPPast", aggregate = aggregate, regionmapping = outputRegionMappingFile)
   gdpPerCapita <- magclass::collapseNames(
     gdp[, intersect(getYears(pop), getYears(gdp)), ] /
       pop[, intersect(getYears(pop), getYears(gdp)), ]
   )
-  popNorm <- toolNormalize(pop, minVal = 0, maxVal = 1500) # 1.5 billion normalized to 1
-  gdpNorm <- toolNormalize(gdp, minVal = 0, maxVal = 30000000) # 30 trillion normalized to 1
-  gdpPerCapitaNorm <- toolNormalize(gdpPerCapita, minVal = 0, maxVal = 150000) # 150k normalized to 1
+  # Log-scale bounds from historical regional data (bounds must be regional, not country-level,
+  # because pop/GDP/area are additive: a region's total exceeds any individual country)
+  popLogMin       <- min(log(pop), na.rm = TRUE)
+  popLogMax       <- max(log(pop), na.rm = TRUE)
+  gdpLogMin       <- min(log(gdp), na.rm = TRUE)
+  gdpLogMax       <- max(log(gdp), na.rm = TRUE)
+  gdpPCLogMin     <- min(log(gdpPerCapita), na.rm = TRUE)
+  gdpPCLogMax     <- max(log(gdpPerCapita), na.rm = TRUE)
+  popNorm          <- toolNormalize(log(pop), minVal = popLogMin, maxVal = popLogMax, targetRange = c(0, 1))
+  gdpNorm          <- toolNormalize(log(gdp), minVal = gdpLogMin, maxVal = gdpLogMax, targetRange = c(0, 1))
+  gdpPerCapitaNorm <- toolNormalize(log(gdpPerCapita), minVal = gdpPCLogMin, maxVal = gdpPCLogMax, targetRange = c(0, 1))
   # Land area
   landArea <- new.magpie(getRegions(pop), y, "LandArea", fill = NA) # nolint: undesirable_function_linter.
   landArea[, y, ] <- calcOutput("FAOLandArea", aggregate = aggregate, regionmapping = outputRegionMappingFile)
-  landAreaNorm <- toolNormalize(landArea, minVal = 0, maxVal = 1500000) # 1.5 million 1000 ha normalized to 1
-  # 1.5 million 1000 ha = 15 million square kilometers =~ Largest country in the World (Russia)
+  landAreaLogMin  <- min(log(landArea), na.rm = TRUE)
+  landAreaLogMax  <- max(log(landArea), na.rm = TRUE)
+  landAreaNorm    <- toolNormalize(log(landArea), minVal = landAreaLogMin, maxVal = landAreaLogMax, targetRange = c(0, 1))
 
   # SSP extensions
   sspExt <- calcOutput("SSPextensions",
     subtype = "drivers_SSP2",
     aggregate = aggregate, regionmapping = outputRegionMappingFile
   )
-  # IEA energy intensity
+  # IEA energy intensity — log1p for robustness against near-zero values;
+  # fixed ceiling matches historical assumption, consistent with scenario panel
   energyIntensity <- histData[, y, "fe_total"] * 31.536 / (gdp[, y, ] / 1e6) # (EJ / million US$)
-  energyIntensityNorm <- toolNormalize(energyIntensity, minVal = 0, maxVal = 600) # 600 normalized to 1
+  energyIntensityNorm <- toolNormalize(log1p(energyIntensity), minVal = 0, maxVal = log1p(600), targetRange = c(0, 1))
 
   out <- mbind(
     out,

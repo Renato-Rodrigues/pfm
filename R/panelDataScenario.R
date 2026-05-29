@@ -60,7 +60,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
     subtype = "drivers_SSP2",
     aggregate = aggregate, regionmapping = outputRegionMappingFile
   )
-  # WGI — logistic convergence to 75th global percentile by 2150 (midpoint 2080); no scenario-specific projections available
+  # Voice and Accountability, Political Stability, Regulatory Quality — logistic convergence to 75th global percentile by 2150 (midpoint 2080); no scenario-specific projections available
   wgi <- calcOutput("WGIindicator", aggregate = aggregate, regionmapping = outputRegionMappingFile)
   if (!any(grepl("\\(WGI\\)", magclass::getNames(wgi)))) {
     magclass::getNames(wgi) <- paste0(magclass::getNames(wgi), " (WGI)")
@@ -68,7 +68,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   wgiInt <- mrpfm::toolProjectScenario(wgi, y, shape = "logistic", midpointYear = 2080, convergenceYear = 2150)
   wgiInt <- mrpfm::toolImputeMedians(wgiInt)
 
-  # Calculate dynamic global country-level baseline bounds
+  # Calculate dynamic global country-level baseline bounds (historical observations only)
   wgiCnt <- calcOutput("WGIindicator", aggregate = FALSE)
   if (!any(grepl("\\(WGI\\)", magclass::getNames(wgiCnt)))) {
     magclass::getNames(wgiCnt) <- paste0(magclass::getNames(wgiCnt), " (WGI)")
@@ -78,14 +78,26 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
 
   wgiNorm <- toolNormalize(wgiInt, minVal = wgiMin, maxVal = wgiMax, targetRange = c(0, 1))
 
+  # Rule of Law, Government Effectiveness, Control of Corruption — SSP extensions projections,
+  # normalized to 0-1 using country-level min/max over historical years only (matching WGI bound computation)
+  sspGovVars <- c("SSP2.Rule-of-Law Index", "SSP2.Governance Index|Government Effectiveness",
+                  "SSP2.Governance Index|Control of Corruption")
+  sspExtCnt <- calcOutput("SSPextensions", subtype = "drivers_SSP2", aggregate = FALSE)
+  wgiHistYears <- magclass::getYears(wgiCnt)
+  sspHistYears <- intersect(wgiHistYears, magclass::getYears(sspExtCnt))
+  sspGovMin <- apply(sspExtCnt[, sspHistYears, sspGovVars], 3, min, na.rm = TRUE)
+  sspGovMax <- apply(sspExtCnt[, sspHistYears, sspGovVars], 3, max, na.rm = TRUE)
+  sspGovNorm <- toolNormalize(sspExt[, y, sspGovVars],
+    minVal = sspGovMin, maxVal = sspGovMax, targetRange = c(0, 1), clamp = TRUE)
+
   out <- mbind(
     out,
     wgiNorm[, y, "Voice and Accountability (WGI)"],
     wgiNorm[, y, "Political Stability (WGI)"],
     wgiNorm[, y, "Regulatory Quality (WGI)"],
-    magclass::setNames(sspExt[, y, "SSP2.Rule-of-Law Index"], "Rule of Law (WGI)"),
-    magclass::setNames(sspExt[, y, "SSP2.Governance Index|Government Effectiveness"], "Government Effectiveness (WGI)"),
-    magclass::setNames(sspExt[, y, "SSP2.Governance Index|Control of Corruption"], "Control of Corruption (WGI)")
+    magclass::setNames(sspGovNorm[, , "SSP2.Rule-of-Law Index"], "Rule of Law (WGI)"),
+    magclass::setNames(sspGovNorm[, , "SSP2.Governance Index|Government Effectiveness"], "Government Effectiveness (WGI)"),
+    magclass::setNames(sspGovNorm[, , "SSP2.Governance Index|Control of Corruption"], "Control of Corruption (WGI)")
   )
 
   # V-Dem governance indicators — logistic convergence to 75th global percentile by 2150 (midpoint 2080); no scenario-specific projections available
@@ -102,7 +114,6 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   out <- mbind(out, vdemNorm[, y, ])
 
   # Control Variables
-  # GDP per capita
   pop <- calcOutput("Population",
     scenario = c("SSP1", "SSP2", "SSP3", "SSP4", "SSP5"),
     aggregate = aggregate, regionmapping = outputRegionMappingFile
@@ -115,17 +126,34 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
     gdp[, intersect(getYears(pop), getYears(gdp)), ] /
       pop[, intersect(getYears(pop), getYears(gdp)), ]
   )
-  popNorm <- toolNormalize(pop, minVal = 0, maxVal = 1500) # 1.5 billion normalized to 1
-  gdpNorm <- toolNormalize(gdp, minVal = 0, maxVal = 30000000) # 30 trillion normalized to 1
-  gdpPerCapitaNorm <- toolNormalize(gdpPerCapita, minVal = 0, maxVal = 150000) # 150k normalized to 1
-  # Land area
+  # Log-scale bounds from historical regional data — same reference as historical panel so the
+  # model receives inputs on the same scale it was trained on; clamp since long-run projections
+  # may mildly exceed the historical maximum in log space
+  popHist  <- calcOutput("PopulationPast", aggregate = aggregate, regionmapping = outputRegionMappingFile)
+  gdpHist  <- calcOutput("GDPPast", aggregate = aggregate, regionmapping = outputRegionMappingFile)
+  gdpPCHist <- magclass::collapseNames(
+    gdpHist[, intersect(getYears(gdpHist), getYears(popHist)), ] /
+      popHist[, intersect(getYears(gdpHist), getYears(popHist)), ]
+  )
+  popLogMin   <- min(log(popHist), na.rm = TRUE)
+  popLogMax   <- max(log(popHist), na.rm = TRUE)
+  gdpLogMin   <- min(log(gdpHist), na.rm = TRUE)
+  gdpLogMax   <- max(log(gdpHist), na.rm = TRUE)
+  gdpPCLogMin <- min(log(gdpPCHist), na.rm = TRUE)
+  gdpPCLogMax <- max(log(gdpPCHist), na.rm = TRUE)
+  popNorm          <- toolNormalize(log(pop), minVal = popLogMin, maxVal = popLogMax, targetRange = c(0, 1), clamp = TRUE)
+  gdpNorm          <- toolNormalize(log(gdp), minVal = gdpLogMin, maxVal = gdpLogMax, targetRange = c(0, 1), clamp = TRUE)
+  gdpPerCapitaNorm <- toolNormalize(log(gdpPerCapita), minVal = gdpPCLogMin, maxVal = gdpPCLogMax, targetRange = c(0, 1), clamp = TRUE)
+  # Land area — constant; bounds from the same aggregated snapshot used in both panels
   landArea <- new.magpie(getRegions(pop), y, "LandArea", fill = NA) # nolint: undesirable_function_linter.
   landArea[, y, ] <- calcOutput("FAOLandArea", aggregate = aggregate, regionmapping = outputRegionMappingFile)
-  landAreaNorm <- toolNormalize(landArea, minVal = 0, maxVal = 1500000) # 1.5 million 1000 ha normalized to 1
-  # 1.5 million 1000 ha = 15 million square kilometers =~ Largest country in the World (Russia)
-  # IEA energy intensity
+  landAreaLogMin <- min(log(landArea), na.rm = TRUE)
+  landAreaLogMax <- max(log(landArea), na.rm = TRUE)
+  landAreaNorm   <- toolNormalize(log(landArea), minVal = landAreaLogMin, maxVal = landAreaLogMax, targetRange = c(0, 1))
+  # IEA energy intensity — log1p; fixed ceiling consistent with historical panel;
+  # future intensity only falls so upper breach is not a concern
   energyIntensity <- modelDownscale[, y, "fe_total"] * 31.536 / (gdp[, y, ] / 1e6) # (EJ / million US$)
-  energyIntensityNorm <- toolNormalize(energyIntensity, minVal = 0, maxVal = 600) # 600 normalized to 1
+  energyIntensityNorm <- toolNormalize(log1p(energyIntensity), minVal = 0, maxVal = log1p(600), targetRange = c(0, 1))
 
   out <- mbind(
     out,
@@ -140,9 +168,6 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   )
 
   if (harmonizeScenario) {
-    # Generate the exact historical baseline data
-    # (use y = seq(1990, max(y)) or similar to ensure overlap, e.g., year 2020)
-    # We retrieve the historical data for 2020 explicitly.
     histPanel <- panelDataHistorical(
       aggregate = aggregate,
       y = 2000:2022,
@@ -150,39 +175,40 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
       movingAverage = movingAverage,
       coeff = coeff
     )
-    
-    # The stitch year will be 2020 (as both out and histPanel are expected to have it, 
-    # but we take the intersection safely)
-    availYears <- intersect(magclass::getYears(out, as.integer = TRUE), magclass::getYears(histPanel, as.integer = TRUE))
-    if (length(availYears) > 0) {
-      stitchYear <- max(availYears)
-      
-      # Exclude strictly constant variables that are already perfectly anchored
-      constants <- c("Voice and Accountability (WGI)", "Political Stability (WGI)", 
-                     "Regulatory Quality (WGI)", magclass::getNames(vdemNorm))
-      
-      # Determine which variables can be stitched
-      varsToHarmonize <- intersect(magclass::getNames(out), magclass::getNames(histPanel))
-      varsToHarmonize <- setdiff(varsToHarmonize, constants)
-      
-      for (v in varsToHarmonize) {
-        # Calculate offset at the stitching year (historical - scenario)
-        offset <- magclass::setYears(histPanel[, stitchYear, v], NULL) - magclass::setYears(out[, stitchYear, v], NULL)
-        
-        # Harmonize scenario data progressively in the pre-defined time period:
-        # Apply 100% of the offset at or before stitchYear and fade it out linearly
-        # until it reaches 0% at the limit harmonization year (harmonizeScenarioYear).
-        projectionYears <- magclass::getYears(out, as.integer = TRUE)
-        for (year_val in projectionYears) {
-          if (year_val <= stitchYear) {
-            weight <- 1.0
-          } else if (year_val >= harmonizeScenarioYear) {
-            weight <- 0.0
-          } else {
-            weight <- (harmonizeScenarioYear - year_val) / (harmonizeScenarioYear - stitchYear)
-          }
-          out[, year_val, v] <- out[, year_val, v] + offset * weight
+
+    # Use the latest historical year as the harmonization anchor so that recent
+    # changes (e.g. a Rule of Law recovery in 2022) are reflected in the scenario.
+    # If that year is not a native scenario timestep (REMIND runs in 5-yr steps),
+    # linearly interpolate the scenario variables to that year for the offset only.
+    stitchYear <- max(magclass::getYears(histPanel, as.integer = TRUE))
+    scenYears  <- magclass::getYears(out, as.integer = TRUE)
+
+    if (!stitchYear %in% scenYears) {
+      outAtStitch <- magclass::time_interpolate(out, stitchYear, extrapolation_type = "linear")
+    } else {
+      outAtStitch <- out
+    }
+
+    # Exclude variables already perfectly anchored by their own projection method
+    constants <- c("Voice and Accountability (WGI)", "Political Stability (WGI)",
+                   "Regulatory Quality (WGI)", magclass::getNames(vdemNorm))
+
+    varsToHarmonize <- intersect(magclass::getNames(out), magclass::getNames(histPanel))
+    varsToHarmonize <- setdiff(varsToHarmonize, constants)
+
+    for (v in varsToHarmonize) {
+      offset <- magclass::setYears(histPanel[, stitchYear, v], NULL) -
+                magclass::setYears(outAtStitch[, stitchYear, v], NULL)
+
+      for (year_val in scenYears) {
+        if (year_val <= stitchYear) {
+          weight <- 1.0
+        } else if (year_val >= harmonizeScenarioYear) {
+          weight <- 0.0
+        } else {
+          weight <- (harmonizeScenarioYear - year_val) / (harmonizeScenarioYear - stitchYear)
         }
+        out[, year_val, v] <- out[, year_val, v] + offset * weight
       }
     }
   }
