@@ -88,7 +88,11 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
       row <- list()
       row$region <- r
       row$year <- years[yi]
-      row$timeTrend <- yi # linear time trend (1, 2, 3, ...)
+      # Calendar-anchored time trend so the value is consistent across separate
+      # magpie objects (historical vs. scenario). yi would restart from 1 for
+      # each new dataset; year-1999 gives a continuous sequence (2000→1,
+      # 2001→2, …, 2022→23, 2025→26, …) regardless of dataset boundaries.
+      row$timeTrend <- years[yi] - 1999L
 
       # Dependent variable
       if (hasEcp) {
