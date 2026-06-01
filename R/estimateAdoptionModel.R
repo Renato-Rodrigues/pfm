@@ -185,9 +185,10 @@ estimateAdoptionModel <- function(
       message("    [ridge] Applying Ridge regularization on interaction terms (", lambda_msg, ")...")
     }
     ridgeRes <- fitRidgeLogit(fml, df, depVar = "adoption",
-                              ridgeLambda = ridgeLambda,
-                              clusterVar  = df$region,
-                              maxit       = maxit)
+                              ridgeLambda        = ridgeLambda,
+                              clusterVar         = df$region,
+                              maxit              = maxit,
+                              instQualityDrivers = instQualityDrivers)
     if (is.null(ridgeRes)) {
       stop("Ridge logistic regression failed for sector '", sector, "'.")
     }
@@ -196,7 +197,9 @@ estimateAdoptionModel <- function(
     robustTest <- ridgeRes$coeftest
     if (isTRUE(verbose)) {
       message("    [ridge] lambda = ", round(ridgeRes$ridgeLambda, 5),
-              ", penalized terms = ", ridgeRes$nInteractionTerms)
+              ", penalized terms = ", ridgeRes$nPenalizedTerms,
+              " (IQ conflict: ", ridgeRes$iqConflict,
+              ", interaction conflict: ", ridgeRes$interactionConflict, ")")
     }
 
   } else if (isTRUE(useFirth)) {

@@ -1,13 +1,21 @@
 #' @title fitRidgeLogit
 #' @description Fits a binomial logistic regression with Ridge (L2) regularization
-#'   applied **selectively to interaction terms only**. Main effects, time trend, region
-#'   fixed effects, and controls are left unpenalized (\code{penalty.factor = 0}).
+#'   applied **dynamically** to term groups that show opposing signs in the initial
+#'   unpenalized fit.
 #'
-#'   This addresses the sign-flip projection artefact that occurs when a large negative
-#'   interaction coefficient (e.g. \code{API x RoL}) dominates the linear predictor once
-#'   the Actor Power Index transitions from negative to positive in scenario data. Ridge
-#'   shrinks the interaction coefficients toward zero without forcing them to zero (unlike
-#'   Lasso), preserving the theoretical interaction signal while reducing its extremity.
+#'   After fitting the unpenalized GLM, two term groups are inspected:
+#'   \enumerate{
+#'     \item \strong{IQ main effects} (\code{instQualityDrivers} columns): penalized
+#'       (factor = 1) when at least one coefficient is positive and at least one is
+#'       negative, indicating multicollinearity-driven sign conflict.
+#'     \item \strong{Interaction terms} (\code{_x_} columns): penalized (factor = 1)
+#'       when they show the same opposing-sign pattern.
+#'   }
+#'   Groups without sign conflict are left unpenalized (factor = 0). Controls, time
+#'   trend, and region fixed effects are always unpenalized.
+#'
+#'   This avoids over-penalizing terms that are well-identified while targeting only
+#'   the groups where Ridge is needed to suppress instability.
 #'
 #'   When \code{ridgeLambda = NULL} the penalty is selected by 5-fold cross-validation
 #'   via \code{cv.glmnet}. Pass an explicit numeric value to fix \eqn{\lambda} (useful
@@ -26,6 +34,9 @@
 #'   variance. Typically \code{df$region}.
 #' @param maxit Integer. Max iterations for the initial unpenalized GLM (used only to
 #'   build the model-object scaffold; convergence of this fit is not required).
+#' @param instQualityDrivers Character vector or NULL. Names of institutional quality
+#'   drivers (as passed to \code{buildModelFormula}). Used to identify the IQ main-effect
+#'   columns for opposing-sign detection. When \code{NULL} the IQ group is skipped.
 #'
 #' @return A list with:
 #'   \describe{
@@ -33,7 +44,10 @@
 #'     \item{coeftest}{4-column matrix (Estimate, SE, z, p) from the penalized Hessian.}
 #'     \item{vcov}{Variance-covariance matrix (penalized Hessian sandwich).}
 #'     \item{ridgeLambda}{\eqn{\lambda} used.}
-#'     \item{nInteractionTerms}{Number of penalized interaction terms.}
+#'     \item{nInteractionTerms}{Number of \code{_x_} interaction terms in the formula.}
+#'     \item{nPenalizedTerms}{Number of terms actually penalized.}
+#'     \item{iqConflict}{Logical. Whether opposing-sign conflict was detected in IQ main effects.}
+#'     \item{interactionConflict}{Logical. Whether opposing-sign conflict was detected in interaction terms.}
 #'     \item{loglik}{Unpenalized log-likelihood evaluated at the Ridge estimates.}
 #'     \item{nObs}{Number of observations.}
 #'   }
@@ -42,9 +56,10 @@
 #' @keywords internal
 #' @importFrom stats glm binomial coef model.matrix plogis pnorm formula logLik
 fitRidgeLogit <- function(fml, df, depVar,
-                           ridgeLambda = NULL,
-                           clusterVar  = NULL,
-                           maxit       = 3000) {
+                           ridgeLambda        = NULL,
+                           clusterVar         = NULL,
+                           maxit              = 3000,
+                           instQualityDrivers = NULL) {
   if (!requireNamespace("glmnet", quietly = TRUE)) {
     stop("Package 'glmnet' is required for Ridge regularization. ",
          "Install it with: install.packages('glmnet')")
@@ -68,22 +83,56 @@ fitRidgeLogit <- function(fml, df, depVar,
   y      <- as.integer(glm_fit$y)               # response aligned with model matrix rows
   n_obs  <- nrow(X_full)
 
-  # ── 3. Penalty: 1 for _x_ interaction terms, 0 for everything else ──────────
+  # ── 3. Dynamic penalty factors ───────────────────────────────────────────────
+  # For each term group (IQ main effects, interaction terms), check whether the
+  # unpenalized GLM produces opposing signs. Penalize (factor = 1) only the
+  # conflicting groups; leave well-identified groups at 0.
+  has_sign_conflict <- function(col_names) {
+    coefs <- coef(glm_fit)[col_names]
+    coefs <- coefs[!is.na(coefs)]
+    length(coefs) >= 2 && any(coefs > 0) && any(coefs < 0)
+  }
+
   is_interaction  <- grepl("_x_", colnames(X))
-  penalty_factors <- as.numeric(is_interaction)
-  n_penalized     <- sum(is_interaction)
+  penalty_factors <- rep(0, ncol(X))
+
+  # IQ main effects
+  iq_conflict <- FALSE
+  if (!is.null(instQualityDrivers) && length(instQualityDrivers) >= 2) {
+    iq_names <- make.names(instQualityDrivers)
+    iq_in_X  <- iq_names[iq_names %in% colnames(X)]
+    if (length(iq_in_X) >= 2 && has_sign_conflict(iq_in_X)) {
+      penalty_factors[colnames(X) %in% iq_in_X] <- 1
+      iq_conflict <- TRUE
+    }
+  }
+
+  # Interaction terms
+  interaction_conflict <- FALSE
+  if (sum(is_interaction) >= 2) {
+    int_names <- colnames(X)[is_interaction]
+    if (has_sign_conflict(int_names)) {
+      penalty_factors[is_interaction] <- 1
+      interaction_conflict <- TRUE
+    }
+  }
+
+  n_penalized <- sum(penalty_factors > 0)
 
   if (n_penalized == 0L) {
-    warning("fitRidgeLogit: no '_x_' interaction terms found in formula — ",
+    warning("fitRidgeLogit: no sign conflict detected in IQ or interaction terms — ",
             "Ridge penalty has no effect. Returning standard GLM.")
     return(list(
-      model             = glm_fit,
-      coeftest          = NULL,
-      vcov              = NULL,
-      ridgeLambda       = 0,
-      nInteractionTerms = 0L,
-      loglik            = as.numeric(logLik(glm_fit)),
-      nObs              = n_obs
+      model                = glm_fit,
+      coeftest             = NULL,
+      vcov                 = NULL,
+      ridgeLambda          = 0,
+      nInteractionTerms    = sum(is_interaction),
+      nPenalizedTerms      = 0L,
+      iqConflict           = FALSE,
+      interactionConflict  = FALSE,
+      loglik               = as.numeric(logLik(glm_fit)),
+      nObs                 = n_obs
     ))
   }
 
@@ -118,7 +167,7 @@ fitRidgeLogit <- function(fml, df, depVar,
   glm_fit$fitted.values     <- pi_vals
   glm_fit$linear.predictors <- eta
   glm_fit$ridgeLambda       <- ridgeLambda
-  glm_fit$nInteractionTerms <- n_penalized
+  glm_fit$nInteractionTerms <- sum(is_interaction)
   # Update deviance and AIC to reflect Ridge-estimated fitted values
   ridge_loglik        <- sum(y * log(pi_vals + 1e-15) + (1 - y) * log(1 - pi_vals + 1e-15))
   k                   <- ncol(X_full)
@@ -141,7 +190,9 @@ fitRidgeLogit <- function(fml, df, depVar,
   if (is.null(H_inv)) {
     return(list(
       model = glm_fit, coeftest = NULL, vcov = NULL,
-      ridgeLambda = ridgeLambda, nInteractionTerms = n_penalized,
+      ridgeLambda = ridgeLambda, nInteractionTerms = sum(is_interaction),
+      nPenalizedTerms = n_penalized, iqConflict = iq_conflict,
+      interactionConflict = interaction_conflict,
       loglik = ridge_loglik, nObs = n_obs
     ))
   }
@@ -176,12 +227,15 @@ fitRidgeLogit <- function(fml, df, depVar,
   rownames(coeftest_mat) <- names(beta)
 
   list(
-    model             = glm_fit,
-    coeftest          = coeftest_mat,
-    vcov              = vcovMat,
-    ridgeLambda       = ridgeLambda,
-    nInteractionTerms = n_penalized,
-    loglik            = ridge_loglik,
-    nObs              = n_obs
+    model               = glm_fit,
+    coeftest            = coeftest_mat,
+    vcov                = vcovMat,
+    ridgeLambda         = ridgeLambda,
+    nInteractionTerms   = sum(is_interaction),
+    nPenalizedTerms     = n_penalized,
+    iqConflict          = iq_conflict,
+    interactionConflict = interaction_conflict,
+    loglik              = ridge_loglik,
+    nObs                = n_obs
   )
 }
