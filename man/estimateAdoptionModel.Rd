@@ -20,7 +20,16 @@ estimateAdoptionModel(
   timeTrend = TRUE,
   useFirth = TRUE,
   lag = 1,
-  includeLaggedAdoption = FALSE
+  includeLaggedAdoption = FALSE,
+  interactRegionFE = FALSE,
+  modelDir = getOption("pfm.modelDir", NULL),
+  label = "",
+  verbose = TRUE,
+  maxit = 3000,
+  compute = c(ame = TRUE, predictedProbs = TRUE),
+  sweepVars = NULL,
+  ridgeInteractions = TRUE,
+  ridgeLambda = NULL
 )
 }
 \arguments{
@@ -60,6 +69,33 @@ separation. Recommended for the adoption stage.}
 
 \item{includeLaggedAdoption}{Logical. If \code{TRUE}, includes the lagged
 adoption status (\code{adoption_lagged}) as a predictor. Default: \code{FALSE}.}
+
+\item{modelDir}{Character or NULL. Directory for saving/loading \code{PFMModel}
+files. Defaults to \code{getOption("pfm.modelDir", NULL)}. Set to \code{NULL}
+to disable persistence (default when the option is not set).}
+
+\item{label}{Character. Optional human label stored in the saved model manifest.}
+
+\item{verbose}{Logical. If \code{TRUE} (default), prints progress messages when
+loading from cache or estimating.}
+
+\item{compute}{Named logical vector controlling which expensive post-fit diagnostics are
+computed. Recognised names: \code{"ame"} and \code{"predictedProbs"}. Both default
+to \code{TRUE}. Cheap diagnostics (group contributions, Theory Score, Theory Fraction)
+are always computed. See \code{\link{fitAndDiagnose}} for details.}
+
+\item{sweepVars}{Character vector or NULL. Variables to sweep in predicted probability
+profiles. If NULL (default), theory-group variables are auto-detected.}
+
+\item{ridgeInteractions}{Logical. If \code{TRUE}, applies Ridge (L2) regularization to
+interaction terms (\code{_x_} pattern) via \code{\link{fitRidgeLogit}}. Replaces
+Firth's penalized logit. Useful for reducing projection artefacts caused by large
+opposing interaction coefficients (e.g. the Brazil 2040 adoption-probability dip).
+Default: \code{FALSE}.}
+
+\item{ridgeLambda}{Numeric or NULL. Ridge penalty \eqn{\lambda}. When \code{NULL}
+(default) and \code{ridgeInteractions = TRUE}, \eqn{\lambda} is selected automatically
+by 5-fold cross-validation. Pass a numeric value to fix \eqn{\lambda}.}
 }
 \value{
 A list with elements:
@@ -70,6 +106,13 @@ standard errors for logistf).}
 \item{vcov}{The variance-covariance matrix.}
 \item{sector}{The sector estimated.}
 \item{formula}{The formula used.}
+\item{data}{The prepared panel data.frame used for estimation.}
+\item{groupContributions}{Named list: mean beta*x per Term Group, Theory Score,
+Theory Fraction. Always present.}
+\item{theoryScore}{Numeric scalar.}
+\item{theoryFrac}{Numeric scalar.}
+\item{ame}{Data.frame of Average Marginal Effects, or \code{NULL}.}
+\item{predictedProbs}{Named list of Predicted Probability Profile data.frames, or \code{NULL}.}
 }
 }
 \description{
@@ -78,8 +121,10 @@ the two-stage Hurdle model for carbon pricing. For each sector, a logistic
 regression estimates whether a region adopts a carbon price in a given year.
 
 Robustness safeguards include a linear time trend, region fixed effects
-(at a configurable spatial resolution), and clustered standard errors by
-region.
+(at a configurable spatial resolution), and clustered standard errors at
+the country/region level (54 panel units) to account for within-country
+serial correlation. For Firth models a manual sandwich estimator is used
+since \code{logistf} does not support \code{vcovCL} directly.
 }
 \author{
 Renato Rodrigues

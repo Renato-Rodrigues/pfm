@@ -13,7 +13,16 @@ fitAndDiagnose(
   useFirth,
   nullLoglik,
   n,
-  maxZThreshold = 15
+  maxZThreshold = 15,
+  maxit = 3000,
+  compute = c(ame = TRUE, predictedProbs = TRUE),
+  sweepVars = NULL,
+  actorPowerDrivers = NULL,
+  actorPowerIndex = NULL,
+  instQualityDrivers = NULL,
+  controlDrivers = NULL,
+  ridgeInteractions = TRUE,
+  ridgeLambda = NULL
 )
 }
 \arguments{
@@ -37,6 +46,35 @@ fitAndDiagnose(
 for separation. Even when \code{abs(coef) <= 10}, a z-value far exceeding this threshold
 (e.g. z = 49 for Coal) indicates near-perfect separation that \code{brglm2} did not resolve.
 Default: \code{15}.}
+
+\item{compute}{Named logical vector controlling which expensive post-fit diagnostics are
+computed. Recognised names: \code{"ame"} (Average Marginal Effects) and
+\code{"predictedProbs"} (Predicted Probability Profiles). Both default to \code{TRUE}.
+Set to \code{c(ame = FALSE, predictedProbs = FALSE)} when calling from within a model
+selection loop to avoid per-candidate overhead. Cheap diagnostics (group contributions,
+Theory Score, Theory Fraction) are always computed regardless of this flag.}
+
+\item{sweepVars}{Character vector or NULL. Passed to \code{computePredictedProbabilities}.
+If NULL (default), theory-group variables are auto-detected from the formula.}
+
+\item{actorPowerDrivers}{Character vector or NULL. Passed to term classification helpers.}
+
+\item{actorPowerIndex}{Character or NULL.}
+
+\item{instQualityDrivers}{Character vector or NULL.}
+
+\item{controlDrivers}{Character vector or NULL.}
+
+\item{ridgeInteractions}{Logical. If \code{TRUE} and \code{stage == "adoption"}, uses
+Ridge (L2) regularization on interaction terms (\code{_x_} pattern) via
+\code{\link{fitRidgeLogit}} instead of Firth logit. Replaces \code{useFirth}.
+Default: \code{FALSE}.}
+
+\item{ridgeLambda}{Numeric or NULL. Ridge penalty \eqn{\lambda}. When \code{NULL}
+inside \code{fitAndDiagnose} (typically a selection loop), defaults to \code{0.01}
+to avoid the cost of 5-fold CV on every candidate model. Pass a pre-selected
+\eqn{\lambda} (e.g. from \code{estimateAdoptionModel} CV) for consistent penalisation
+across the selection path. Ignored when \code{ridgeInteractions = FALSE}.}
 }
 \value{
 A list containing the model fit, robust coefficients, VCOV matrix, and comprehensive
@@ -44,6 +82,15 @@ diagnostic metrics (AIC, BIC, pseudo-R2, etc.), plus:
 \describe{
 \item{\code{maxAbsZ}}{Maximum absolute z-value across all coefficients (excluding intercept).}
 \item{\code{highZ}}{Logical. \code{TRUE} if \code{maxAbsZ} exceeds \code{maxZThreshold}.}
+\item{\code{groupContributions}}{Named list of mean beta*x per Term Group + Theory Score
++ Theory Fraction. Always computed. \code{NULL} on model failure.}
+\item{\code{theoryScore}}{Numeric scalar extracted from \code{groupContributions}.}
+\item{\code{theoryFrac}}{Numeric scalar extracted from \code{groupContributions}.}
+\item{\code{ame}}{Data.frame of Average Marginal Effects. \code{NULL} unless
+\code{compute["ame"]} is \code{TRUE} and \code{stage == "adoption"}.}
+\item{\code{predictedProbs}}{Named list of Predicted Probability Profile data.frames.
+\code{NULL} unless \code{compute["predictedProbs"]} is \code{TRUE} and
+\code{stage == "adoption"}.}
 }
 }
 \description{

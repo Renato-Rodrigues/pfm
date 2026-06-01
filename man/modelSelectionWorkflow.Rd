@@ -33,7 +33,8 @@ modelSelectionWorkflow(
   stabilityShift = 0,
   logTransform = TRUE,
   includeLaggedECP = FALSE,
-  panelData = NULL
+  panelData = NULL,
+  modelDir = getOption("pfm.modelDir", NULL)
 )
 }
 \arguments{

@@ -105,7 +105,11 @@ modelEstimationWorkflow <- function(
     panelData = NULL,
     modelDir = getOption("pfm.modelDir", NULL),
     verbose = TRUE,
-    maxit = 3000) {
+    maxit = 3000,
+    compute = c(ame = TRUE, predictedProbs = TRUE),
+    sweepVars = NULL,
+    ridgeInteractions = TRUE,
+    ridgeLambda = NULL) {
   # --- 1. Load data ---
   if (is.null(panelData)) {
     if (isTRUE(verbose)) {
@@ -153,7 +157,11 @@ modelEstimationWorkflow <- function(
       interactRegionFE = interactRegionFE,
       modelDir = modelDir,
       verbose = verbose,
-      maxit = maxit
+      maxit = maxit,
+      compute = compute,
+      sweepVars = sweepVars,
+      ridgeInteractions = ridgeInteractions,
+      ridgeLambda = ridgeLambda
     )
     if (isTRUE(verbose)) {
       message("  Stage 1 complete. Converged: ", adoptionResult$model$converged)
@@ -180,7 +188,9 @@ modelEstimationWorkflow <- function(
       interactRegionFE = interactRegionFE,
       modelDir = modelDir,
       verbose = verbose,
-      maxit = maxit
+      maxit = maxit,
+      ridgeInteractions = ridgeInteractions,
+      ridgeLambda = ridgeLambda
     )
     if (isTRUE(verbose)) {
       message("  Stage 2 complete. Converged: ", stringencyResult$model$converged)

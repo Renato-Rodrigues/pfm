@@ -6,16 +6,22 @@
 \usage{
 iamHistoricalData(
   aggregate = FALSE,
-  outputRegionMappingFile = "regionmappingH12.csv"
+  outputRegionMappingFile = "regionmappingH12.csv",
+  gdxRegionMappingFile = "regionmappingH12.csv"
 )
 }
 \arguments{
 \item{aggregate}{boolean, if true aggregates to region mapping defined at outputRegionMappingFile}
 
 \item{outputRegionMappingFile}{string with path to output mapping file}
+
+\item{gdxRegionMappingFile}{string with path to the REMIND region mapping file used to define
+the country universe. Defaults to \code{"regionmappingH12.csv"}. Set to the same mapping
+used in the REMIND GDX (e.g. \code{"regionmappingEU21.csv"}) so that the returned country
+set is consistent with the disaggregation target.}
 }
 \value{
-A list with historical \code{\link[magclass:magclass-package]{magpie}} objects.
+A list with historical \code{\link[magclass:magclass]{magpie}} objects.
 }
 \description{
 Gets historical REMIND variables from IEA and Ember.

@@ -10,11 +10,14 @@ panelDataScenario(
   y = c(seq(2005, 2060, 5), seq(2070, 2110, 10), 2130, 2150),
   gdxRegionMappingFile = "regionmappingH12.csv",
   outputRegionMappingFile = "regionmappingH12.csv",
+  harmonizeScenario = TRUE,
+  movingAverage = 5,
   coeff = list(bulk = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
     list(vre = 1, elec = 0.6), incumbents_power = list(coal = 1, oilgas = 1, fossilInd =
     0.5)), diffuse = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
-    list(vre = 0.5, elec = 1), incumbents_power = list(coal = 0.2, oilgas = 0.2,
-    fossilInd = 1)))
+    list(vre = 0.5, elec = 1, biofuel = 0.4), incumbents_power = list(coal = 0.2, oilgas
+    = 0.2, fossilInd = 1))),
+  harmonizeScenarioYear = 2040
 )
 }
 \arguments{

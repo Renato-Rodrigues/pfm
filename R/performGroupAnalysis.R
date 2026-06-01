@@ -70,7 +70,8 @@ performGroupAnalysis <- function( # nolint: cyclocomp_linter.
     if (length(keepTerms) == 0) keepTerms <- "1"
 
     dropFml <- stats::as.formula(paste(depVar, "~", paste(keepTerms, collapse = " + ")))
-    dropRes <- fitAndDiagnose(dropFml, df, depVar, stage, family, useFirth, nullLoglik, n)
+    dropRes <- fitAndDiagnose(dropFml, df, depVar, stage, family, useFirth, nullLoglik, n,
+                              compute = c(ame = FALSE, predictedProbs = FALSE))
     dropFit <- dropRes$model
 
     deltaR2 <- fullR2 - dropRes$pseudoR2

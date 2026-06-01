@@ -50,6 +50,13 @@
 #' @param label Character. Optional human label stored in the saved model manifest.
 #' @param verbose Logical. If \code{TRUE} (default), prints progress messages when
 #'   loading from cache or estimating.
+#' @param ridgeInteractions Logical. If \code{TRUE}, applies Ridge (L2) regularization
+#'   to interaction terms (\code{_x_} pattern) via \code{\link{fitRidgeStringency}}.
+#'   Uses a Gaussian OLS Ridge approximation via \code{glmnet}, which is most accurate
+#'   when \code{logTransform = TRUE} (the default). Default: \code{FALSE}.
+#' @param ridgeLambda Numeric or NULL. Ridge penalty \eqn{\lambda}. When \code{NULL}
+#'   (default) and \code{ridgeInteractions = TRUE}, selected automatically by 5-fold
+#'   cross-validation. Pass a numeric value to fix \eqn{\lambda}.
 #'
 #' @return A list with elements:
 #'   \describe{
@@ -99,7 +106,9 @@ estimatePriceStringencyModel <- function(
     modelDir = getOption("pfm.modelDir", NULL),
     label = "",
     verbose = TRUE,
-    maxit = 3000) {
+    maxit = 3000,
+    ridgeInteractions = TRUE,
+    ridgeLambda = NULL) {
   # --- 1. Prepare data.frame ---
   df <- preparePanelData(
     data = data,
@@ -184,38 +193,60 @@ estimatePriceStringencyModel <- function(
   }
 
   # --- 5. Estimate GLM ---
-  if (isTRUE(useFirth)) {
+  if (isTRUE(ridgeInteractions)) {
+    # ── Ridge GLM: L2 penalty on interaction terms only ──────────────────────
+    if (isTRUE(verbose)) {
+      lambda_msg <- if (is.null(ridgeLambda)) "lambda via 5-fold CV" else paste0("lambda = ", ridgeLambda)
+      message("    [ridge] Applying Ridge regularization on interaction terms (", lambda_msg, ")...")
+    }
+    ridgeRes <- fitRidgeStringency(fml, df, depVar = "ecp",
+                                   glmFamily   = glmFamily,
+                                   ridgeLambda = ridgeLambda,
+                                   clusterVar  = df$region,
+                                   maxit       = maxit)
+    if (is.null(ridgeRes)) {
+      stop("Ridge stringency regression failed for sector '", sector, "'.")
+    }
+    fit        <- ridgeRes$model
+    vcovClust  <- ridgeRes$vcov
+    robustTest <- ridgeRes$coeftest
+    if (isTRUE(verbose)) {
+      message("    [ridge] lambda = ", round(ridgeRes$ridgeLambda, 5),
+              ", penalized terms = ", ridgeRes$nInteractionTerms)
+    }
+
+  } else if (isTRUE(useFirth)) {
+    # ── Firth-type bias reduction (brglm2) ────────────────────────────────────
     if (!requireNamespace("brglm2", quietly = TRUE)) {
       stop("Package 'brglm2' is required for bias-reduced estimation. Please install it.")
     }
-    fit <- stats::glm(fml, data = df, family = glmFamily, method = brglm2::brglmFit, control = list(maxit = maxit))
+    fit        <- stats::glm(fml, data = df, family = glmFamily,
+                             method = brglm2::brglmFit, control = list(maxit = maxit))
+    vcovClust  <- sandwich::vcovCL(fit, cluster = df$region, type = "HC1")
+    robustTest <- lmtest::coeftest(fit, vcov. = vcovClust)
+
   } else {
+    # ── Standard GLM with optional convergence fallback ───────────────────────
     fit <- stats::glm(fml, data = df, family = glmFamily, control = list(maxit = maxit))
-    # If the standard GLM failed to converge, try providing robust starting values
     if (!fit$converged) {
       if (isTRUE(verbose)) message("  [fallback] GLM failed to converge. Attempting robust starting values...")
-      # Fit a simple gaussian model on log-scale of the dependent variable to get starting coefficients
-      dep_var <- as.character(fml[[2]])
-      df_init <- df
-      # Avoid log(0) or log(negative) if somehow present
+      dep_var  <- as.character(fml[[2]])
+      df_init  <- df
       df_init[[dep_var]] <- log(abs(df_init[[dep_var]]) + 1e-6)
       init_fit <- stats::lm(fml, data = df_init)
-      
-      # Re-attempt GLM with these starting values
-      fit2 <- tryCatch({
-        stats::glm(fml, data = df, family = glmFamily, control = list(maxit = maxit), start = coef(init_fit))
-      }, error = function(e) fit, warning = function(w) fit)
-      
+      fit2 <- tryCatch(
+        stats::glm(fml, data = df, family = glmFamily,
+                   control = list(maxit = maxit), start = coef(init_fit)),
+        error = function(e) fit, warning = function(w) fit
+      )
       if (isTRUE(fit2$converged)) {
         fit <- fit2
         if (isTRUE(verbose)) message("  [fallback] Successfully converged with robust starting values!")
       }
     }
+    vcovClust  <- sandwich::vcovCL(fit, cluster = df$region, type = "HC1")
+    robustTest <- lmtest::coeftest(fit, vcov. = vcovClust)
   }
-
-  # --- 6. Clustered SE by region ---
-  vcovClust <- sandwich::vcovCL(fit, cluster = df$regionFE, type = "HC1")
-  robustTest <- lmtest::coeftest(fit, vcov. = vcovClust)
 
   result <- list(
     model    = fit,

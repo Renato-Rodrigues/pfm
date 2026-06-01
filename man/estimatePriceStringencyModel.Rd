@@ -22,7 +22,14 @@ estimatePriceStringencyModel(
   logTransform = TRUE,
   lag = 1,
   useFirth = FALSE,
-  includeLaggedECP = FALSE
+  includeLaggedECP = FALSE,
+  interactRegionFE = FALSE,
+  modelDir = getOption("pfm.modelDir", NULL),
+  label = "",
+  verbose = TRUE,
+  maxit = 3000,
+  ridgeInteractions = TRUE,
+  ridgeLambda = NULL
 )
 }
 \arguments{
@@ -75,6 +82,24 @@ transformed to \code{log(1 + ECP)}. Default: \code{TRUE}.}
 
 \item{includeLaggedECP}{Logical. If \code{TRUE}, includes the lagged
 carbon price (\code{lagged_ecp}) as a predictor. Default: \code{FALSE}.}
+
+\item{modelDir}{Character or NULL. Directory for saving/loading \code{PFMModel}
+files. Defaults to \code{getOption("pfm.modelDir", NULL)}. Set to \code{NULL}
+to disable persistence.}
+
+\item{label}{Character. Optional human label stored in the saved model manifest.}
+
+\item{verbose}{Logical. If \code{TRUE} (default), prints progress messages when
+loading from cache or estimating.}
+
+\item{ridgeInteractions}{Logical. If \code{TRUE}, applies Ridge (L2) regularization
+to interaction terms (\code{_x_} pattern) via \code{\link{fitRidgeStringency}}.
+Uses a Gaussian OLS Ridge approximation via \code{glmnet}, which is most accurate
+when \code{logTransform = TRUE} (the default). Default: \code{FALSE}.}
+
+\item{ridgeLambda}{Numeric or NULL. Ridge penalty \eqn{\lambda}. When \code{NULL}
+(default) and \code{ridgeInteractions = TRUE}, selected automatically by 5-fold
+cross-validation. Pass a numeric value to fix \eqn{\lambda}.}
 }
 \value{
 A list with elements:

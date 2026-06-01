@@ -31,7 +31,15 @@ modelEstimationWorkflow(
   lag = 1,
   includeLaggedAdoption = FALSE,
   includeLaggedECP = FALSE,
-  panelData = NULL
+  interactRegionFE = FALSE,
+  panelData = NULL,
+  modelDir = getOption("pfm.modelDir", NULL),
+  verbose = TRUE,
+  maxit = 3000,
+  compute = c(ame = TRUE, predictedProbs = TRUE),
+  sweepVars = NULL,
+  ridgeInteractions = TRUE,
+  ridgeLambda = NULL
 )
 }
 \arguments{
@@ -87,6 +95,8 @@ Default: \code{FALSE}.}
 
 \item{panelData}{Optional \code{magpie} object or \code{data.frame}. If provided,
 skips loading and processing historical data via \code{panelDataHistorical}.}
+
+\item{verbose}{Logical. If \code{TRUE} (default), prints progress messages during estimation.}
 }
 \value{
 A list containing:

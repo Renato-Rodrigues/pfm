@@ -11,7 +11,8 @@ buildModelFormula(
   instQualityDrivers,
   controlDrivers,
   regionMappingFixedEffects,
-  timeTrend = TRUE
+  timeTrend = TRUE,
+  interactRegionFE = FALSE
 )
 }
 \arguments{

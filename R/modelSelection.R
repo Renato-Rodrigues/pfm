@@ -326,7 +326,8 @@ modelSelection <- function( # nolint: cyclocomp_linter.
       }
     }
 
-    fit <- fitAndDiagnose(fml, df, depVar, stage, family, useFirth, nullLoglik, n, maxit = maxit)
+    fit <- fitAndDiagnose(fml, df, depVar, stage, family, useFirth, nullLoglik, n, maxit = maxit,
+                          compute = c(ame = FALSE, predictedProbs = FALSE))
     fit$phase <- phaseDesc
     if (isTRUE(fit$maxitWarning)) {
       shortDesc <- paste0(shortDesc, " [Max Iterations Exceeded]")
