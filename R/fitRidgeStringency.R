@@ -44,9 +44,10 @@
 #' @importFrom stats glm coef model.matrix pnorm formula logLik
 fitRidgeStringency <- function(fml, df, depVar,
                                 glmFamily,
-                                ridgeLambda = NULL,
-                                clusterVar  = NULL,
-                                maxit       = 3000) {
+                                ridgeLambda     = NULL,
+                                clusterVar      = NULL,
+                                maxit           = 3000,
+                                fePenaltyFactor = 0.5) {
   if (!requireNamespace("glmnet", quietly = TRUE)) {
     stop("Package 'glmnet' is required for Ridge regularization. ",
          "Install it with: install.packages('glmnet')")
@@ -67,19 +68,27 @@ fitRidgeStringency <- function(fml, df, depVar,
   y      <- glm_fit$y                       # response aligned with complete-case rows
   n_obs  <- nrow(X_full)
 
-  # ── 3. Penalty: 1 for _x_ interaction terms, 0 for all others ───────────────
+  # ── 3. Penalty factors ───────────────────────────────────────────────────────
+  # Interaction terms (_x_): penalized with factor 1.
+  # Region FE dummies: lightly penalized with fePenaltyFactor (partial pooling).
+  # Under Mundlak (no regionFE columns in X), the FE block has no effect.
   is_interaction  <- grepl("_x_", colnames(X))
-  penalty_factors <- as.numeric(is_interaction)
-  n_penalized     <- sum(is_interaction)
+  is_fe           <- grepl("^regionFE", colnames(X))
+  penalty_factors <- rep(0, ncol(X))
+  penalty_factors[is_interaction] <- 1
+  if (any(is_fe) && fePenaltyFactor > 0)
+    penalty_factors[is_fe] <- pmax(penalty_factors[is_fe], fePenaltyFactor)
+
+  n_penalized <- sum(penalty_factors > 0)
 
   if (n_penalized == 0L) {
-    warning("fitRidgeStringency: no '_x_' interaction terms found — Ridge has no effect.")
+    warning("fitRidgeStringency: no terms selected for penalization — Ridge has no effect.")
     return(list(
       model             = glm_fit,
       coeftest          = NULL,
       vcov              = NULL,
       ridgeLambda       = 0,
-      nInteractionTerms = 0L,
+      nInteractionTerms = sum(is_interaction),
       loglik            = as.numeric(logLik(glm_fit)),
       nObs              = n_obs
     ))
@@ -125,6 +134,7 @@ fitRidgeStringency <- function(fml, df, depVar,
   glm_fit$nInteractionTerms <- n_penalized
   k                          <- ncol(X_full)
   ridge_loglik               <- as.numeric(logLik(glm_fit))
+  glm_fit$deviance           <- -2 * ridge_loglik
   glm_fit$aic                <- -2 * ridge_loglik + 2 * k
   class(glm_fit)             <- c("ridgeGLM", class(glm_fit))
 

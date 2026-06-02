@@ -15,9 +15,14 @@
 #' @param lag integer. Time lag for independent variables (drivers).
 #'   If \code{lag > 0}, drivers at time \code{t-lag} are used to predict the
 #'   dependent variable at time \code{t}. Default: \code{1}.
+#' @param useMundlak Logical. If \code{TRUE}, applies the Mundlak (1978) correction:
+#'   computes within-region means of all theory and control variables and appends
+#'   them as \code{<var>_grp_mean} columns. Region fixed-effect dummies are
+#'   suppressed — \code{regionMappingFixedEffects} is ignored. Default: \code{FALSE}.
 #'
-#' @return data.frame with columns: region, year, timeTrend, regionFE,
-#'   ecp, plus one column per driver (safe R-named), plus
+#' @return data.frame with columns: region, year, timeTrend, regionFE (unless
+#'   \code{useMundlak = TRUE}), ecp, plus one column per driver (safe R-named),
+#'   \code{<var>_grp_mean} columns (when \code{useMundlak = TRUE}), and
 #'   <actorPowerIndex>_x_<driver> interaction columns.
 #'
 #' @importFrom magclass getNames getRegions getYears
@@ -31,7 +36,7 @@
 preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocomp_linter.
                              actorPowerIndex, instQualityDrivers,
                              controlDrivers, regionMappingFixedEffects,
-                             lag = 1) {
+                             lag = 1, useMundlak = FALSE) {
   # If data is already a data.frame, assume it is already prepared and return it.
   if (is.data.frame(data)) {
     return(data)
@@ -154,8 +159,29 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
     df <- as.data.frame(cols, stringsAsFactors = FALSE)
   }
 
-  # --- Add region fixed effects ---
-  if (!is.null(regionMappingFixedEffects)) {
+  # --- Mundlak correction: within-region means of theory & control variables ---
+  if (isTRUE(useMundlak)) {
+    mundlak_safe <- unique(c(
+      make.names(actorPowerIndex),
+      make.names(instQualityDrivers),
+      make.names(controlDrivers)
+    ))
+    mundlak_safe <- setdiff(mundlak_safe,
+                            c("lagged_ecp", "lagged_adoption", "timeTrend", "ecp"))
+    mundlak_safe <- intersect(mundlak_safe, colnames(df))
+    if (length(mundlak_safe) > 0) {
+      grp_means <- aggregate(
+        df[, mundlak_safe, drop = FALSE],
+        by = list(region = df$region),
+        FUN = mean, na.rm = TRUE
+      )
+      colnames(grp_means)[-1] <- paste0(colnames(grp_means)[-1], "_grp_mean")
+      df <- merge(df, grp_means, by = "region", all.x = TRUE)
+    }
+  }
+
+  # --- Add region fixed effects (skipped when useMundlak = TRUE) ---
+  if (!is.null(regionMappingFixedEffects) && !isTRUE(useMundlak)) {
     mapping <- madrat::toolGetMapping(regionMappingFixedEffects,
       type = "regional",
       where = "mappingfolder"

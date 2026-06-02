@@ -59,7 +59,8 @@ fitRidgeLogit <- function(fml, df, depVar,
                            ridgeLambda        = NULL,
                            clusterVar         = NULL,
                            maxit              = 3000,
-                           instQualityDrivers = NULL) {
+                           instQualityDrivers = NULL,
+                           fePenaltyFactor    = 0.5) {
   if (!requireNamespace("glmnet", quietly = TRUE)) {
     stop("Package 'glmnet' is required for Ridge regularization. ",
          "Install it with: install.packages('glmnet')")
@@ -117,10 +118,17 @@ fitRidgeLogit <- function(fml, df, depVar,
     }
   }
 
+  # Region FE dummies: always apply light regularization (partial pooling).
+  # Under Mundlak (no regionFE columns), this block has no effect.
+  is_fe <- grepl("^regionFE", colnames(X))
+  if (any(is_fe) && fePenaltyFactor > 0) {
+    penalty_factors[is_fe] <- pmax(penalty_factors[is_fe], fePenaltyFactor)
+  }
+
   n_penalized <- sum(penalty_factors > 0)
 
   if (n_penalized == 0L) {
-    warning("fitRidgeLogit: no sign conflict detected in IQ or interaction terms — ",
+    warning("fitRidgeLogit: no terms selected for penalization — ",
             "Ridge penalty has no effect. Returning standard GLM.")
     return(list(
       model                = glm_fit,
@@ -138,12 +146,32 @@ fitRidgeLogit <- function(fml, df, depVar,
 
   # ── 4. Select lambda via 5-fold CV when not supplied ────────────────────────
   if (is.null(ridgeLambda)) {
-    cv_fit      <- glmnet::cv.glmnet(
-      X, y, family = "binomial", alpha = 0,
-      penalty.factor = penalty_factors,
-      nfolds = 5, type.measure = "deviance"
+    cv_fit <- tryCatch(
+      glmnet::cv.glmnet(
+        X, y, family = "binomial", alpha = 0,
+        penalty.factor = penalty_factors,
+        nfolds = 5, type.measure = "deviance"
+      ),
+      error = function(e) {
+        # cv.glmnet can fail with high-dimensional FE matrices (e.g. 54-region maps)
+        # when some folds have zero-variance columns. Try 3-fold as fallback.
+        tryCatch(
+          glmnet::cv.glmnet(
+            X, y, family = "binomial", alpha = 0,
+            penalty.factor = penalty_factors,
+            nfolds = 3, type.measure = "deviance"
+          ),
+          error = function(e2) NULL
+        )
+      }
     )
-    ridgeLambda <- cv_fit$lambda.min
+    if (is.null(cv_fit)) {
+      # Both CV attempts failed — use a small fixed lambda and proceed
+      message("fitRidgeLogit: cv.glmnet failed; using fixed lambda = 0.01")
+      ridgeLambda <- 0.01
+    } else {
+      ridgeLambda <- cv_fit$lambda.min
+    }
   }
 
   # ── 5. Fit Ridge ─────────────────────────────────────────────────────────────

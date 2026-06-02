@@ -26,7 +26,8 @@ buildModelFormula <- function(depVar, actorPowerDrivers, actorPowerIndex, # noli
                               instQualityDrivers, controlDrivers,
                               regionMappingFixedEffects,
                               timeTrend = TRUE,
-                              interactRegionFE = FALSE) {
+                              interactRegionFE = FALSE,
+                              useMundlak = FALSE) {
   rhs <- c()
 
   # Actor Power Main Effects: exactly what is passed in actorPowerDrivers
@@ -66,7 +67,23 @@ buildModelFormula <- function(depVar, actorPowerDrivers, actorPowerIndex, # noli
     rhs <- c(rhs, "timeTrend")
   }
 
-  # Optional region fixed effects
+  # Mundlak correction: within-region group means replace FE dummies.
+  # Adds <var>_grp_mean for each theory & control variable; suppresses regionFE.
+  if (isTRUE(useMundlak)) {
+    mundlak_safe <- unique(c(
+      make.names(actorPowerIndex),
+      make.names(instQualityDrivers),
+      make.names(controlDrivers)
+    ))
+    mundlak_safe <- setdiff(mundlak_safe,
+                            c("lagged_ecp", "lagged_adoption", "timeTrend"))
+    rhs <- c(rhs, paste0(mundlak_safe, "_grp_mean"))
+    # Suppress region FE under Mundlak
+    regionMappingFixedEffects <- NULL
+    interactRegionFE          <- FALSE
+  }
+
+  # Optional region fixed effects (suppressed when useMundlak = TRUE)
   if (!is.null(regionMappingFixedEffects)) {
     rhs <- c(rhs, "regionFE")
   }

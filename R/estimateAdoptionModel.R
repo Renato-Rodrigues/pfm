@@ -115,7 +115,9 @@ estimateAdoptionModel <- function(
     compute = c(ame = TRUE, predictedProbs = TRUE),
     sweepVars = NULL,
     ridgeInteractions = TRUE,
-    ridgeLambda = NULL) {
+    ridgeLambda = NULL,
+    useMundlak = FALSE,
+    fePenaltyFactor = 0.5) {
   # --- 1. Prepare data.frame ---
   df <- preparePanelData(
     data = data,
@@ -124,8 +126,9 @@ estimateAdoptionModel <- function(
     actorPowerIndex = actorPowerIndex,
     instQualityDrivers = instQualityDrivers,
     controlDrivers = controlDrivers,
-    regionMappingFixedEffects = regionMappingFixedEffects,
-    lag = lag
+    regionMappingFixedEffects = if (isTRUE(useMundlak)) NULL else regionMappingFixedEffects,
+    lag = lag,
+    useMundlak = useMundlak
   )
 
   # --- 2. Create binary dependent variable ---
@@ -142,9 +145,10 @@ estimateAdoptionModel <- function(
     actorPowerIndex = actorPowerIndex,
     instQualityDrivers = instQualityDrivers,
     controlDrivers = controlDrivers,
-    regionMappingFixedEffects = regionMappingFixedEffects,
+    regionMappingFixedEffects = if (isTRUE(useMundlak)) NULL else regionMappingFixedEffects,
     timeTrend = timeTrend,
-    interactRegionFE = interactRegionFE
+    interactRegionFE = if (isTRUE(useMundlak)) FALSE else interactRegionFE,
+    useMundlak = useMundlak
   )
 
   # --- 3b. Cache check: return saved model if formula + data unchanged ---
@@ -188,13 +192,24 @@ estimateAdoptionModel <- function(
                               ridgeLambda        = ridgeLambda,
                               clusterVar         = df$region,
                               maxit              = maxit,
-                              instQualityDrivers = instQualityDrivers)
+                              instQualityDrivers = instQualityDrivers,
+                              fePenaltyFactor    = fePenaltyFactor)
     if (is.null(ridgeRes)) {
       stop("Ridge logistic regression failed for sector '", sector, "'.")
     }
-    fit        <- ridgeRes$model
-    vcovMat    <- ridgeRes$vcov
-    robustTest <- ridgeRes$coeftest
+    fit <- ridgeRes$model
+    # When no conflict was detected, fitRidgeLogit returns coeftest/vcov = NULL.
+    # Fall back to clustered sandwich SE on the standard GLM in that case.
+    if (is.null(ridgeRes$vcov) || is.null(ridgeRes$coeftest)) {
+      vcovMat    <- tryCatch(
+        sandwich::vcovCL(fit, cluster = df$region, type = "HC1"),
+        error = function(e) vcov(fit)
+      )
+      robustTest <- lmtest::coeftest(fit, vcov. = vcovMat)
+    } else {
+      vcovMat    <- ridgeRes$vcov
+      robustTest <- ridgeRes$coeftest
+    }
     if (isTRUE(verbose)) {
       message("    [ridge] lambda = ", round(ridgeRes$ridgeLambda, 5),
               ", penalized terms = ", ridgeRes$nPenalizedTerms,

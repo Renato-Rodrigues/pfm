@@ -108,7 +108,9 @@ estimatePriceStringencyModel <- function(
     verbose = TRUE,
     maxit = 3000,
     ridgeInteractions = TRUE,
-    ridgeLambda = NULL) {
+    ridgeLambda = NULL,
+    useMundlak = FALSE,
+    fePenaltyFactor = 0.5) {
   # --- 1. Prepare data.frame ---
   df <- preparePanelData(
     data = data,
@@ -117,8 +119,9 @@ estimatePriceStringencyModel <- function(
     actorPowerIndex = actorPowerIndex,
     instQualityDrivers = instQualityDrivers,
     controlDrivers = controlDrivers,
-    regionMappingFixedEffects = regionMappingFixedEffects,
-    lag = lag
+    regionMappingFixedEffects = if (isTRUE(useMundlak)) NULL else regionMappingFixedEffects,
+    lag = lag,
+    useMundlak = useMundlak
   )
 
   # --- 2. Subset to positive prices ---
@@ -156,9 +159,10 @@ estimatePriceStringencyModel <- function(
     actorPowerIndex = actorPowerIndex,
     instQualityDrivers = instQualityDrivers,
     controlDrivers = controlDrivers,
-    regionMappingFixedEffects = regionMappingFixedEffects,
+    regionMappingFixedEffects = if (isTRUE(useMundlak)) NULL else regionMappingFixedEffects,
     timeTrend = timeTrend,
-    interactRegionFE = interactRegionFE
+    interactRegionFE = if (isTRUE(useMundlak)) FALSE else interactRegionFE,
+    useMundlak = useMundlak
   )
 
   if (!is.null(modelDir)) {
@@ -200,16 +204,27 @@ estimatePriceStringencyModel <- function(
       message("    [ridge] Applying Ridge regularization on interaction terms (", lambda_msg, ")...")
     }
     ridgeRes <- fitRidgeStringency(fml, df, depVar = "ecp",
-                                   glmFamily   = glmFamily,
-                                   ridgeLambda = ridgeLambda,
-                                   clusterVar  = df$region,
-                                   maxit       = maxit)
+                                   glmFamily       = glmFamily,
+                                   ridgeLambda     = ridgeLambda,
+                                   clusterVar      = df$region,
+                                   maxit           = maxit,
+                                   fePenaltyFactor = fePenaltyFactor)
     if (is.null(ridgeRes)) {
       stop("Ridge stringency regression failed for sector '", sector, "'.")
     }
-    fit        <- ridgeRes$model
-    vcovClust  <- ridgeRes$vcov
-    robustTest <- ridgeRes$coeftest
+    fit <- ridgeRes$model
+    # When no conflict was detected, fitRidgeStringency returns coeftest/vcov = NULL.
+    # Fall back to clustered sandwich SE on the standard GLM in that case.
+    if (is.null(ridgeRes$vcov) || is.null(ridgeRes$coeftest)) {
+      vcovClust  <- tryCatch(
+        sandwich::vcovCL(fit, cluster = df$region, type = "HC1"),
+        error = function(e) vcov(fit)
+      )
+      robustTest <- lmtest::coeftest(fit, vcov. = vcovClust)
+    } else {
+      vcovClust  <- ridgeRes$vcov
+      robustTest <- ridgeRes$coeftest
+    }
     if (isTRUE(verbose)) {
       message("    [ridge] lambda = ", round(ridgeRes$ridgeLambda, 5),
               ", penalized terms = ", ridgeRes$nInteractionTerms)
@@ -254,7 +269,8 @@ estimatePriceStringencyModel <- function(
     vcov     = vcovClust,
     sector   = sector,
     family   = family,
-    formula  = fml
+    formula  = fml,
+    data     = df
   )
 
   # --- 7. Save PFMModel if modelDir is configured ---
