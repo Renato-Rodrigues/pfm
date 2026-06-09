@@ -237,6 +237,8 @@ estimateAdoptionModel <- function(
     }))
     correction <- (G / (G - 1)) * ((N - 1) / (N - k))
     vcovMat    <- correction * fit$var %*% B_meat %*% fit$var
+    colnames(vcovMat) <- names(fit$coefficients)
+    rownames(vcovMat) <- names(fit$coefficients)
 
     robustTest <- cbind(
       fit$coefficients,

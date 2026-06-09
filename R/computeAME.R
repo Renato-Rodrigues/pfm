@@ -83,6 +83,12 @@ computeAME <- function(fit,
 
   se_vals <- rep(NA_real_, K)
   if (!is.null(vcovMat)) {
+    if (is.null(rownames(vcovMat)) || is.null(colnames(vcovMat))) {
+      if (nrow(vcovMat) == length(beta)) {
+        rownames(vcovMat) <- names(beta)
+        colnames(vcovMat) <- names(beta)
+      }
+    }
     V <- tryCatch(vcovMat[common, common, drop = FALSE], error = function(e) NULL)
     if (!is.null(V) && nrow(V) == K) {
       for (k in seq_len(K)) {
