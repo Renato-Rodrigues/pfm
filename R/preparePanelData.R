@@ -36,7 +36,8 @@
 preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocomp_linter.
                              actorPowerIndex, instQualityDrivers,
                              controlDrivers, regionMappingFixedEffects,
-                             lag = 1, useMundlak = FALSE) {
+                             lag = 1, useMundlak = FALSE,
+                             gdpGovInteraction = FALSE) {
   # If data is already a data.frame, assume it is already prepared and return it.
   if (is.data.frame(data)) {
     return(data)
@@ -98,6 +99,13 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
       # each new dataset; year-1999 gives a continuous sequence (2000→1,
       # 2001→2, …, 2022→23, 2025→26, …) regardless of dataset boundaries.
       row$timeTrend <- years[yi] - 1999L
+
+      # Logistic (S-curve) time trend — saturates at 1 rather than growing
+      # unboundedly. Parameterisation: midpoint 2030 (fastest diffusion phase),
+      # steepness 0.2 (gives ≈0 at 2000, 0.5 at 2030, ≈1 by 2060).
+      # Prevents the linear trend from projecting near-universal adoption by
+      # 2100 solely through temporal extrapolation.
+      row$logisticTimeTrend <- 1.0 / (1.0 + exp(-0.2 * (years[yi] - 2030L)))
 
       # Dependent variable
       if (hasEcp) {
@@ -218,6 +226,17 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
       for (api in actorPowerIndex) {
         intNameSpec <- paste0(make.names(api), "_x_", make.names(v))
         df[[intNameSpec]] <- df[[make.names(api)]] * df[[make.names(v)]]
+      }
+    }
+  }
+
+  # --- Pre-compute GDP × IQ interaction columns (when requested) ---
+  if (isTRUE(gdpGovInteraction) && !is.null(instQualityDrivers)) {
+    gdpSafe <- make.names("GDP per Capita")
+    if (gdpSafe %in% colnames(df)) {
+      for (v in instQualityDrivers) {
+        intName <- paste0(gdpSafe, "_x_", make.names(v))
+        df[[intName]] <- df[[gdpSafe]] * df[[make.names(v)]]
       }
     }
   }

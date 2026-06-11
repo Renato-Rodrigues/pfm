@@ -113,6 +113,47 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   vdemNorm <- toolNormalize(vdemInt, minVal = vdemMin, maxVal = vdemMax, targetRange = c(0, 1))
   out <- mbind(out, vdemNorm[, y, ])
 
+  # V-Dem state-capacity indicators — same logistic convergence projection as accountability indicators
+  scRaw <- calcOutput("VDem", subtype = "stateCapacity",
+                      aggregate = aggregate, regionmapping = outputRegionMappingFile)
+  scInt <- mrpfm::toolProjectScenario(scRaw, y, shape = "logistic", midpointYear = 2080, convergenceYear = 2150)
+  scInt <- mrpfm::toolImputeMedians(scInt)
+
+  # Invert "bad when high" variables before normalisation (same map as panelDataHistorical)
+  invertMapSc <- c(
+    "Executive Corruption (VDem)" = "Policy Implementation (VDem)",
+    "Political Corruption (VDem)" = "Absence of Corruption (VDem)",
+    "Neopatrimonialism (VDem)"    = "Meritocracy Index (VDem)"
+  )
+  for (rawName in names(invertMapSc)) {
+    if (rawName %in% magclass::getNames(scInt)) {
+      scInt[, , rawName] <- 1 - scInt[, , rawName]
+    }
+  }
+  magclass::getNames(scInt) <- ifelse(
+    magclass::getNames(scInt) %in% names(invertMapSc),
+    invertMapSc[magclass::getNames(scInt)],
+    magclass::getNames(scInt)
+  )
+
+  scCnt <- calcOutput("VDem", subtype = "stateCapacity", aggregate = FALSE)
+  for (rawName in names(invertMapSc)) {
+    if (rawName %in% magclass::getNames(scCnt)) {
+      scCnt[, , rawName] <- 1 - scCnt[, , rawName]
+    }
+  }
+  magclass::getNames(scCnt) <- ifelse(
+    magclass::getNames(scCnt) %in% names(invertMapSc),
+    invertMapSc[magclass::getNames(scCnt)],
+    magclass::getNames(scCnt)
+  )
+  scMin <- apply(scCnt, 3, min, na.rm = TRUE)
+  scMax <- apply(scCnt, 3, max, na.rm = TRUE)
+
+  scNorm <- toolNormalize(scInt, minVal = scMin, maxVal = scMax, targetRange = c(0, 1))
+  out <- mbind(out, scNorm[, y, ])
+  # PCA will be added after harmonization (rotation populated by panelDataHistorical call below)
+
   # Control Variables
   pop <- calcOutput("Population",
     scenario = c("SSP1", "SSP2", "SSP3", "SSP4", "SSP5"),
@@ -144,6 +185,8 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   popNorm          <- toolNormalize(log(pop), minVal = popLogMin, maxVal = popLogMax, targetRange = c(0, 1), clamp = TRUE)
   gdpNorm          <- toolNormalize(log(gdp), minVal = gdpLogMin, maxVal = gdpLogMax, targetRange = c(0, 1), clamp = TRUE)
   gdpPerCapitaNorm <- toolNormalize(log(gdpPerCapita), minVal = gdpPCLogMin, maxVal = gdpPCLogMax, targetRange = c(0, 1), clamp = TRUE)
+  # GDP Q-centred will be added after harmonization (uses historical quartile breaks)
+
   # Land area — constant; bounds from the same aggregated snapshot used in both panels
   landArea <- new.magpie(getRegions(pop), y, "LandArea", fill = NA) # nolint: undesirable_function_linter.
   landArea[, y, ] <- calcOutput("FAOLandArea", aggregate = aggregate, regionmapping = outputRegionMappingFile)
@@ -166,6 +209,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
     setNames(sspExt[, y, "SSP2.Gender Inequality Index"], "Gender Inequality Index"),
     setNames(energyIntensityNorm[, y, "SSP2"], "Energy Intensity")
   )
+  # GDP Q-centred placeholder — populated after harmonization so quartile breaks are available
 
   if (harmonizeScenario) {
     histPanel <- panelDataHistorical(
@@ -191,7 +235,9 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
 
     # Exclude variables already perfectly anchored by their own projection method
     constants <- c("Voice and Accountability (WGI)", "Political Stability (WGI)",
-                   "Regulatory Quality (WGI)", magclass::getNames(vdemNorm))
+                   "Regulatory Quality (WGI)",
+                   magclass::getNames(vdemNorm),
+                   magclass::getNames(scNorm))
 
     varsToHarmonize <- intersect(magclass::getNames(out), magclass::getNames(histPanel))
     varsToHarmonize <- setdiff(varsToHarmonize, constants)
@@ -212,6 +258,21 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
       }
     }
   }
+
+  # ── Post-harmonization additions (need historical PCA rotation + quartile breaks) ──
+  # V-Dem state-capacity PCA: apply the historical rotation cached by the
+  # panelDataHistorical() call inside the harmonization block above.
+  storedRot <- .pfm_env$sc_pca_rotation
+  scPC_scen <- computeVDemStateCapacityPC(
+    scNorm[, y, ],
+    rotation = storedRot   # NULL triggers fit mode if historical call didn't run
+  )
+  if (!is.null(scPC_scen)) out <- mbind(out, scPC_scen)
+
+  # GDP per Capita (Q-centred): apply historical quartile breaks stored by panelDataHistorical
+  gdpPCSSP2 <- setNames(gdpPerCapitaNorm[, y, "SSP2"], "GDP per Capita")
+  gdpPCQCentred_scen <- computeGdpQCentred(gdpPCSSP2, storeBreaks = FALSE)
+  if (!is.null(gdpPCQCentred_scen)) out <- mbind(out, gdpPCQCentred_scen)
 
   return(out)
 }

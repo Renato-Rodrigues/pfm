@@ -51,7 +51,8 @@
 #'   interaction terms (\code{_x_} pattern) via \code{\link{fitRidgeLogit}}. Replaces
 #'   Firth's penalized logit. Useful for reducing projection artefacts caused by large
 #'   opposing interaction coefficients (e.g. the Brazil 2040 adoption-probability dip).
-#'   Default: \code{FALSE}.
+#'   Default: \code{FALSE} (library default; set \code{ridgeInteractions = TRUE} in
+#'   the YAML config to enable for specific models).
 #' @param ridgeLambda Numeric or NULL. Ridge penalty \eqn{\lambda}. When \code{NULL}
 #'   (default) and \code{ridgeInteractions = TRUE}, \eqn{\lambda} is selected automatically
 #'   by 5-fold cross-validation. Pass a numeric value to fix \eqn{\lambda}.
@@ -104,6 +105,7 @@ estimateAdoptionModel <- function(
     ),
     regionMappingFixedEffects = "regionmappingH12.csv",
     timeTrend = TRUE,
+    logisticTimeTrend = FALSE,
     useFirth = TRUE,
     lag = 1,
     includeLaggedAdoption = FALSE,
@@ -114,9 +116,10 @@ estimateAdoptionModel <- function(
     maxit = 3000,
     compute = c(ame = TRUE, predictedProbs = TRUE),
     sweepVars = NULL,
-    ridgeInteractions = TRUE,
+    ridgeInteractions = FALSE,
     ridgeLambda = NULL,
     useMundlak = FALSE,
+    gdpGovInteraction = FALSE,
     fePenaltyFactor = 0.5) {
   # --- 1. Prepare data.frame ---
   df <- preparePanelData(
@@ -128,7 +131,8 @@ estimateAdoptionModel <- function(
     controlDrivers = controlDrivers,
     regionMappingFixedEffects = if (isTRUE(useMundlak)) NULL else regionMappingFixedEffects,
     lag = lag,
-    useMundlak = useMundlak
+    useMundlak = useMundlak,
+    gdpGovInteraction = gdpGovInteraction
   )
 
   # --- 2. Create binary dependent variable ---
@@ -147,8 +151,10 @@ estimateAdoptionModel <- function(
     controlDrivers = controlDrivers,
     regionMappingFixedEffects = if (isTRUE(useMundlak)) NULL else regionMappingFixedEffects,
     timeTrend = timeTrend,
+    logisticTimeTrend = logisticTimeTrend,
     interactRegionFE = if (isTRUE(useMundlak)) FALSE else interactRegionFE,
-    useMundlak = useMundlak
+    useMundlak = useMundlak,
+    gdpGovInteraction = gdpGovInteraction
   )
 
   # --- 3b. Cache check: return saved model if formula + data unchanged ---
@@ -226,7 +232,8 @@ estimateAdoptionModel <- function(
     mm      <- model.matrix(fit$formula, data = fit$model)
     cluster <- df$region[seq_len(nrow(mm))]
     y       <- fit$y
-    p       <- fit$fitted.values
+    # logistf stores fitted probabilities in $predict, not $fitted.values
+    p       <- if (inherits(fit, "logistf")) fit$predict else fit$fitted.values
     scores  <- sweep(mm, 1, y - p, "*")
     G       <- length(unique(cluster))
     N       <- nrow(mm)
@@ -319,6 +326,16 @@ estimateAdoptionModel <- function(
       instQualityDrivers = instQualityDrivers, controlDrivers = controlDrivers
     )
   } else NULL
+
+  # VIF — always computed; needed by publication report and VIF diagnostic tabs
+  vifRes <- tryCatch(computeVIF(data = df, formula = result$formula),
+                     error = function(e) NULL)
+  if (!is.null(vifRes)) {
+    result$vifRaw    <- vifRes$values
+    result$maxVIF    <- vifRes$maxVIF
+    result$highVIF   <- vifRes$highVIF
+    result$vifFlagged <- vifRes$flagged %||% character(0)
+  }
 
   result
 }

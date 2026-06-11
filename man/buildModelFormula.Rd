@@ -12,7 +12,10 @@ buildModelFormula(
   controlDrivers,
   regionMappingFixedEffects,
   timeTrend = TRUE,
-  interactRegionFE = FALSE
+  logisticTimeTrend = FALSE,
+  interactRegionFE = FALSE,
+  useMundlak = FALSE,
+  gdpGovInteraction = FALSE
 )
 }
 \arguments{
@@ -33,7 +36,11 @@ as a main effect if its name is also in \code{actorPowerDrivers}.}
 
 \item{regionMappingFixedEffects}{character or NULL — if non-NULL, adds regionFE to the formula}
 
-\item{timeTrend}{logical — if TRUE, adds a linear time trend (timeTrend) to the formula}
+\item{timeTrend}{logical — if TRUE, adds a linear time trend (timeTrend) to the formula.
+Ignored when \code{logisticTimeTrend = TRUE}.}
+
+\item{logisticTimeTrend}{logical — if TRUE, adds a logistic (S-curve) time trend
+(logisticTimeTrend) instead of the linear trend. Takes precedence over \code{timeTrend}.}
 }
 \value{
 A \code{formula} object ready to pass to \code{glm}.
@@ -41,7 +48,7 @@ A \code{formula} object ready to pass to \code{glm}.
 \description{
 Constructs a formula for the adoption or stringency model. The right-hand
 side is assembled from the provided driver lists, the Actor Power Index
-interaction terms, pre-computed controls, a linear time trend, and region
+interaction terms, pre-computed controls, a time trend, and region
 fixed effects.
 }
 \keyword{internal}

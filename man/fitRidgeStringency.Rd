@@ -11,7 +11,8 @@ fitRidgeStringency(
   glmFamily,
   ridgeLambda = NULL,
   clusterVar = NULL,
-  maxit = 3000
+  maxit = 3000,
+  fePenaltyFactor = 0.5
 )
 }
 \arguments{

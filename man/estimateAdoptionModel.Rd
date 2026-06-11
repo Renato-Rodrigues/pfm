@@ -18,6 +18,7 @@ estimateAdoptionModel(
     "Gender Inequality Index", "Energy Intensity"),
   regionMappingFixedEffects = "regionmappingH12.csv",
   timeTrend = TRUE,
+  logisticTimeTrend = FALSE,
   useFirth = TRUE,
   lag = 1,
   includeLaggedAdoption = FALSE,
@@ -28,8 +29,11 @@ estimateAdoptionModel(
   maxit = 3000,
   compute = c(ame = TRUE, predictedProbs = TRUE),
   sweepVars = NULL,
-  ridgeInteractions = TRUE,
-  ridgeLambda = NULL
+  ridgeInteractions = FALSE,
+  ridgeLambda = NULL,
+  useMundlak = FALSE,
+  gdpGovInteraction = FALSE,
+  fePenaltyFactor = 0.5
 )
 }
 \arguments{
@@ -91,7 +95,8 @@ profiles. If NULL (default), theory-group variables are auto-detected.}
 interaction terms (\code{_x_} pattern) via \code{\link{fitRidgeLogit}}. Replaces
 Firth's penalized logit. Useful for reducing projection artefacts caused by large
 opposing interaction coefficients (e.g. the Brazil 2040 adoption-probability dip).
-Default: \code{FALSE}.}
+Default: \code{FALSE} (library default; set \code{ridgeInteractions = TRUE} in
+the YAML config to enable for specific models).}
 
 \item{ridgeLambda}{Numeric or NULL. Ridge penalty \eqn{\lambda}. When \code{NULL}
 (default) and \code{ridgeInteractions = TRUE}, \eqn{\lambda} is selected automatically

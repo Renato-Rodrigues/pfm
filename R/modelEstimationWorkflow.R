@@ -108,7 +108,7 @@ modelEstimationWorkflow <- function(
     maxit = 3000,
     compute = c(ame = TRUE, predictedProbs = TRUE),
     sweepVars = NULL,
-    ridgeInteractions = TRUE,
+    ridgeInteractions = FALSE,
     ridgeLambda = NULL) {
   # --- 1. Load data ---
   if (is.null(panelData)) {

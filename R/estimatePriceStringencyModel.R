@@ -98,6 +98,7 @@ estimatePriceStringencyModel <- function(
     ),
     regionMappingFixedEffects = "regionmappingH12.csv",
     timeTrend = TRUE,
+    logisticTimeTrend = FALSE,
     logTransform = TRUE,
     lag = 1,
     useFirth = FALSE,
@@ -107,9 +108,10 @@ estimatePriceStringencyModel <- function(
     label = "",
     verbose = TRUE,
     maxit = 3000,
-    ridgeInteractions = TRUE,
+    ridgeInteractions = FALSE,
     ridgeLambda = NULL,
     useMundlak = FALSE,
+    gdpGovInteraction = FALSE,
     fePenaltyFactor = 0.5) {
   # --- 1. Prepare data.frame ---
   df <- preparePanelData(
@@ -121,7 +123,8 @@ estimatePriceStringencyModel <- function(
     controlDrivers = controlDrivers,
     regionMappingFixedEffects = if (isTRUE(useMundlak)) NULL else regionMappingFixedEffects,
     lag = lag,
-    useMundlak = useMundlak
+    useMundlak = useMundlak,
+    gdpGovInteraction = gdpGovInteraction
   )
 
   # --- 2. Subset to positive prices ---
@@ -161,8 +164,10 @@ estimatePriceStringencyModel <- function(
     controlDrivers = controlDrivers,
     regionMappingFixedEffects = if (isTRUE(useMundlak)) NULL else regionMappingFixedEffects,
     timeTrend = timeTrend,
+    logisticTimeTrend = logisticTimeTrend,
     interactRegionFE = if (isTRUE(useMundlak)) FALSE else interactRegionFE,
-    useMundlak = useMundlak
+    useMundlak = useMundlak,
+    gdpGovInteraction = gdpGovInteraction
   )
 
   if (!is.null(modelDir)) {
@@ -173,14 +178,32 @@ estimatePriceStringencyModel <- function(
         message("  [cache hit] Loading stringency model ", ids[["id"]], " from disk.")
       }
       cached <- loadPFMModel(ids[["id"]], modelDir)
-      return(list(
+      cached_result <- list(
         model    = cached$model,
         coeftest = cached$coeftest,
         vcov     = cached$vcov,
         sector   = sector,
         family   = family,
-        formula  = fml
-      ))
+        formula  = fml,
+        data     = df
+      )
+      # Restore VIF from model store; fall back to computing from the formula
+      cached_vif <- cached$diagnostics$vif
+      if (!is.null(cached_vif) && length(cached_vif$values) > 0) {
+        cached_result$vifRaw    <- cached_vif$values
+        cached_result$maxVIF    <- cached_vif$maxVIF
+        cached_result$highVIF   <- cached_vif$highVIF
+        cached_result$vifFlagged <- cached_vif$flagged %||% character(0)
+      } else {
+        vifRes <- tryCatch(computeVIF(data = df, formula = fml), error = function(e) NULL)
+        if (!is.null(vifRes)) {
+          cached_result$vifRaw    <- vifRes$values
+          cached_result$maxVIF    <- vifRes$maxVIF
+          cached_result$highVIF   <- vifRes$highVIF
+          cached_result$vifFlagged <- vifRes$flagged %||% character(0)
+        }
+      }
+      return(cached_result)
     }
   }
 
@@ -288,6 +311,15 @@ estimatePriceStringencyModel <- function(
     if (isTRUE(verbose)) {
       message("  [saved] Stringency model ", pfmModel$id, " -> ", modelDir)
     }
+  }
+
+  # VIF — always computed so reports can access fit$vifRaw directly
+  vifRes <- tryCatch(computeVIF(data = df, formula = fml), error = function(e) NULL)
+  if (!is.null(vifRes)) {
+    result$vifRaw    <- vifRes$values
+    result$maxVIF    <- vifRes$maxVIF
+    result$highVIF   <- vifRes$highVIF
+    result$vifFlagged <- vifRes$flagged %||% character(0)
   }
 
   result

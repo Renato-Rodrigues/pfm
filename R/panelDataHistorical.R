@@ -88,6 +88,56 @@ panelDataHistorical <- function(aggregate = TRUE,
   vdemNorm <- toolNormalize(vdemInt, minVal = vdemMin, maxVal = vdemMax, targetRange = c(0, 1))
   out <- mbind(out, vdemNorm[, y, ])
 
+  # V-Dem state-capacity indicators (replace WGI Government Effectiveness)
+  # Three variables are "bad when high" (corruption/neopatrimonialism) and are
+  # inverted BEFORE normalisation so that the final scale is 0 = worst, 1 = best:
+  #   Executive Corruption     → Policy Implementation (VDem)
+  #   Political Corruption     → Absence of Corruption (VDem)
+  #   Neopatrimonialism        → Meritocracy Index (VDem)
+  scRaw <- calcOutput("VDem", subtype = "stateCapacity",
+                      aggregate = aggregate, regionmapping = outputRegionMappingFile)
+  scInt <- toolTimeInterpolation(scRaw, y)
+  scInt <- mrpfm::toolImputeMedians(scInt)
+
+  # Invert "bad when high" variables before normalisation
+  invertMap <- c(
+    "Executive Corruption (VDem)" = "Policy Implementation (VDem)",
+    "Political Corruption (VDem)" = "Absence of Corruption (VDem)",
+    "Neopatrimonialism (VDem)"    = "Meritocracy Index (VDem)"
+  )
+  for (rawName in names(invertMap)) {
+    if (rawName %in% magclass::getNames(scInt)) {
+      scInt[, , rawName] <- 1 - scInt[, , rawName]
+    }
+  }
+  magclass::getNames(scInt) <- ifelse(
+    magclass::getNames(scInt) %in% names(invertMap),
+    invertMap[magclass::getNames(scInt)],
+    magclass::getNames(scInt)
+  )
+
+  # Country-level bounds for normalisation (after inversion)
+  scCnt <- calcOutput("VDem", subtype = "stateCapacity", aggregate = FALSE)
+  for (rawName in names(invertMap)) {
+    if (rawName %in% magclass::getNames(scCnt)) {
+      scCnt[, , rawName] <- 1 - scCnt[, , rawName]
+    }
+  }
+  magclass::getNames(scCnt) <- ifelse(
+    magclass::getNames(scCnt) %in% names(invertMap),
+    invertMap[magclass::getNames(scCnt)],
+    magclass::getNames(scCnt)
+  )
+  scMin <- apply(scCnt, 3, min, na.rm = TRUE)
+  scMax <- apply(scCnt, 3, max, na.rm = TRUE)
+
+  scNorm <- toolNormalize(scInt, minVal = scMin, maxVal = scMax, targetRange = c(0, 1))
+  out <- mbind(out, scNorm[, y, ])
+
+  # V-Dem state-capacity PCA: fit and cache rotation in .pfm_env$sc_pca_rotation
+  scPC <- computeVDemStateCapacityPC(scNorm[, y, ])
+  if (!is.null(scPC)) out <- mbind(out, scPC)
+
   # Control Variables
   pop <- calcOutput("PopulationPast", aggregate = aggregate, regionmapping = outputRegionMappingFile)
   gdp <- calcOutput("GDPPast", aggregate = aggregate, regionmapping = outputRegionMappingFile)
@@ -106,6 +156,12 @@ panelDataHistorical <- function(aggregate = TRUE,
   popNorm          <- toolNormalize(log(pop), minVal = popLogMin, maxVal = popLogMax, targetRange = c(0, 1))
   gdpNorm          <- toolNormalize(log(gdp), minVal = gdpLogMin, maxVal = gdpLogMax, targetRange = c(0, 1))
   gdpPerCapitaNorm <- toolNormalize(log(gdpPerCapita), minVal = gdpPCLogMin, maxVal = gdpPCLogMax, targetRange = c(0, 1))
+
+  # GDP per Capita (Q-centred): within-income-quartile de-meaned.
+  # Removes the cross-quartile income level correlated with governance indicators while
+  # preserving within-quartile variation. Quartile breaks stored for scenario reuse.
+  gdpPCQCentred <- computeGdpQCentred(gdpPerCapitaNorm[, y, ], storeBreaks = TRUE)
+
   # Land area
   landArea <- new.magpie(getRegions(pop), y, "LandArea", fill = NA) # nolint: undesirable_function_linter.
   landArea[, y, ] <- calcOutput("FAOLandArea", aggregate = aggregate, regionmapping = outputRegionMappingFile)
@@ -132,7 +188,8 @@ panelDataHistorical <- function(aggregate = TRUE,
     setNames(sspExt[, y, "SSP2.Population|Urban [Share]"] / 100, "Urban Population Share"),
     setNames(sspExt[, y, "SSP2.Gini Income Inequality Coefficient"] / 100, "Gini Income Inequality Coefficient"),
     setNames(sspExt[, y, "SSP2.Gender Inequality Index"], "Gender Inequality Index"),
-    setNames(energyIntensityNorm[, y, ], "Energy Intensity")
+    setNames(energyIntensityNorm[, y, ], "Energy Intensity"),
+    setNames(gdpPCQCentred[, y, ],       "GDP per Capita (Q-centred)")
   )
 
   if (!is.null(movingAverage) && is.numeric(movingAverage) && movingAverage > 1) {

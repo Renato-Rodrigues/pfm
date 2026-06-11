@@ -19,6 +19,7 @@ estimatePriceStringencyModel(
     "Gender Inequality Index", "Energy Intensity"),
   regionMappingFixedEffects = "regionmappingH12.csv",
   timeTrend = TRUE,
+  logisticTimeTrend = FALSE,
   logTransform = TRUE,
   lag = 1,
   useFirth = FALSE,
@@ -28,8 +29,11 @@ estimatePriceStringencyModel(
   label = "",
   verbose = TRUE,
   maxit = 3000,
-  ridgeInteractions = TRUE,
-  ridgeLambda = NULL
+  ridgeInteractions = FALSE,
+  ridgeLambda = NULL,
+  useMundlak = FALSE,
+  gdpGovInteraction = FALSE,
+  fePenaltyFactor = 0.5
 )
 }
 \arguments{

@@ -12,7 +12,9 @@ preparePanelData(
   instQualityDrivers,
   controlDrivers,
   regionMappingFixedEffects,
-  lag = 1
+  lag = 1,
+  useMundlak = FALSE,
+  gdpGovInteraction = FALSE
 )
 }
 \arguments{
@@ -33,10 +35,16 @@ preparePanelData(
 \item{lag}{integer. Time lag for independent variables (drivers).
 If \code{lag > 0}, drivers at time \code{t-lag} are used to predict the
 dependent variable at time \code{t}. Default: \code{1}.}
+
+\item{useMundlak}{Logical. If \code{TRUE}, applies the Mundlak (1978) correction:
+computes within-region means of all theory and control variables and appends
+them as \code{<var>_grp_mean} columns. Region fixed-effect dummies are
+suppressed — \code{regionMappingFixedEffects} is ignored. Default: \code{FALSE}.}
 }
 \value{
-data.frame with columns: region, year, timeTrend, regionFE,
-ecp, plus one column per driver (safe R-named), plus
+data.frame with columns: region, year, timeTrend, regionFE (unless
+\code{useMundlak = TRUE}), ecp, plus one column per driver (safe R-named),
+\code{<var>_grp_mean} columns (when \code{useMundlak = TRUE}), and
 \if{html}{\out{<actorPowerIndex>}}\emph{x}\if{html}{\out{<driver>}} interaction columns.
 }
 \description{

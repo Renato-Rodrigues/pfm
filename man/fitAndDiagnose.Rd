@@ -21,7 +21,7 @@ fitAndDiagnose(
   actorPowerIndex = NULL,
   instQualityDrivers = NULL,
   controlDrivers = NULL,
-  ridgeInteractions = TRUE,
+  ridgeInteractions = FALSE,
   ridgeLambda = NULL
 )
 }

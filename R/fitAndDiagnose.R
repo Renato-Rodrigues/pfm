@@ -64,7 +64,7 @@ fitAndDiagnose <- function(fml, df, depVar, stage, family, useFirth, nullLoglik,
                            sweepVars = NULL,
                            actorPowerDrivers = NULL, actorPowerIndex = NULL,
                            instQualityDrivers = NULL, controlDrivers = NULL,
-                           ridgeInteractions = TRUE, ridgeLambda = NULL) {
+                           ridgeInteractions = FALSE, ridgeLambda = NULL) {
   warnEnv <- new.env()
   warnEnv$msg <- FALSE
   warnEnv$reason <- NULL

@@ -38,7 +38,7 @@ modelEstimationWorkflow(
   maxit = 3000,
   compute = c(ame = TRUE, predictedProbs = TRUE),
   sweepVars = NULL,
-  ridgeInteractions = TRUE,
+  ridgeInteractions = FALSE,
   ridgeLambda = NULL
 )
 }

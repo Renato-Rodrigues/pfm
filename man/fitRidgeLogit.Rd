@@ -10,7 +10,9 @@ fitRidgeLogit(
   depVar,
   ridgeLambda = NULL,
   clusterVar = NULL,
-  maxit = 3000
+  maxit = 3000,
+  instQualityDrivers = NULL,
+  fePenaltyFactor = 0.5
 )
 }
 \arguments{
@@ -28,6 +30,10 @@ variance. Typically \code{df$region}.}
 
 \item{maxit}{Integer. Max iterations for the initial unpenalized GLM (used only to
 build the model-object scaffold; convergence of this fit is not required).}
+
+\item{instQualityDrivers}{Character vector or NULL. Names of institutional quality
+drivers (as passed to \code{buildModelFormula}). Used to identify the IQ main-effect
+columns for opposing-sign detection. When \code{NULL} the IQ group is skipped.}
 }
 \value{
 A list with:
@@ -36,7 +42,10 @@ A list with:
 \item{coeftest}{4-column matrix (Estimate, SE, z, p) from the penalized Hessian.}
 \item{vcov}{Variance-covariance matrix (penalized Hessian sandwich).}
 \item{ridgeLambda}{\eqn{\lambda} used.}
-\item{nInteractionTerms}{Number of penalized interaction terms.}
+\item{nInteractionTerms}{Number of \code{_x_} interaction terms in the formula.}
+\item{nPenalizedTerms}{Number of terms actually penalized.}
+\item{iqConflict}{Logical. Whether opposing-sign conflict was detected in IQ main effects.}
+\item{interactionConflict}{Logical. Whether opposing-sign conflict was detected in interaction terms.}
 \item{loglik}{Unpenalized log-likelihood evaluated at the Ridge estimates.}
 \item{nObs}{Number of observations.}
 }
@@ -44,14 +53,22 @@ Returns \code{NULL} when the initial GLM scaffold fails to fit.
 }
 \description{
 Fits a binomial logistic regression with Ridge (L2) regularization
-applied \strong{selectively to interaction terms only}. Main effects, time trend, region
-fixed effects, and controls are left unpenalized (\code{penalty.factor = 0}).
+applied \strong{dynamically} to term groups that show opposing signs in the initial
+unpenalized fit.
 
-This addresses the sign-flip projection artefact that occurs when a large negative
-interaction coefficient (e.g. \code{API x RoL}) dominates the linear predictor once
-the Actor Power Index transitions from negative to positive in scenario data. Ridge
-shrinks the interaction coefficients toward zero without forcing them to zero (unlike
-Lasso), preserving the theoretical interaction signal while reducing its extremity.
+After fitting the unpenalized GLM, two term groups are inspected:
+\enumerate{
+\item \strong{IQ main effects} (\code{instQualityDrivers} columns): penalized
+(factor = 1) when at least one coefficient is positive and at least one is
+negative, indicating multicollinearity-driven sign conflict.
+\item \strong{Interaction terms} (\code{_x_} columns): penalized (factor = 1)
+when they show the same opposing-sign pattern.
+}
+Groups without sign conflict are left unpenalized (factor = 0). Controls, time
+trend, and region fixed effects are always unpenalized.
+
+This avoids over-penalizing terms that are well-identified while targeting only
+the groups where Ridge is needed to suppress instability.
 
 When \code{ridgeLambda = NULL} the penalty is selected by 5-fold cross-validation
 via \code{cv.glmnet}. Pass an explicit numeric value to fix \eqn{\lambda} (useful
