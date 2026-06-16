@@ -56,6 +56,12 @@
 #' @param ridgeLambda Numeric or NULL. Ridge penalty \eqn{\lambda}. When \code{NULL}
 #'   (default) and \code{ridgeInteractions = TRUE}, \eqn{\lambda} is selected automatically
 #'   by 5-fold cross-validation. Pass a numeric value to fix \eqn{\lambda}.
+#' @param panelTransform Character. Panel Transform axis (ADR 0005): \code{"levels"}
+#'   (default — status logit, current behaviour), \code{"hybridFD"} (Actor Power terms
+#'   differenced, Institutional Quality in levels, discrete-time hazard/onset sample),
+#'   or \code{"pureFD"} (all drivers differenced, hazard/onset sample). Under any FD
+#'   transform the model predicts P(adopt this year | not yet adopted). Incompatible
+#'   with \code{useMundlak = TRUE}.
 #'
 #' @return A list with elements:
 #'   \describe{
@@ -120,7 +126,25 @@ estimateAdoptionModel <- function(
     ridgeLambda = NULL,
     useMundlak = FALSE,
     gdpGovInteraction = FALSE,
-    fePenaltyFactor = 0.5) {
+    fePenaltyFactor = 0.5,
+    panelTransform = "levels") {
+  panelTransform <- match.arg(panelTransform, c("levels", "hybridFD", "pureFD"))
+  if (panelTransform != "levels" && isTRUE(useMundlak)) {
+    stop("estimateAdoptionModel: useMundlak is incompatible with panelTransform = '",
+         panelTransform, "' (ADR 0005).")
+  }
+  # ADR 0010 (2026-06-16): the ADOPTION stage uses NO time trend. Empirically the
+  # trend was deadweight in-sample (AIC ~20 worse WITH it, theory fraction lower)
+  # and its large coefficient (~+28 log-odds) only inflated projections; region
+  # fixed effects + drivers already capture the level/time variation. The
+  # stringency stage keeps its (small, well-behaved) trend. We force both trend
+  # terms off here so every caller (workflow, projection, reports, REMIND) is
+  # consistent regardless of the spec's logisticTimeTrend flag.
+  if (isTRUE(timeTrend) || isTRUE(logisticTimeTrend)) {
+    if (isTRUE(verbose)) message("  [adoption] time trend disabled (ADR 0010).")
+  }
+  timeTrend <- FALSE
+  logisticTimeTrend <- FALSE
   # --- 1. Prepare data.frame ---
   df <- preparePanelData(
     data = data,
@@ -134,9 +158,22 @@ estimateAdoptionModel <- function(
     useMundlak = useMundlak,
     gdpGovInteraction = gdpGovInteraction
   )
+  # Capture the frozen driver-scaling reference before any row subsetting drops
+  # the attribute (ADR 0009: bundled into the saved Fitted Model).
+  .dscale <- attr(df, "driverScaling")
 
   # --- 2. Create binary dependent variable ---
   df$adoption <- as.integer(df$ecp > 0)
+
+  # --- 2a. Panel Transform (ADR 0005): FD drivers + hazard (onset) sample ---
+  if (panelTransform != "levels") {
+    df <- applyPanelTransform(
+      df, panelTransform = panelTransform, stage = "adoption",
+      actorPowerDrivers = actorPowerDrivers, actorPowerIndex = actorPowerIndex,
+      instQualityDrivers = instQualityDrivers, controlDrivers = controlDrivers,
+      verbose = verbose
+    )
+  }
 
   if (isTRUE(includeLaggedAdoption)) {
     controlDrivers <- c(controlDrivers, "lagged_adoption")
@@ -160,14 +197,14 @@ estimateAdoptionModel <- function(
   # --- 3b. Cache check: return saved model if formula + data unchanged ---
   if (!is.null(modelDir)) {
     ids <- computeModelId(fml, df)
-    cachedPath <- file.path(modelDir, paste0(ids[["id"]], ".rds"))
+    cachedPath <- file.path(modelDir, "models", paste0(ids[["id"]], ".rds"))
     if (file.exists(cachedPath)) {
       if (isTRUE(verbose)) {
         message("  [cache hit] Loading adoption model ", ids[["id"]], " from disk.")
       }
       cached <- loadPFMModel(ids[["id"]], modelDir)
       result <- list(
-        model    = cached$model,
+        model    = .rehydrateFitForConsumers(cached$model, df, fml, "adoption"),
         coeftest = cached$coeftest,
         vcov     = cached$vcov,
         sector   = sector,
@@ -281,7 +318,19 @@ estimateAdoptionModel <- function(
       stage         = "adoption",
       family        = "logistf",
       useFirth      = useFirth,
-      label         = label
+      label         = label,
+      driverScaling = .dscale,
+      prepSpec      = list(
+        actorPowerDrivers         = actorPowerDrivers,
+        actorPowerIndex           = actorPowerIndex,
+        instQualityDrivers        = instQualityDrivers,
+        controlDrivers            = controlDrivers,
+        regionMappingFixedEffects = if (isTRUE(useMundlak)) NULL else regionMappingFixedEffects,
+        lag                       = lag,
+        useMundlak                = useMundlak,
+        gdpGovInteraction         = gdpGovInteraction,
+        panelTransform            = panelTransform
+      )
     )
     savePFMModel(pfmModel, modelDir)
     if (isTRUE(verbose)) {
@@ -336,6 +385,12 @@ estimateAdoptionModel <- function(
     result$highVIF   <- vifRes$highVIF
     result$vifFlagged <- vifRes$flagged %||% character(0)
   }
+
+  # Predictive Diagnostics — cheap, report-only (no selection role)
+  result$predictiveDiagnostics <- tryCatch(
+    computePredictiveDiagnostics(result$model, stage = "adoption"),
+    error = function(e) NULL
+  )
 
   result
 }

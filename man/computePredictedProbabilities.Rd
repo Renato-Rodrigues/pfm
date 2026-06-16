@@ -44,8 +44,8 @@ model-matrix column names). Each data frame has columns:
 \item{variable}{Model-matrix column name being swept.}
 \item{x}{The value of the sweep variable at this grid point.}
 \item{prob}{Predicted Pr(Adoption) at this grid point.}
-\item{lower}{Lower 95\\% confidence bound (clamped to 0--1).}
-\item{upper}{Upper 95\\% confidence bound (clamped to 0--1).}
+\item{lower}{Lower 95\% confidence bound (clamped to 0--1).}
+\item{upper}{Upper 95\% confidence bound (clamped to 0--1).}
 }
 Returns \code{NULL} when no suitable sweep variables are found or the model
 is unavailable.

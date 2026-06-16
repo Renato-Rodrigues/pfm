@@ -15,9 +15,10 @@ NULL
 
 #' Save a PFMModel to disk
 #'
-#' Writes \code{{id}.rds} into \code{dir} and adds or updates the corresponding
-#' entry in \code{dir/index.json}. Silently overwrites if the ID already exists
-#' (i.e. re-saving after \code{\link{addProjections}}).
+#' Writes \code{{id}.rds} into \code{{dir}/models/} and adds or updates the
+#' corresponding entry in \code{{dir}/index.json}. Silently overwrites if the ID
+#' already exists. Scenario projections are stored separately (see
+#' \code{\link{saveProjection}}), never embedded here (ADR 0009).
 #'
 #' @param model A \code{PFMModel} object.
 #' @param dir Character. Directory to write to. Defaults to \code{getOption("pfm.modelDir")}.
@@ -28,13 +29,46 @@ NULL
 savePFMModel <- function(model, dir = getOption("pfm.modelDir")) {
   stopifnot(inherits(model, "PFMModel"))
   if (is.null(dir)) stop("Supply 'dir' or set options(pfm.modelDir = '...')", call. = FALSE)
-  dir.create(dir, showWarnings = FALSE, recursive = TRUE)
+  modelsDir <- file.path(dir, "models")
+  dir.create(modelsDir, showWarnings = FALSE, recursive = TRUE)
 
-  rdsPath <- file.path(dir, paste0(model$id, ".rds"))
-  saveRDS(model, file = rdsPath)
-
+  saveRDS(model, file = file.path(modelsDir, paste0(model$id, ".rds")))
   .updatePFMModelIndex(model, dir)
   invisible(model)
+}
+
+#' Save the shared Training Panel once (content-addressed)
+#'
+#' Writes the raw historical panel to \code{{dir}/panels/panel_{hash}.rds} only
+#' if a file with that hash does not already exist, and sets
+#' \code{options(pfm.trainingPanelHash = hash)} so that Fitted Models saved during
+#' the same session reference it (ADR 0009). Returns the hash invisibly.
+#'
+#' @param panel A magpie object (the raw historical panel) or data.frame.
+#' @param dir Character. Cache root. Defaults to \code{getOption("pfm.modelDir")}.
+#' @importFrom digest digest
+#' @export
+saveTrainingPanel <- function(panel, dir = getOption("pfm.modelDir")) {
+  if (is.null(dir)) stop("Supply 'dir' or set options(pfm.modelDir = '...')", call. = FALSE)
+  hash <- digest::digest(panel, algo = "sha256")
+  panelsDir <- file.path(dir, "panels")
+  dir.create(panelsDir, showWarnings = FALSE, recursive = TRUE)
+  path <- file.path(panelsDir, paste0("panel_", substr(hash, 1, 16), ".rds"))
+  if (!file.exists(path)) saveRDS(panel, file = path)
+  options(pfm.trainingPanelHash = substr(hash, 1, 16))
+  invisible(substr(hash, 1, 16))
+}
+
+#' Load a shared Training Panel by hash
+#' @param hash Character. The (16-char) panel hash stored on a Fitted Model.
+#' @param dir Character. Cache root. Defaults to \code{getOption("pfm.modelDir")}.
+#' @return The stored panel object, or \code{NULL} if not found.
+#' @export
+loadTrainingPanel <- function(hash, dir = getOption("pfm.modelDir")) {
+  if (is.null(dir) || is.null(hash) || is.na(hash)) return(NULL)
+  path <- file.path(dir, "panels", paste0("panel_", substr(hash, 1, 16), ".rds"))
+  if (!file.exists(path)) return(NULL)
+  readRDS(path)
 }
 
 #' Load a PFMModel from disk
@@ -47,9 +81,12 @@ savePFMModel <- function(model, dir = getOption("pfm.modelDir")) {
 loadPFMModel <- function(id, dir = getOption("pfm.modelDir")) {
   if (is.null(dir)) stop("Supply 'dir' or set options(pfm.modelDir = '...')", call. = FALSE)
   shortId <- substr(id, 1, 12)
-  rdsPath <- file.path(dir, paste0(shortId, ".rds"))
+  # ADR 0009 layout: {dir}/models/{id}.rds; fall back to the legacy flat path.
+  rdsPath <- file.path(dir, "models", paste0(shortId, ".rds"))
   if (!file.exists(rdsPath)) {
-    stop("No PFMModel found with id '", shortId, "' in '", dir, "'", call. = FALSE)
+    legacy <- file.path(dir, paste0(shortId, ".rds"))
+    if (file.exists(legacy)) rdsPath <- legacy else
+      stop("No PFMModel found with id '", shortId, "' in '", dir, "'", call. = FALSE)
   }
   readRDS(rdsPath)
 }

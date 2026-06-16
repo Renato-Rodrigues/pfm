@@ -33,7 +33,9 @@ estimatePriceStringencyModel(
   ridgeLambda = NULL,
   useMundlak = FALSE,
   gdpGovInteraction = FALSE,
-  fePenaltyFactor = 0.5
+  fePenaltyFactor = 0.5,
+  panelTransform = "levels",
+  nickellCorrection = FALSE
 )
 }
 \arguments{
@@ -104,6 +106,24 @@ when \code{logTransform = TRUE} (the default). Default: \code{FALSE}.}
 \item{ridgeLambda}{Numeric or NULL. Ridge penalty \eqn{\lambda}. When \code{NULL}
 (default) and \code{ridgeInteractions = TRUE}, selected automatically by 5-fold
 cross-validation. Pass a numeric value to fix \eqn{\lambda}.}
+
+\item{panelTransform}{Character. Panel Transform axis (ADR 0005): \code{"levels"}
+(default — ECP level, current behaviour), \code{"hybridFD"} (Actor Power terms
+differenced, Institutional Quality in levels), or \code{"pureFD"} (all drivers
+differenced). Under any FD transform the dependent variable becomes the
+within-spell change (\eqn{\Delta\log(1+ECP)} when \code{logTransform = TRUE}),
+the GLM family is forced to \code{gaussian(link = "identity")} (differences can
+be negative), and region fixed effects are suppressed (differenced out by
+construction). Incompatible with \code{useMundlak = TRUE} and
+\code{ridgeInteractions = TRUE}.}
+
+\item{nickellCorrection}{Logical. If \code{TRUE} and the spec includes the
+lagged carbon price (\code{includeLaggedECP}) together with region fixed
+effects, applies a split-panel jackknife (Dhaene-Jochmans) bias correction to
+the coefficients to counter the dynamic-panel / Nickell bias. Falls back to
+the uncorrected fit (with a message) if the half-panels are not estimable.
+Standard-errors are kept from the clustered full-fit vcov. Default
+\code{FALSE}. See \code{\link{splitPanelJackknife}}.}
 }
 \value{
 A list with elements:

@@ -39,6 +39,11 @@
 #' @param panelData Optional \code{magpie} object or \code{data.frame}. If provided,
 #'   skips loading and processing historical data via \code{panelDataHistorical}.
 #' @param verbose Logical. If \code{TRUE} (default), prints progress messages during estimation.
+#' @param panelTransform Character. Panel Transform axis (ADR 0005): \code{"levels"}
+#'   (default), \code{"hybridFD"}, or \code{"pureFD"}. Applied to both stages: the
+#'   adoption stage becomes a discrete-time hazard (onset) model and the stringency
+#'   stage a Gaussian GLM on within-spell ECP changes. See
+#'   \code{\link{applyPanelTransform}}.
 #'
 #' @return A list containing:
 #'   \describe{
@@ -109,7 +114,8 @@ modelEstimationWorkflow <- function(
     compute = c(ame = TRUE, predictedProbs = TRUE),
     sweepVars = NULL,
     ridgeInteractions = FALSE,
-    ridgeLambda = NULL) {
+    ridgeLambda = NULL,
+    panelTransform = "levels") {
   # --- 1. Load data ---
   if (is.null(panelData)) {
     if (isTRUE(verbose)) {
@@ -161,7 +167,8 @@ modelEstimationWorkflow <- function(
       compute = compute,
       sweepVars = sweepVars,
       ridgeInteractions = ridgeInteractions,
-      ridgeLambda = ridgeLambda
+      ridgeLambda = ridgeLambda,
+      panelTransform = panelTransform
     )
     if (isTRUE(verbose)) {
       message("  Stage 1 complete. Converged: ", adoptionResult$model$converged)
@@ -190,7 +197,8 @@ modelEstimationWorkflow <- function(
       verbose = verbose,
       maxit = maxit,
       ridgeInteractions = ridgeInteractions,
-      ridgeLambda = ridgeLambda
+      ridgeLambda = ridgeLambda,
+      panelTransform = panelTransform
     )
     if (isTRUE(verbose)) {
       message("  Stage 2 complete. Converged: ", stringencyResult$model$converged)

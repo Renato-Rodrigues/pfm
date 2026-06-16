@@ -16,14 +16,16 @@ newPFMModel(
   family,
   training_years,
   useFirth,
-  training_data,
   data_hash,
+  training_panel_hash = NA_character_,
   model,
   coeftest,
   vcov,
   fitted_values,
   correlations,
   diagnostics,
+  transforms = NULL,
+  applyState = NULL,
   projections = NULL
 )
 }
@@ -50,8 +52,6 @@ newPFMModel(
 
 \item{useFirth}{Logical. Whether Firth bias reduction was applied.}
 
-\item{training_data}{data.frame. The rows and columns passed to glm/logistf.}
-
 \item{data_hash}{Character. SHA-256 of \code{training_data}.}
 
 \item{model}{List or fit object. The raw logistf/glm fit.}
@@ -67,6 +67,8 @@ newPFMModel(
 \item{diagnostics}{List. See ADR 0003 for the full field list.}
 
 \item{projections}{List or NULL. Scenario projections; populated by \code{\link{addProjections}}.}
+
+\item{training_data}{data.frame. The rows and columns passed to glm/logistf.}
 }
 \value{
 An object of class \code{PFMModel}.

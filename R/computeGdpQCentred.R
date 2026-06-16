@@ -7,8 +7,18 @@
 #'
 #' Internal helper to calculate the within-income-quartile de-meaned GDP per Capita.
 #'
-#' @param gdpPCNorm magpie with one variable (log-normalized GDP per Capita \code{[0, 1]})
-#' @param storeBreaks if TRUE, stores quartile breaks in .pfm_env for scenario reuse
+#' Fit/apply semantics (Scenario Scope decision, 2026-06-12): with
+#' \code{storeBreaks = TRUE} (historical panel) the quartile breaks, the
+#' quartile-group means, AND the per-region group assignments are computed from
+#' the supplied data and cached in \code{.pfm_env}. With \code{storeBreaks = FALSE}
+#' and a cached fit present (scenario panel), all three are reused — a region's
+#' scenario value reads "GDP relative to its historical income-class average",
+#' continuous at the historical/scenario seam. Regions absent from the historical
+#' fit are assigned via the stored breaks on their scenario mean.
+#'
+#' @param gdpPCNorm magpie with one variable (log-normalized GDP per Capita between 0 and 1)
+#' @param storeBreaks if TRUE, fits and stores quartile breaks, group means and
+#'   region assignments in .pfm_env for scenario reuse
 #'
 #' @return magpie with same dims as gdpPCNorm, variable renamed "GDP per Capita (Q-centred)"
 #' @keywords internal
@@ -20,17 +30,34 @@ computeGdpQCentred <- function(gdpPCNorm, storeBreaks = FALSE) {
 
   meanGdpPC <- rowMeans(arr, na.rm = TRUE)
 
-  # Quartile breaks — use stored historical breaks for scenario consistency
-  if (!storeBreaks && !is.null(.pfm_env$gdppc_q_breaks)) {
-    qBreaks <- .pfm_env$gdppc_q_breaks
+  applyStored <- !storeBreaks && !is.null(.pfm_env$gdppc_q_fit)
+  if (applyStored) {
+    # ── Apply mode: everything frozen from the historical fit ─────────────────
+    fit <- .pfm_env$gdppc_q_fit
+    qBreaks <- fit$breaks
+    qMeans  <- fit$means
+    qGroup  <- fit$group[names(meanGdpPC)]
+    # Regions absent from the historical fit: assign via stored breaks
+    missingRegion <- is.na(qGroup)
+    if (any(missingRegion)) {
+      qGroup[missingRegion] <- findInterval(meanGdpPC[missingRegion], qBreaks)
+    }
   } else {
+    # ── Fit mode ───────────────────────────────────────────────────────────────
     qBreaks <- stats::quantile(meanGdpPC, probs = c(0, 0.25, 0.5, 0.75, 1.0), na.rm = TRUE)
     qBreaks[c(1L, 5L)] <- c(-Inf, Inf)
-    if (storeBreaks) .pfm_env$gdppc_q_breaks <- qBreaks
+    qGroup <- findInterval(meanGdpPC, qBreaks)                # integer 1-4
+    qMeans <- tapply(meanGdpPC, qGroup, mean, na.rm = TRUE)   # named "1".."4"
+    if (storeBreaks) {
+      .pfm_env$gdppc_q_fit <- list(
+        breaks = qBreaks,
+        means  = qMeans,
+        group  = stats::setNames(qGroup, names(meanGdpPC))
+      )
+      # kept for backward compatibility with older readers of .pfm_env
+      .pfm_env$gdppc_q_breaks <- qBreaks
+    }
   }
-
-  qGroup <- findInterval(meanGdpPC, qBreaks)              # integer 1-4
-  qMeans <- tapply(meanGdpPC, qGroup, mean, na.rm = TRUE) # named "1".."4"
 
   arrOut <- arr
   for (q in seq_len(4L)) {

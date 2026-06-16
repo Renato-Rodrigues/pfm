@@ -4,7 +4,17 @@
 \alias{buildPFMModel}
 \title{Assemble a PFMModel from a fit result and its training context}
 \usage{
-buildPFMModel(fit, training_data, sector, stage, family, useFirth, label = "")
+buildPFMModel(
+  fit,
+  training_data,
+  sector,
+  stage,
+  family,
+  useFirth,
+  label = "",
+  driverScaling = NULL,
+  prepSpec = NULL
+)
 }
 \arguments{
 \item{fit}{List. Output of \code{fitAndDiagnose}, or a list with at minimum

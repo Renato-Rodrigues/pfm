@@ -34,9 +34,10 @@ NULL
 #' @keywords internal
 newPFMModel <- function(id, id_full, created_at, label = "", pfm_version,
                         sector, stage, formula, family, training_years, useFirth,
-                        training_data, data_hash,
+                        data_hash, training_panel_hash = NA_character_,
                         model, coeftest, vcov, fitted_values,
                         correlations, diagnostics,
+                        transforms = NULL, applyState = NULL,
                         projections = NULL) {
   structure(
     list(
@@ -51,18 +52,91 @@ newPFMModel <- function(id, id_full, created_at, label = "", pfm_version,
       family         = family,
       training_years = training_years,
       useFirth       = useFirth,
-      training_data  = training_data,
       data_hash      = data_hash,
-      model          = model,
+      # ADR 0009: training data is NOT embedded; it lives once in the content-
+      # addressed Training Panel store and is referenced by hash.
+      training_panel_hash = training_panel_hash,
+      model          = model,        # data-bearing slots stripped (.stripFit); predict-capable
       coeftest       = coeftest,
       vcov           = vcov,
       fitted_values  = fitted_values,
       correlations   = correlations,
       diagnostics    = diagnostics,
+      # ADR 0009: frozen transforms making the model self-contained for prediction
+      # (GDP-Q fit, PCA rotation, driver scaling, regionFE levels, trend/spec params).
+      transforms     = transforms,
+      # ADR 0009: minimal state the lag recursion / clamp need at predict time
+      # without the historical panel (per-region seed prices, in-sample max response).
+      applyState     = applyState,
       projections    = projections
     ),
     class = "PFMModel"
   )
+}
+
+#' Strip data-bearing slots from a fitted glm/logistf so the saved object stays
+#' small but remains usable for prediction on new data (ADR 0009). For newdata
+#' predictions predict.glm needs terms/xlevels/coefficients/family/contrasts plus
+#' the (k-pivot of the) \code{qr} decomposition; the dropped slots (model frame,
+#' residuals, fitted/linear predictors, weights, y, effects, data, prior.weights)
+#' each carry an O(n) copy of the training data. \code{qr} is deliberately kept —
+#' predict.lm dereferences \code{qr$pivot} even when \code{se.fit = FALSE}.
+#' @keywords internal
+.stripFit <- function(fit) {
+  if (is.null(fit)) return(NULL)
+  heavy <- c("model", "data", "residuals", "effects", "linear.predictors",
+             "weights", "prior.weights", "y", "fitted.values", "na.action",
+             "predict")
+  for (slot in heavy) if (!is.null(fit[[slot]])) fit[[slot]] <- NULL
+  fit
+}
+
+#' Re-attach the cheap derived vectors a slim (stripped) fit no longer carries,
+#' so in-session consumers (the results reports) that read \code{fit$model$y},
+#' \code{fitted(fit$model)} or \code{logistf$predict} keep working after a cache
+#' hit (ADR 0009). These are recomputed from the freshly-prepared estimation
+#' \code{df} — no training data is read from disk. Fitted values are aligned to
+#' the complete-case rows (\code{usedRows}), exactly as the original fit's were.
+#' @keywords internal
+.rehydrateFitForConsumers <- function(m, df, fml, depVar) {
+  if (is.null(m)) return(m)
+  # Rebuild the na.omit model frame exactly as glm/logistf would have, so it
+  # carries the right rows AND the na.action attribute (consumers locate the
+  # dropped rows via attr(m$model, "na.action")). Then y / fitted / residuals
+  # are all aligned to those same complete-case rows.
+  mf <- tryCatch(stats::model.frame(fml, data = df, na.action = stats::na.omit),
+                 error = function(e) NULL)
+  if (is.null(mf)) {
+    v <- intersect(all.vars(fml), colnames(df))
+    keep <- stats::complete.cases(df[, v, drop = FALSE])
+    dfu <- df[keep, , drop = FALSE]
+  } else {
+    na <- attr(mf, "na.action")
+    dfu <- if (!is.null(na) && length(na) > 0) df[-as.integer(na), , drop = FALSE] else df
+    m$model <- mf
+  }
+  yv <- if (depVar %in% names(dfu)) as.numeric(dfu[[depVar]]) else NULL
+  if (inherits(m, "logistf")) {
+    tt <- stats::delete.response(stats::terms(fml))
+    mm <- tryCatch(
+      stats::model.matrix(tt, stats::model.frame(tt, dfu, na.action = stats::na.pass)),
+      error = function(e) NULL)
+    if (!is.null(mm)) {
+      beta <- stats::coef(m)
+      shared <- intersect(colnames(mm), names(beta))
+      m$predict <- as.numeric(stats::plogis(mm[, shared, drop = FALSE] %*% beta[shared]))
+    }
+    if (!is.null(yv)) m$y <- yv
+  } else {
+    fv <- tryCatch(as.numeric(stats::predict(m, newdata = dfu, type = "response")),
+                   error = function(e) NULL)
+    if (!is.null(fv)) {
+      m$fitted.values <- fv
+      if (!is.null(yv) && length(yv) == length(fv)) m$residuals <- yv - fv
+    }
+    if (!is.null(yv)) m$y <- yv
+  }
+  m
 }
 
 #' @export

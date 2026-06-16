@@ -57,6 +57,22 @@
 #' @param ridgeLambda Numeric or NULL. Ridge penalty \eqn{\lambda}. When \code{NULL}
 #'   (default) and \code{ridgeInteractions = TRUE}, selected automatically by 5-fold
 #'   cross-validation. Pass a numeric value to fix \eqn{\lambda}.
+#' @param nickellCorrection Logical. If \code{TRUE} and the spec includes the
+#'   lagged carbon price (\code{includeLaggedECP}) together with region fixed
+#'   effects, applies a split-panel jackknife (Dhaene-Jochmans) bias correction to
+#'   the coefficients to counter the dynamic-panel / Nickell bias. Falls back to
+#'   the uncorrected fit (with a message) if the half-panels are not estimable.
+#'   Standard-errors are kept from the clustered full-fit vcov. Default
+#'   \code{FALSE}. See \code{\link{splitPanelJackknife}}.
+#' @param panelTransform Character. Panel Transform axis (ADR 0005): \code{"levels"}
+#'   (default — ECP level, current behaviour), \code{"hybridFD"} (Actor Power terms
+#'   differenced, Institutional Quality in levels), or \code{"pureFD"} (all drivers
+#'   differenced). Under any FD transform the dependent variable becomes the
+#'   within-spell change (\eqn{\Delta\log(1+ECP)} when \code{logTransform = TRUE}),
+#'   the GLM family is forced to \code{gaussian(link = "identity")} (differences can
+#'   be negative), and region fixed effects are suppressed (differenced out by
+#'   construction). Incompatible with \code{useMundlak = TRUE} and
+#'   \code{ridgeInteractions = TRUE}.
 #'
 #' @return A list with elements:
 #'   \describe{
@@ -112,7 +128,43 @@ estimatePriceStringencyModel <- function(
     ridgeLambda = NULL,
     useMundlak = FALSE,
     gdpGovInteraction = FALSE,
-    fePenaltyFactor = 0.5) {
+    fePenaltyFactor = 0.5,
+    panelTransform = "levels",
+    nickellCorrection = FALSE) {
+  panelTransform <- match.arg(panelTransform, c("levels", "hybridFD", "pureFD"))
+
+  # --- Resolve the effective GLM family/link BEFORE the cache check, so the
+  # model-store key reflects it (see computeModelId `extra`). Option 1 (2026-06-14):
+  # when the outcome is already log-transformed (logTransform = TRUE) OR
+  # differenced (FD), use gaussian(identity) — a single, sane back-transform
+  # (ECP = expm1(eta)) rather than a log link on a logged outcome, which
+  # double-exponentiates and explodes under projection. Gamma/gaussian log links
+  # remain available only for logTransform = FALSE (modelling raw ECP).
+  usesIdentity <- (panelTransform != "levels") || isTRUE(logTransform)
+  if (usesIdentity && family != "gaussian" && isTRUE(verbose)) {
+    message("  [stringency] using gaussian(identity) on the log/differenced outcome ",
+            "instead of ", family, "(log) to avoid a double-log that explodes under ",
+            "projection (Option 1).")
+  }
+  if (usesIdentity) family <- "gaussian"
+
+  if (panelTransform != "levels") {
+    if (isTRUE(useMundlak)) {
+      stop("estimatePriceStringencyModel: useMundlak is incompatible with panelTransform = '",
+           panelTransform, "' (ADR 0005).")
+    }
+    if (isTRUE(ridgeInteractions)) {
+      stop("estimatePriceStringencyModel: ridgeInteractions is not supported with ",
+           "panelTransform = '", panelTransform, "' (fitRidgeStringency assumes a log link).")
+    }
+    if (!is.null(regionMappingFixedEffects)) {
+      if (isTRUE(verbose)) {
+        message("  [", panelTransform, "] Region fixed effects suppressed: ",
+                "differenced out by construction (ADR 0005).")
+      }
+      regionMappingFixedEffects <- NULL
+    }
+  }
   # --- 1. Prepare data.frame ---
   df <- preparePanelData(
     data = data,
@@ -126,16 +178,30 @@ estimatePriceStringencyModel <- function(
     useMundlak = useMundlak,
     gdpGovInteraction = gdpGovInteraction
   )
+  # Capture the frozen driver-scaling reference before the ecp>0 subset drops the
+  # attribute (ADR 0009: bundled into the saved Fitted Model).
+  .dscale <- attr(df, "driverScaling")
 
-  # --- 2. Subset to positive prices ---
-  df <- df[df$ecp > 0, , drop = FALSE]
+  if (panelTransform == "levels") {
+    # --- 2. Subset to positive prices ---
+    df <- df[df$ecp > 0, , drop = FALSE]
 
-  # --- 2b. Optional log-transform ---
-  if (isTRUE(logTransform)) {
-    df$ecp <- log(1 + df$ecp)
-    if (isTRUE(verbose)) {
-      message("Log-transform applied: ecp -> log(1 + ecp)")
+    # --- 2b. Optional log-transform ---
+    if (isTRUE(logTransform)) {
+      df$ecp <- log(1 + df$ecp)
+      if (isTRUE(verbose)) {
+        message("Log-transform applied: ecp -> log(1 + ecp)")
+      }
     }
+  } else {
+    # --- 2. Panel Transform (ADR 0005): within-spell differences ---
+    # Handles spell subsetting and the (log) differencing of the outcome itself.
+    df <- applyPanelTransform(
+      df, panelTransform = panelTransform, stage = "stringency",
+      actorPowerDrivers = actorPowerDrivers, actorPowerIndex = actorPowerIndex,
+      instQualityDrivers = instQualityDrivers, controlDrivers = controlDrivers,
+      logTransform = logTransform, verbose = verbose
+    )
   }
 
   if (nrow(df) < 5) {
@@ -170,16 +236,20 @@ estimatePriceStringencyModel <- function(
     gdpGovInteraction = gdpGovInteraction
   )
 
+  # nickellCorrection is an estimation choice not reflected in the formula/data,
+  # so fold it into the cache key (alongside family) to avoid reusing an
+  # uncorrected fit for a corrected spec.
+  cacheExtra <- paste0(family, if (isTRUE(nickellCorrection)) "+nickellSPJ" else "")
   if (!is.null(modelDir)) {
-    ids <- computeModelId(fml, df)
-    cachedPath <- file.path(modelDir, paste0(ids[["id"]], ".rds"))
+    ids <- computeModelId(fml, df, extra = cacheExtra)
+    cachedPath <- file.path(modelDir, "models", paste0(ids[["id"]], ".rds"))
     if (file.exists(cachedPath)) {
       if (isTRUE(verbose)) {
         message("  [cache hit] Loading stringency model ", ids[["id"]], " from disk.")
       }
       cached <- loadPFMModel(ids[["id"]], modelDir)
       cached_result <- list(
-        model    = cached$model,
+        model    = .rehydrateFitForConsumers(cached$model, df, fml, "ecp"),
         coeftest = cached$coeftest,
         vcov     = cached$vcov,
         sector   = sector,
@@ -203,6 +273,10 @@ estimatePriceStringencyModel <- function(
           cached_result$vifFlagged <- vifRes$flagged %||% character(0)
         }
       }
+      cached_result$predictiveDiagnostics <- tryCatch(
+        computePredictiveDiagnostics(cached_result$model, stage = "stringency"),
+        error = function(e) NULL
+      )
       return(cached_result)
     }
   }
@@ -211,7 +285,11 @@ estimatePriceStringencyModel <- function(
   if (isTRUE(verbose)) {
     message("  [running] Estimating stringency model (", sector, " sector)...")
   }
-  if (family == "Gamma") {
+  # Family/link resolved above (usesIdentity). Identity link for log-transformed
+  # or differenced outcomes; log link only for raw-ECP modelling.
+  if (usesIdentity) {
+    glmFamily <- gaussian(link = "identity")
+  } else if (family == "Gamma") {
     glmFamily <- Gamma(link = "log")
   } else if (family == "gaussian") {
     glmFamily <- gaussian(link = "log")
@@ -286,6 +364,38 @@ estimatePriceStringencyModel <- function(
     robustTest <- lmtest::coeftest(fit, vcov. = vcovClust)
   }
 
+  # --- 6. Nickell-bias correction (split-panel jackknife) -----------------------
+  # Only meaningful when a lagged dependent variable is combined with region FE
+  # (the dynamic-panel / Nickell bias). Estimator-agnostic; overwrites the
+  # coefficients used downstream (projection builds the linear predictor from
+  # coef). SEs are kept from the full-fit clustered vcov (the SPJ variance is not
+  # estimated here), and z/p are recomputed from the corrected estimate.
+  nickellApplied <- FALSE
+  if (isTRUE(nickellCorrection) && !isTRUE(ridgeInteractions) &&
+        "lagged_ecp" %in% all.vars(fml) && !is.null(regionMappingFixedEffects)) {
+    spj <- tryCatch(splitPanelJackknife(fml, df, glmFamily, maxit = maxit),
+                    error = function(e) NULL)
+    if (!is.null(spj)) {
+      cn <- names(spj$coefficients)
+      fit$coefficients[cn] <- spj$coefficients[cn]
+      fit$fitted.values <- tryCatch(as.numeric(stats::predict(fit, type = "response")),
+                                    error = function(e) fit$fitted.values)
+      inTab <- intersect(cn, rownames(robustTest))
+      robustTest[inTab, "Estimate"] <- spj$coefficients[inTab]
+      se <- robustTest[inTab, "Std. Error"]
+      z  <- robustTest[inTab, "Estimate"] / se
+      robustTest[inTab, 3] <- z
+      robustTest[inTab, 4] <- 2 * stats::pnorm(-abs(z))
+      nickellApplied <- TRUE
+      if (isTRUE(verbose)) {
+        message("  [nickell] split-panel jackknife applied to ", length(spj$corrected),
+                " coefficients (SEs uncorrected).")
+      }
+    } else if (isTRUE(verbose)) {
+      message("  [nickell] SPJ not estimable (sparse half-panels); using uncorrected fit.")
+    }
+  }
+
   result <- list(
     model    = fit,
     coeftest = robustTest,
@@ -293,7 +403,8 @@ estimatePriceStringencyModel <- function(
     sector   = sector,
     family   = family,
     formula  = fml,
-    data     = df
+    data     = df,
+    nickellCorrected = nickellApplied
   )
 
   # --- 7. Save PFMModel if modelDir is configured ---
@@ -305,7 +416,20 @@ estimatePriceStringencyModel <- function(
       stage         = "stringency",
       family        = family,
       useFirth      = useFirth,
-      label         = label
+      label         = label,
+      driverScaling = .dscale,
+      prepSpec      = list(
+        actorPowerDrivers         = actorPowerDrivers,
+        actorPowerIndex           = actorPowerIndex,
+        instQualityDrivers        = instQualityDrivers,
+        controlDrivers            = controlDrivers,
+        regionMappingFixedEffects = if (isTRUE(useMundlak)) NULL else regionMappingFixedEffects,
+        lag                       = lag,
+        useMundlak                = useMundlak,
+        gdpGovInteraction         = gdpGovInteraction,
+        panelTransform            = panelTransform,
+        logTransform              = logTransform
+      )
     )
     savePFMModel(pfmModel, modelDir)
     if (isTRUE(verbose)) {
@@ -321,6 +445,12 @@ estimatePriceStringencyModel <- function(
     result$highVIF   <- vifRes$highVIF
     result$vifFlagged <- vifRes$flagged %||% character(0)
   }
+
+  # Predictive Diagnostics — cheap, report-only (no selection role)
+  result$predictiveDiagnostics <- tryCatch(
+    computePredictiveDiagnostics(result$model, stage = "stringency"),
+    error = function(e) NULL
+  )
 
   result
 }

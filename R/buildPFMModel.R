@@ -20,12 +20,17 @@
 #' @importFrom stats cor fitted terms
 #' @importFrom utils packageVersion
 #' @keywords internal
-buildPFMModel <- function(fit, training_data, sector, stage, family, useFirth, label = "") {
+buildPFMModel <- function(fit, training_data, sector, stage, family, useFirth, label = "",
+                          driverScaling = NULL, prepSpec = NULL) {
 
   fml <- fit$formula
-  ids <- computeModelId(fml, training_data)
+  # Stringency fits sharing a formula+data can still differ by family/link
+  # (Gamma-log vs gaussian-identity); key them apart so a family change does not
+  # reuse a stale cached fit. Adoption (logistf) keeps the legacy key (extra = NULL).
+  idExtra <- if (identical(stage, "stringency")) family else NULL
+  ids <- computeModelId(fml, training_data, extra = idExtra)
 
-  # --- Fitted values ---
+  # --- Fitted values (kept as a small standalone vector; stripped from the fit) ---
   fittedVals <- if (!is.null(fit$model)) {
     tryCatch(as.numeric(fitted(fit$model)), error = function(e) numeric(0))
   } else {
@@ -39,11 +44,36 @@ buildPFMModel <- function(fit, training_data, sector, stage, family, useFirth, l
     integer(0)
   }
 
-  # --- Correlation matrices on formula variables ---
   correlations <- .buildCorrelations(fml, training_data)
-
-  # --- Diagnostics: use fitAndDiagnose fields if present, else compute ---
   diag <- .extractDiagnostics(fit, training_data)
+
+  # --- ADR 0009: frozen application transforms (self-contained prediction) ---
+  # prepSpec records the preparePanelData arguments (driver selection + flags) so
+  # a loaded model can rebuild a scenario design matrix from a fresh gdx panel
+  # WITHOUT the historical panel or the original cfg (REMIND iterative coupling).
+  transforms <- list(
+    driverScaling = driverScaling %||% attr(training_data, "driverScaling"),
+    gdpQ          = .pfm_env$gdppc_q_fit,
+    scPCA         = .pfm_env$sc_pca_rotation,
+    family        = family,
+    prepSpec      = prepSpec
+  )
+
+  # --- ADR 0009: minimal state the lag recursion / clamp need without the panel ---
+  seedPrices <- if (all(c("region", "ecp") %in% names(training_data))) {
+    tryCatch(tapply(training_data$ecp, training_data$region,
+                    function(v) v[length(v)]), error = function(e) NULL)
+  } else NULL
+  feLevels <- if ("regionFE" %in% names(training_data) && is.factor(training_data$regionFE)) {
+    levels(droplevels(training_data$regionFE))
+  } else if (!is.null(fit$model) && !is.null(fit$model$xlevels$regionFE)) {
+    fit$model$xlevels$regionFE
+  } else NULL
+  applyState <- list(
+    seed_prices     = seedPrices,
+    insMaxResp      = if (length(fittedVals) > 0) max(fittedVals, na.rm = TRUE) else NA_real_,
+    regionFE_levels = feLevels
+  )
 
   newPFMModel(
     id             = ids[["id"]],
@@ -57,14 +87,16 @@ buildPFMModel <- function(fit, training_data, sector, stage, family, useFirth, l
     family         = family,
     training_years = trainingYears,
     useFirth       = isTRUE(useFirth),
-    training_data  = training_data,
     data_hash      = ids[["data_hash"]],
-    model          = fit$model,
+    training_panel_hash = getOption("pfm.trainingPanelHash", NA_character_),
+    model          = .stripFit(fit$model),  # data-bearing slots stripped (ADR 0009)
     coeftest       = fit$coeftest,
     vcov           = fit$vcov,
     fitted_values  = fittedVals,
     correlations   = correlations,
     diagnostics    = diag,
+    transforms     = transforms,
+    applyState     = applyState,
     projections    = NULL
   )
 }

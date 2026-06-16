@@ -1,8 +1,8 @@
 Type: Package
 Package: pfm
 Title: Political Feasibility Module (PFM) for IAMs
-Version: 0.2.2
-Date: 2026-05-19
+Version: 0.2.3
+Date: 2026-06-16
 Authors@R: c(
     person("Renato", "Rodrigues", , "renato.rodrigues@pik-potsdam.de", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-5863-5514")),
@@ -38,7 +38,8 @@ Imports:
 Suggests:
     testthat,
     withr,
-    glmnet
+    glmnet,
+    yaml
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 Config/roxygen2/version: 8.0.0

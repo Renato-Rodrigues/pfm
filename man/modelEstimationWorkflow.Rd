@@ -39,7 +39,8 @@ modelEstimationWorkflow(
   compute = c(ame = TRUE, predictedProbs = TRUE),
   sweepVars = NULL,
   ridgeInteractions = FALSE,
-  ridgeLambda = NULL
+  ridgeLambda = NULL,
+  panelTransform = "levels"
 )
 }
 \arguments{
@@ -97,6 +98,12 @@ Default: \code{FALSE}.}
 skips loading and processing historical data via \code{panelDataHistorical}.}
 
 \item{verbose}{Logical. If \code{TRUE} (default), prints progress messages during estimation.}
+
+\item{panelTransform}{Character. Panel Transform axis (ADR 0005): \code{"levels"}
+(default), \code{"hybridFD"}, or \code{"pureFD"}. Applied to both stages: the
+adoption stage becomes a discrete-time hazard (onset) model and the stringency
+stage a Gaussian GLM on within-spell ECP changes. See
+\code{\link{applyPanelTransform}}.}
 }
 \value{
 A list containing:

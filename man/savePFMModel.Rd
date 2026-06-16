@@ -15,7 +15,8 @@ savePFMModel(model, dir = getOption("pfm.modelDir"))
 \code{model} invisibly.
 }
 \description{
-Writes \code{{id}.rds} into \code{dir} and adds or updates the corresponding
-entry in \code{dir/index.json}. Silently overwrites if the ID already exists
-(i.e. re-saving after \code{\link{addProjections}}).
+Writes \code{{id}.rds} into \code{{dir}/models/} and adds or updates the
+corresponding entry in \code{{dir}/index.json}. Silently overwrites if the ID
+already exists. Scenario projections are stored separately (see
+\code{\link{saveProjection}}), never embedded here (ADR 0009).
 }

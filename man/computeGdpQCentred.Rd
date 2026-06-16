@@ -7,14 +7,25 @@
 computeGdpQCentred(gdpPCNorm, storeBreaks = FALSE)
 }
 \arguments{
-\item{gdpPCNorm}{magpie with one variable (log-normalized GDP per Capita \code{[0, 1]})}
+\item{gdpPCNorm}{magpie with one variable (log-normalized GDP per Capita between 0 and 1)}
 
-\item{storeBreaks}{if TRUE, stores quartile breaks in .pfm_env for scenario reuse}
+\item{storeBreaks}{if TRUE, fits and stores quartile breaks, group means and
+region assignments in .pfm_env for scenario reuse}
 }
 \value{
 magpie with same dims as gdpPCNorm, variable renamed "GDP per Capita (Q-centred)"
 }
 \description{
 Internal helper to calculate the within-income-quartile de-meaned GDP per Capita.
+}
+\details{
+Fit/apply semantics (Scenario Scope decision, 2026-06-12): with
+\code{storeBreaks = TRUE} (historical panel) the quartile breaks, the
+quartile-group means, AND the per-region group assignments are computed from
+the supplied data and cached in \code{.pfm_env}. With \code{storeBreaks = FALSE}
+and a cached fit present (scenario panel), all three are reused — a region's
+scenario value reads "GDP relative to its historical income-class average",
+continuous at the historical/scenario seam. Regions absent from the historical
+fit are assigned via the stored breaks on their scenario mean.
 }
 \keyword{internal}

@@ -31,8 +31,8 @@
 #'     \item{se}{Delta-method standard error.}
 #'     \item{z}{z-statistic (\code{ame / se}).}
 #'     \item{p}{Two-sided p-value from standard normal.}
-#'     \item{lower}{Lower 95\% confidence bound (\code{ame - 1.96*se}).}
-#'     \item{upper}{Upper 95\% confidence bound (\code{ame + 1.96*se}).}
+#'     \item{lower}{Lower 95% confidence bound (\code{ame - 1.96*se}).}
+#'     \item{upper}{Upper 95% confidence bound (\code{ame + 1.96*se}).}
 #'   }
 #'   Returns \code{NULL} when the model is unavailable or the model matrix cannot
 #'   be constructed.

@@ -294,6 +294,11 @@ fitAndDiagnose <- function(fml, df, depVar, stage, family, useFirth, nullLoglik,
     theoryScore        = if (!is.null(gc)) gc[["Theory Score"]] else NA_real_,
     theoryFrac         = if (!is.null(gc)) gc[["Theory Frac."]] else NA_real_,
     ame                = ameResult,
-    predictedProbs     = ppResult
+    predictedProbs     = ppResult,
+    # Predictive Diagnostics — cheap, report-only (no selection role)
+    predictiveDiagnostics = tryCatch(
+      computePredictiveDiagnostics(fit, stage = stage),
+      error = function(e) NULL
+    )
   )
 }

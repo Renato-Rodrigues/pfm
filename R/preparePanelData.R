@@ -19,11 +19,33 @@
 #'   computes within-region means of all theory and control variables and appends
 #'   them as \code{<var>_grp_mean} columns. Region fixed-effect dummies are
 #'   suppressed — \code{regionMappingFixedEffects} is ignored. Default: \code{FALSE}.
+#' @param driverScaling Named list or \code{NULL}. Per-variable standardization
+#'   constants \code{c(mean, sd)} for the driver columns (and hence the interaction
+#'   factors). \code{NULL} (fit mode) computes them from this data and returns them
+#'   via the \code{"driverScaling"} attribute. Supply the stored training-data
+#'   values (apply mode) when building a scenario panel so historical and projected
+#'   panels share one frozen reference. Standardization is fit-, prediction- and
+#'   significance-neutral (a linear reparameterization) but improves interaction
+#'   conditioning and makes driver coefficients comparable in per-SD units
+#'   (de-scale to natural units by dividing a coefficient by the driver's stored sd).
+#' @param trendMidpoint,trendSteepness Numeric. Shape of the single common
+#'   logistic time trend (bounded in \code{[0, 1]}, no rescale). Defaults \code{2030} and
+#'   \code{0.08}: flat toe before 2000, meaningful rise through history, saturating
+#'   near 1 by ~2060. Keep identical across fit and projection.
+#' @param trendFreezeYear Integer or \code{NULL}. If set, the logistic time trend
+#'   is held flat at its value in this year for all later years (ADR 0010): the
+#'   trend regressor uses \code{min(year, trendFreezeYear)}. Used only when
+#'   preparing a \emph{scenario} panel (set to the last historical year, e.g. 2022)
+#'   so the trend is not extrapolated out of sample and stops dominating
+#'   projections. \code{NULL} (default, used for the historical fit) applies no
+#'   freeze, leaving the in-sample design unchanged.
 #'
 #' @return data.frame with columns: region, year, timeTrend, regionFE (unless
 #'   \code{useMundlak = TRUE}), ecp, plus one column per driver (safe R-named),
 #'   \code{<var>_grp_mean} columns (when \code{useMundlak = TRUE}), and
-#'   <actorPowerIndex>_x_<driver> interaction columns.
+#'   <actorPowerIndex>_x_<driver> interaction columns (from standardized factors).
+#'   Driver columns are standardized in place; carries a \code{"driverScaling"}
+#'   attribute (the per-variable mean/sd used).
 #'
 #' @importFrom magclass getNames getRegions getYears
 #' @importFrom madrat toolGetMapping
@@ -37,10 +59,34 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
                              actorPowerIndex, instQualityDrivers,
                              controlDrivers, regionMappingFixedEffects,
                              lag = 1, useMundlak = FALSE,
-                             gdpGovInteraction = FALSE) {
+                             gdpGovInteraction = FALSE,
+                             driverScaling = NULL,
+                             trendMidpoint = 2030, trendSteepness = 0.08,
+                             trendFreezeYear = NULL) {
   # If data is already a data.frame, assume it is already prepared and return it.
   if (is.data.frame(data)) {
     return(data)
+  }
+
+  # ADR 0011: derived control columns, computed on the fly from base variables so
+  # every caller — historical AND scenario panels — has them without separate
+  # augmentation. Projection-safe transforms only: square of the (bounded) GDP-Q
+  # quantile transform, log GDP per capita (+ its square), and log Population
+  # (raw population is hugely right-skewed). Added only when requested as a
+  # control and not already present; a missing base variable is skipped silently
+  # (the usual "missing predictor" check below then reports it). Done BEFORE the
+  # array conversion so the new columns are indexable in data_arr.
+  .logFloor <- function(v) { v[v < 1e-6] <- 1e-6; log(v) }
+  .derive <- list(
+    "GDP per Capita (Q-centred) Sq" = function(d) d[, , "GDP per Capita (Q-centred)"]^2,
+    "GDP per Capita Sq"             = function(d) d[, , "GDP per Capita"]^2,
+    "GDP per Capita (log)"          = function(d) .logFloor(d[, , "GDP per Capita"]),
+    "GDP per Capita (log) Sq"       = function(d) .logFloor(d[, , "GDP per Capita"])^2,
+    "Population (log)"              = function(d) .logFloor(d[, , "Population"])
+  )
+  for (nm in setdiff(intersect(controlDrivers, names(.derive)), magclass::getNames(data))) {
+    val <- tryCatch(.derive[[nm]](data), error = function(e) NULL)
+    if (!is.null(val)) data <- magclass::mbind(data, magclass::setNames(val, nm))
   }
 
   # Convert magpie object to standard 3D array for extreme speedup in indexing
@@ -100,12 +146,27 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
       # 2001→2, …, 2022→23, 2025→26, …) regardless of dataset boundaries.
       row$timeTrend <- years[yi] - 1999L
 
-      # Logistic (S-curve) time trend — saturates at 1 rather than growing
-      # unboundedly. Parameterisation: midpoint 2030 (fastest diffusion phase),
-      # steepness 0.2 (gives ≈0 at 2000, 0.5 at 2030, ≈1 by 2060).
-      # Prevents the linear trend from projecting near-universal adoption by
-      # 2100 solely through temporal extrapolation.
-      row$logisticTimeTrend <- 1.0 / (1.0 + exp(-0.2 * (years[yi] - 2030L)))
+      # Logistic (S-curve) time trend — a single common, bounded, SATURATING curve
+      # (revised 2026-06-14). Raw logistic in [0, 1], NO affine rescale: midpoint
+      # `trendMidpoint`, steepness `trendSteepness`. The defaults (2030, 0.08) place
+      # the flat toe BEFORE the historical window (~0.04 in 1990, ~0.08 in 2000),
+      # give a meaningful historical rise (~0.08 -> ~0.35 over 2000-2022), and let
+      # the curve SATURATE near 1 within the projection horizon (~0.92 by 2060,
+      # ~1.0 by 2100). Because it stays in [0, 1] it cannot drive an unbounded
+      # extrapolation (the old rescaled curve reached ~6 by 2080, half of the
+      # stringency price explosion). One common curve is shared across all
+      # scenarios: scenario differences flow through the scenario-specific actor
+      # power and institutional drivers, not the trend, so "ambition" is not
+      # double-counted. See CONTEXT.md "Logistic Time Trend".
+      # ADR 0010: out-of-sample the trend is FROZEN at its last-historical value.
+      # Time effects cannot be extrapolated, so for projection years (year >
+      # trendFreezeYear) we hold the regressor flat at the freeze-year value; the
+      # historical fit is unchanged (freeze is NULL or beyond the sample there).
+      # This stops the rising curve from dominating projections (it was the bulk of
+      # the §5.4 early-onset and the §7.1 stringency explosion). Drivers carry the
+      # future differentiation.
+      trendYr <- if (!is.null(trendFreezeYear)) min(years[yi], trendFreezeYear) else years[yi]
+      row$logisticTimeTrend <- 1.0 / (1.0 + exp(-trendSteepness * (trendYr - trendMidpoint)))
 
       # Dependent variable
       if (hasEcp) {
@@ -220,26 +281,65 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
     df <- df[!is.na(df$ecp), , drop = FALSE]
   }
 
-  # --- Pre-compute interaction columns: each apiIndex × each instQuality driver ---
+  # --- Standardize driver columns (center + scale), FROZEN reference ----------
+  # Driver main effects and interaction factors are standardized to (x-mean)/sd.
+  # Properties: (i) it is a linear reparameterization, so fitted values, deviance,
+  # AIC, every coefficient's significance, and the theory tiers / Group
+  # Contributions (beta*x is invariant) are ALL unchanged; (ii) the centring part
+  # removes the mechanical main-effect/interaction collinearity behind the
+  # stringency price explosion; (iii) the scaling part puts every driver
+  # coefficient in the same "per standard deviation" units, so magnitudes are
+  # directly comparable (de-scale to natural units by dividing by the stored sd).
+  # Mean & sd are FROZEN: fit mode (driverScaling = NULL) computes them here and
+  # returns them via the "driverScaling" attribute; apply mode (scenario
+  # projection) passes the stored training values so historical and scenario
+  # panels share one reference — the freeze discipline of GDP-Q and the PCA.
+  # Excludes the outcome, its lags, the time trends and region FE. Negative-valued
+  # drivers (e.g. Actor Power Index in ~[-0.8, 0.1]) standardize cleanly; a
+  # near-constant column (sd ~ 0) is left unscaled to avoid a division blow-up.
+  scaleExcl  <- c("ecp", "lagged_ecp", "lagged_adoption", "timeTrend",
+                  "logisticTimeTrend", "regionFE")
+  scaleVars  <- setdiff(make.names(unique(c(actorPowerDrivers, actorPowerIndex,
+                                            instQualityDrivers, controlDrivers))),
+                        scaleExcl)
+  scaleVars  <- intersect(scaleVars, colnames(df))
+  scaleVars  <- scaleVars[!grepl("_grp_mean$", scaleVars)]
+  scaling    <- if (is.null(driverScaling)) list() else driverScaling
+  for (col in scaleVars) {
+    if (!is.null(driverScaling) && !is.null(driverScaling[[col]])) {
+      m <- driverScaling[[col]][["mean"]]; s <- driverScaling[[col]][["sd"]]
+    } else {
+      m <- mean(df[[col]], na.rm = TRUE)
+      s <- stats::sd(df[[col]], na.rm = TRUE)
+      if (!is.finite(s) || s < 1e-8) s <- 1
+      scaling[[col]] <- c(mean = m, sd = s)
+    }
+    df[[col]] <- (df[[col]] - m) / s
+  }
+
+  # --- Pre-compute interaction columns (from STANDARDIZED factors) -----------
   if (!is.null(actorPowerIndex) && !is.null(instQualityDrivers)) {
     for (v in instQualityDrivers) {
       for (api in actorPowerIndex) {
-        intNameSpec <- paste0(make.names(api), "_x_", make.names(v))
-        df[[intNameSpec]] <- df[[make.names(api)]] * df[[make.names(v)]]
+        a <- make.names(api); b <- make.names(v)
+        df[[paste0(a, "_x_", b)]] <- df[[a]] * df[[b]]
       }
     }
   }
 
   # --- Pre-compute GDP × IQ interaction columns (when requested) ---
+  # GDP per Capita is standardized above only if it is among the driver lists;
+  # whichever scale it is on, the interaction is the product of the two columns.
   if (isTRUE(gdpGovInteraction) && !is.null(instQualityDrivers)) {
     gdpSafe <- make.names("GDP per Capita")
     if (gdpSafe %in% colnames(df)) {
       for (v in instQualityDrivers) {
-        intName <- paste0(gdpSafe, "_x_", make.names(v))
-        df[[intName]] <- df[[gdpSafe]] * df[[make.names(v)]]
+        b <- make.names(v)
+        df[[paste0(gdpSafe, "_x_", b)]] <- df[[gdpSafe]] * df[[b]]
       }
     }
   }
 
+  attr(df, "driverScaling") <- scaling
   return(df)
 }

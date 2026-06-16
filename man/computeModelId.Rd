@@ -4,12 +4,20 @@
 \alias{computeModelId}
 \title{Compute a deterministic cache key for a fitted model}
 \usage{
-computeModelId(formula, training_data)
+computeModelId(formula, training_data, extra = NULL)
 }
 \arguments{
 \item{formula}{Formula. The model formula.}
 
 \item{training_data}{data.frame. The data passed to glm/logistf.}
+
+\item{extra}{Optional. Anything that distinguishes two fits sharing the same
+formula and data but differing in estimation (e.g. the GLM family/link
+string for the stringency stage). When \code{NULL} (default) the key is
+identical to the legacy two-argument key, so existing caches (and the
+adoption stage, which passes nothing) are unaffected. When non-\code{NULL}
+it is hashed in, yielding a distinct key — this is what prevents a
+gaussian(identity) refit from silently reusing a cached Gamma(log) fit.}
 }
 \value{
 A named character vector with:

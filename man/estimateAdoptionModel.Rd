@@ -33,7 +33,8 @@ estimateAdoptionModel(
   ridgeLambda = NULL,
   useMundlak = FALSE,
   gdpGovInteraction = FALSE,
-  fePenaltyFactor = 0.5
+  fePenaltyFactor = 0.5,
+  panelTransform = "levels"
 )
 }
 \arguments{
@@ -101,6 +102,13 @@ the YAML config to enable for specific models).}
 \item{ridgeLambda}{Numeric or NULL. Ridge penalty \eqn{\lambda}. When \code{NULL}
 (default) and \code{ridgeInteractions = TRUE}, \eqn{\lambda} is selected automatically
 by 5-fold cross-validation. Pass a numeric value to fix \eqn{\lambda}.}
+
+\item{panelTransform}{Character. Panel Transform axis (ADR 0005): \code{"levels"}
+(default — status logit, current behaviour), \code{"hybridFD"} (Actor Power terms
+differenced, Institutional Quality in levels, discrete-time hazard/onset sample),
+or \code{"pureFD"} (all drivers differenced, hazard/onset sample). Under any FD
+transform the model predicts P(adopt this year | not yet adopted). Incompatible
+with \code{useMundlak = TRUE}.}
 }
 \value{
 A list with elements:

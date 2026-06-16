@@ -14,7 +14,11 @@ preparePanelData(
   regionMappingFixedEffects,
   lag = 1,
   useMundlak = FALSE,
-  gdpGovInteraction = FALSE
+  gdpGovInteraction = FALSE,
+  driverScaling = NULL,
+  trendMidpoint = 2030,
+  trendSteepness = 0.08,
+  trendFreezeYear = NULL
 )
 }
 \arguments{
@@ -40,12 +44,37 @@ dependent variable at time \code{t}. Default: \code{1}.}
 computes within-region means of all theory and control variables and appends
 them as \code{<var>_grp_mean} columns. Region fixed-effect dummies are
 suppressed — \code{regionMappingFixedEffects} is ignored. Default: \code{FALSE}.}
+
+\item{driverScaling}{Named list or \code{NULL}. Per-variable standardization
+constants \code{c(mean, sd)} for the driver columns (and hence the interaction
+factors). \code{NULL} (fit mode) computes them from this data and returns them
+via the \code{"driverScaling"} attribute. Supply the stored training-data
+values (apply mode) when building a scenario panel so historical and projected
+panels share one frozen reference. Standardization is fit-, prediction- and
+significance-neutral (a linear reparameterization) but improves interaction
+conditioning and makes driver coefficients comparable in per-SD units
+(de-scale to natural units by dividing a coefficient by the driver's stored sd).}
+
+\item{trendMidpoint, trendSteepness}{Numeric. Shape of the single common
+logistic time trend (bounded in \code{[0, 1]}, no rescale). Defaults \code{2030} and
+\code{0.08}: flat toe before 2000, meaningful rise through history, saturating
+near 1 by ~2060. Keep identical across fit and projection.}
+
+\item{trendFreezeYear}{Integer or \code{NULL}. If set, the logistic time trend
+is held flat at its value in this year for all later years (ADR 0010): the
+trend regressor uses \code{min(year, trendFreezeYear)}. Used only when
+preparing a \emph{scenario} panel (set to the last historical year, e.g. 2022)
+so the trend is not extrapolated out of sample and stops dominating
+projections. \code{NULL} (default, used for the historical fit) applies no
+freeze, leaving the in-sample design unchanged.}
 }
 \value{
 data.frame with columns: region, year, timeTrend, regionFE (unless
 \code{useMundlak = TRUE}), ecp, plus one column per driver (safe R-named),
 \code{<var>_grp_mean} columns (when \code{useMundlak = TRUE}), and
-\if{html}{\out{<actorPowerIndex>}}\emph{x}\if{html}{\out{<driver>}} interaction columns.
+\if{html}{\out{<actorPowerIndex>}}\emph{x}\if{html}{\out{<driver>}} interaction columns (from standardized factors).
+Driver columns are standardized in place; carries a \code{"driverScaling"}
+attribute (the per-variable mean/sd used).
 }
 \description{
 Converts a magpie object from panelDataHistorical into a flat
