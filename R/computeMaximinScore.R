@@ -29,7 +29,15 @@ computeTheoryTier <- function(sigActorPower, sigInstQual, sigInteractions) {
 #' mean \eqn{\Delta R^2}(theory) across sectors, with the worse sector's
 #' \eqn{\Delta R^2}(theory) also reported. Hard gates apply to \emph{both}
 #' sectors: \code{maxVIF < vifGate}, convergence, and no lagged dependent-variable
-#' terms. Gate-failing specs are ranked last regardless of tier.
+#' terms, and a \strong{fit-reliability gate} (added 2026-06-16) that rejects
+#' specifications whose \eqn{\Delta R^2}(theory) is \emph{inflated} — exceeding
+#' \code{deltaR2Max} (default 1), which is impossible for a genuine incremental
+#' McFadden pseudo-R² and signals a degenerate, near-separated baseline (typically
+#' heavy unit-level fixed effects such as 54-region dummies); optionally a
+#' \code{pseudoR2Range} check rejects specs whose overall pseudo-R² is implausible.
+#' This stops a numerically-degenerate spec from winning the within-tier
+#' \eqn{\Delta R^2} tie-break over a trustworthy one. Gate-failing specs are ranked
+#' last regardless of tier.
 #'
 #' @param df Data.frame with one row per (model, sector) and columns:
 #'   \describe{
@@ -44,6 +52,15 @@ computeTheoryTier <- function(sigActorPower, sigInstQual, sigInteractions) {
 #'       the spec includes lagged dependent-variable terms.}
 #'   }
 #' @param vifGate Numeric. Hard VIF gate applied per sector. Default: \code{10}.
+#' @param deltaR2Max Numeric. Fit-reliability gate: a sector whose
+#'   \code{deltaR2Theory} exceeds this is rejected as inflated/degenerate. A genuine
+#'   incremental McFadden pseudo-R² lies in [0, 1], so the default \code{1} flags
+#'   only mathematically-impossible values. Set \code{Inf} to disable.
+#' @param pseudoR2Range Numeric length-2 or \code{NULL}. Optional second reliability
+#'   measure: if the \code{pseudoR2} column is present and this is non-NULL, a sector
+#'   whose overall pseudo-R² falls outside this band is rejected. Default \code{NULL}
+#'   (off) — enable (e.g. \code{c(0, 1)}) for stages where a negative pseudo-R²
+#'   genuinely signals degeneracy.
 #'
 #' @return Data.frame with one row per model, ordered best-first:
 #'   \code{model, minTier, meanDeltaR2, minDeltaR2, tierBySector, deltaR2BySector,
@@ -55,7 +72,7 @@ computeTheoryTier <- function(sigActorPower, sigInstQual, sigInteractions) {
 #'
 #' @export
 #' @author Renato Rodrigues
-computeMaximinScore <- function(df, vifGate = 10) {
+computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range = NULL) {
   required <- c("model", "sector", "sigActorPower", "sigInstQual",
                 "sigInteractions", "deltaR2Theory", "maxVIF", "converged")
   missingCols <- setdiff(required, colnames(df))
@@ -96,6 +113,22 @@ computeMaximinScore <- function(df, vifGate = 10) {
     lagged <- m$sector[m$usesLagged %in% TRUE]
     if (length(lagged) > 0) {
       failReasons <- c(failReasons, paste0("lagged terms: ", paste(lagged, collapse = ", ")))
+    }
+    tol <- 1e-6
+    inflated <- m$sector[!is.na(m$deltaR2Theory) & m$deltaR2Theory > deltaR2Max + tol]
+    if (length(inflated) > 0) {
+      failReasons <- c(failReasons,
+                       paste0("deltaR2(theory) > ", deltaR2Max,
+                              " (inflated/degenerate fit): ", paste(inflated, collapse = ", ")))
+    }
+    if (!is.null(pseudoR2Range) && "pseudoR2" %in% colnames(m)) {
+      badPR2 <- m$sector[!is.na(m$pseudoR2) &
+                           (m$pseudoR2 < pseudoR2Range[1] - tol | m$pseudoR2 > pseudoR2Range[2] + tol)]
+      if (length(badPR2) > 0) {
+        failReasons <- c(failReasons,
+                         paste0("pseudoR2 outside [", pseudoR2Range[1], ", ", pseudoR2Range[2],
+                                "]: ", paste(badPR2, collapse = ", ")))
+      }
     }
 
     minTierRank <- min(tierRank[m$tier])

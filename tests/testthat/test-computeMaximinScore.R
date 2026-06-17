@@ -38,6 +38,32 @@ test_that("maximin ranks by worse-sector tier, then mean deltaR2", {
   expect_equal(out$minDeltaR2[out$model == "D4"], 0.186)
 })
 
+test_that("inflated deltaR2(theory) fails the fit-reliability gate", {
+  df <- makeScoreInput()
+  # Make a Green/Green spec with an impossible (>1) incremental pseudo-R2 in one sector
+  df$deltaR2Theory[df$model == "BadVIF"] <- c(3.45, 0.40)   # also has VIF issue, but test the inflation path
+  df$maxVIF[df$model == "BadVIF"] <- 2                      # clear the VIF gate to isolate the inflation gate
+  out <- computeMaximinScore(df)                             # deltaR2Max defaults to 1
+  expect_false(out$gatePass[out$model == "BadVIF"])
+  expect_match(out$gateFailReason[out$model == "BadVIF"], "inflated")
+  # A valid Green/Green spec (deltaR2 <= 1) still passes and outranks the inflated one
+  expect_true(out$rank[out$model == "BadVIF"] > min(out$rank))
+  # Disabling the gate (deltaR2Max = Inf) lets the inflated spec pass again
+  out2 <- computeMaximinScore(df, deltaR2Max = Inf)
+  expect_true(out2$gatePass[out2$model == "BadVIF"])
+})
+
+test_that("optional pseudoR2Range gate rejects degenerate fits when enabled", {
+  df <- makeScoreInput()
+  df$pseudoR2 <- 0.3
+  df$pseudoR2[df$model == "FE-05"] <- c(-2.5, 0.1)   # degenerate negative pseudo-R2
+  on_gate  <- computeMaximinScore(df, pseudoR2Range = c(0, 1))
+  off_gate <- computeMaximinScore(df)
+  expect_match(on_gate$gateFailReason[on_gate$model == "FE-05"], "pseudoR2")
+  # off by default: pseudoR2 not consulted
+  expect_false(grepl("pseudoR2", off_gate$gateFailReason[off_gate$model == "FE-05"]))
+})
+
 test_that("missing sectors, non-convergence and lagged terms fail gates", {
   df <- makeScoreInput()
   df <- df[!(df$model == "D4" & df$sector == "Diffuse"), ]

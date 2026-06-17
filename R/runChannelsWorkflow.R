@@ -49,6 +49,13 @@
 #'   \code{<reportsDir>/output/channels_workflow_<mode>.rds} before rendering
 #'   (the selection report consumes this file). Default \code{TRUE}.
 #' @param selectModels Logical. Run maximin selection. Default \code{TRUE}.
+#' @param selectFE Character vector or \code{NULL}. When set, the deliverable
+#'   selection is restricted to specifications whose region-FE resolution token
+#'   appears here (matched against the spec name's \code{fe:} tag), e.g.
+#'   \code{c("H12", "OECDp", "Mundlak")} to exclude pooled (\code{noFE}), the
+#'   inflation-prone 54-unit (\code{FE54}), and the first-difference transforms
+#'   (which carry no region FE). Selection-only; the full results and best-per-sector
+#'   views still include every spec. Default \code{NULL} (no FE constraint).
 #' @param writeSelectedConfig Logical. Write \code{selected-models-channels-<mode>.yml}.
 #'   Default \code{TRUE}.
 #' @param renderReports Logical. Render the pfm-reports outputs (requires
@@ -88,6 +95,7 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
                                 sanityThresholds = list(),
                                 saveRds = TRUE,
                                 selectModels = TRUE,
+                                selectFE = NULL,
                                 writeSelectedConfig = TRUE,
                                 renderReports = TRUE,
                                 updateFindings = TRUE,
@@ -254,8 +262,23 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
     }
     for (stg in stages) {
       sub <- results[results$stage == stg, , drop = FALSE]
+      # Optional FE constraint (ADR 0011 / fit-reliability follow-up 2026-06-16):
+      # restrict the deliverable to specs whose region-FE resolution is in selectFE
+      # (e.g. c("H12","OECDp","Mundlak") to exclude pooled `noFE`, the inflation-prone
+      # 54-unit `FE54`, and the FD transforms that carry no region FE). Applies to
+      # selection only; the full `results`/bestPerSector views are unaffected.
+      if (!is.null(selectFE)) {
+        fePat <- paste0("fe:(", paste(selectFE, collapse = "|"), ")")
+        keep <- grepl(fePat, sub$model)
+        if (any(keep)) {
+          sub <- sub[keep, , drop = FALSE]
+        } else {
+          say("WARNING: selectFE=[", paste(selectFE, collapse = ","),
+              "] matched no ", stg, " specs; ignoring the FE constraint for this stage.")
+        }
+      }
       mm <- computeMaximinScore(sub[, c("model", "sector", "sigActorPower", "sigInstQual",
-                                        "sigInteractions", "deltaR2Theory", "maxVIF",
+                                        "sigInteractions", "deltaR2Theory", "pseudoR2", "maxVIF",
                                         "converged", "usesLagged"), drop = FALSE])
       maximin[[stg]] <- mm
       pass <- mm[mm$gatePass, , drop = FALSE]
