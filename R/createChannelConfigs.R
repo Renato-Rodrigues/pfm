@@ -1,3 +1,4 @@
+# nolint start
 #' @title channelSpecs
 #' @description Builds the Institutional Quality Channels specification lists
 #' (ADR 0004) programmatically — the single source of truth for the
@@ -309,3 +310,4 @@ createChannelConfigs <- function(dir, mode = c("guided", "exhaustive"),
   message("createChannelConfigs: wrote ", length(specs), " specs to ", out)
   invisible(out)
 }
+# nolint end

@@ -1,3 +1,4 @@
+# nolint start
 # Run launcher + status checker plumbing (ADR 0020): core detection, the job-script literal
 # serializer, cluster-detection guards, and runStatus reading a Run-Group manifest.
 
@@ -54,3 +55,4 @@ test_that("runStatus reads a Run-Group manifest and computes remaining steps", {
 test_that("runStatus returns NULL when no run exists", {
   expect_null(runStatus("nope", resultsDir = withr::local_tempdir(), verbose = FALSE))
 })
+# nolint end

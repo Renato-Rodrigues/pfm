@@ -26,6 +26,8 @@ estimatePriceStringencyModel(
   includeLaggedECP = FALSE,
   interactRegionFE = FALSE,
   modelDir = getOption("pfm.modelDir", NULL),
+  updateIndex = TRUE,
+  ignoreCache = FALSE,
   label = "",
   verbose = TRUE,
   maxit = 3000,
@@ -92,6 +94,13 @@ carbon price (\code{lagged_ecp}) as a predictor. Default: \code{FALSE}.}
 \item{modelDir}{Character or NULL. Directory for saving/loading \code{PFMModel}
 files. Defaults to \code{getOption("pfm.modelDir", NULL)}. Set to \code{NULL}
 to disable persistence.}
+
+\item{updateIndex}{Logical. Forwarded to \code{\link{savePFMModel}}; when \code{FALSE}
+the fit is written to disk but the shared \code{index.json} is not touched (parallel
+sweep workers pass \code{FALSE}; the master rebuilds the index once — ADR 0019).}
+
+\item{ignoreCache}{Logical. When \code{TRUE}, skip the cache read and always re-estimate
+(forceRefit), overwriting any stale fit on disk. Default \code{FALSE}.}
 
 \item{label}{Character. Optional human label stored in the saved model manifest.}
 

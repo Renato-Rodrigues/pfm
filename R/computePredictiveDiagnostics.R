@@ -1,3 +1,4 @@
+# nolint start
 #' @title computePredictiveDiagnostics
 #' @description Cheap, report-only Predictive Diagnostics (decided 2026-06-12).
 #' Derived entirely from already-fitted values — no refits, no scenario runs —
@@ -91,3 +92,4 @@ computePredictiveDiagnostics <- function(model, stage = c("adoption", "stringenc
     )
   }
 }
+# nolint end

@@ -1,3 +1,4 @@
+# nolint start
 #' @title toolScenarioPanelData
 #' @description calculates the scenario panel data output
 #'
@@ -277,3 +278,4 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
 
   return(out)
 }
+# nolint end

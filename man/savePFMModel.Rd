@@ -4,12 +4,17 @@
 \alias{savePFMModel}
 \title{Save a PFMModel to disk}
 \usage{
-savePFMModel(model, dir = getOption("pfm.modelDir"))
+savePFMModel(model, dir = getOption("pfm.modelDir"), updateIndex = TRUE)
 }
 \arguments{
 \item{model}{A \code{PFMModel} object.}
 
 \item{dir}{Character. Directory to write to. Defaults to \code{getOption("pfm.modelDir")}.}
+
+\item{updateIndex}{Logical. When \code{TRUE} (default) the shared \code{index.json} is
+updated after writing \code{{id}.rds}. Parallel sweep workers pass \code{FALSE} so they
+only write their (unique) \code{.rds} and never race on the index; the master then calls
+\code{\link{rebuildPFMModelIndex}} once after the run (ADR 0019).}
 }
 \value{
 \code{model} invisibly.

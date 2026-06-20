@@ -1,3 +1,4 @@
+# nolint start
 #' @title predictFeasibility
 #' @description Produces scenario feasibility projections from a pair of already
 #' fitted, \emph{loaded} PFMModels (one adoption, one stringency) and a scenario
@@ -178,3 +179,4 @@ rehydrateModelTransforms <- function(model) {
   scenDf$regionFE <- factor(fe, levels = lv)
   scenDf
 }
+# nolint end

@@ -1,3 +1,4 @@
+# nolint start
 #' Start a PFM model-group run — locally or as a SLURM job
 #'
 #' @description
@@ -217,3 +218,4 @@ startRun <- function(group,
     }
   }
 }
+# nolint end

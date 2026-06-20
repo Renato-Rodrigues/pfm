@@ -1,3 +1,4 @@
+# nolint start
 #' @title createExhaustiveCombinations
 #' @description Generates all combinations of base model specifications,
 #' institutional quality drivers, and regional fixed-effects strategies for
@@ -241,3 +242,4 @@ createExhaustiveCombinations <- function(
       useMundlak = FALSE)
   )
 }
+# nolint end

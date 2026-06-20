@@ -11,7 +11,10 @@ runChannelsWorkflow(
   outputRegionMappingFile = "regionmapping_54.csv",
   sectors = c("Bulk", "Diffuse"),
   reportsDir = NULL,
+  configDir = NULL,
   modelDir = getOption("pfm.modelDir", NULL),
+  nCores = 1L,
+  forceRefit = FALSE,
   family = "gaussian",
   scenarioData = NULL,
   sanityBatchSize = 5,
@@ -19,8 +22,19 @@ runChannelsWorkflow(
   sanityThresholds = list(),
   saveRds = TRUE,
   selectModels = TRUE,
+  selectionMethod = c("levels-first", "difference-first"),
+  selectFE = NULL,
+  nearTieEps = 0.05,
+  requireBothSectors = TRUE,
+  falsificationPThreshold = 0.05,
+  maxFalsificationTries = 25L,
+  iqVanishTest = "jointBlock",
+  levelsFE = list(H12 = list(fe = "regionmappingH12.csv", mundlak = FALSE), OECDp =
+    list(fe = "regionmapping_EU_OECDp.csv", mundlak = FALSE), Mundlak = list(fe = NULL,
+    mundlak = TRUE)),
   writeSelectedConfig = TRUE,
   renderReports = TRUE,
+  renderRobustness = TRUE,
   updateFindings = TRUE,
   overwriteConfig = FALSE,
   verbose = TRUE
@@ -45,7 +59,20 @@ Required for writing configs into the reports tree, rendering reports, and
 updating findings.md. When NULL, configs go to \code{tempdir()} and the
 render/findings steps are skipped.}
 
+\item{configDir}{Character or NULL. Directory for the sweep YAML and the selected-models
+YAML. When NULL, derived from \code{reportsDir} (else \code{tempdir()}). \code{runSweep}
+sets this to the Run-Group directory so the selected spec lands beside the other
+artifacts (ADR 0018).}
+
 \item{modelDir}{Character or NULL. PFM model store for fit caching.}
+
+\item{nCores}{Integer. Number of cores for the fit sweep. \code{1} (default) runs
+sequentially; \code{> 1} parallelises the fits via \pkg{future.apply}
+(\code{multisession} on Windows, \code{multicore} on Unix), falling back to sequential
+with a warning if \pkg{future.apply} is unavailable. See \code{\link{runFitGrid}} / ADR 0019.}
+
+\item{forceRefit}{Logical. Ignore any cached fits and re-estimate every spec. Default
+\code{FALSE} (resume: cached fits are loaded, only missing ones recomputed).}
 
 \item{family}{Character. Stringency GLM family for levels specs. Default \code{"Gamma"}.}
 
@@ -72,11 +99,54 @@ Default \code{20}.}
 
 \item{selectModels}{Logical. Run maximin selection. Default \code{TRUE}.}
 
+\item{selectionMethod}{Character. \code{"levels-first"} (default — the current
+behaviour: maximin over levels specs, then the Projection Sanity gate) or
+\code{"difference-first"} (Dynamic Identification First, ADR 0014: maximin over
+the \code{hybridFD} specs, then \code{\link{computeFalsificationGate}}, then the
+levels re-estimate + Projection Sanity, via \code{\link{selectDifferenceFirst}}).
+Both methods are supported; difference-first writes a separate
+\code{selected-models-channels-<mode>-difference-first.yml} and never overwrites
+the levels-first deliverable.}
+
+\item{selectFE}{Character vector or \code{NULL}. When set, the deliverable
+selection is restricted to specifications whose region-FE resolution token
+appears here (matched against the spec name's \code{fe:} tag), e.g.
+\code{c("H12", "OECDp", "Mundlak")} to exclude pooled (\code{noFE}), the
+inflation-prone 54-unit (\code{FE54}), and the first-difference transforms
+(which carry no region FE). Selection-only; the full results and best-per-sector
+views still include every spec. Default \code{NULL} (no FE constraint).}
+
+\item{nearTieEps}{Numeric. BIC parsimony tie-break tolerance passed to
+\code{\link{computeMaximinScore}} (ADR 0012). Default \code{0.05}.}
+
+\item{requireBothSectors}{Logical. Difference-first only: the Falsification Gate
+must pass in both sectors (\code{TRUE}, default) or any sector (\code{FALSE}).}
+
+\item{falsificationPThreshold}{Numeric. Difference-first only: significance
+threshold for the Falsification Gate. Default \code{0.05}.}
+
+\item{maxFalsificationTries}{Integer. Difference-first only: maximum number of
+ranked hybridFD candidates to falsification-test. Default \code{25}.}
+
+\item{iqVanishTest}{Character. Difference-first only: IQ-vanish rule for the
+Falsification Gate — \code{"jointBlock"} (default, joint Wald test) or
+\code{"perChannel"}; see \code{\link{computeFalsificationGate}}.}
+
+\item{levelsFE}{Difference-first only: named list of candidate block-FE strategies
+for the winner's levels re-estimate; the FE is chosen by the Projection Sanity
+gate (hybridFD specs carry no FE). Default \code{{H12, OECDp, Mundlak}}; see
+\code{\link{selectDifferenceFirst}}.}
+
 \item{writeSelectedConfig}{Logical. Write \code{selected-models-channels-<mode>.yml}.
 Default \code{TRUE}.}
 
 \item{renderReports}{Logical. Render the pfm-reports outputs (requires
 \code{reportsDir} and Rscript on PATH). Default \code{TRUE}.}
+
+\item{renderRobustness}{Logical. After the consumer reports, build the robustness
+artifact (\code{build-robustness.R}) and render \code{reports/robustness/}
+(ADR 0012). Heavy (control specification-curve); set \code{FALSE} to skip.
+Default \code{TRUE}.}
 
 \item{updateFindings}{Logical. Update the auto-generated section of findings.md.
 Default \code{TRUE}.}

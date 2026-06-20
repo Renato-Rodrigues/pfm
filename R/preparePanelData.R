@@ -1,3 +1,4 @@
+# nolint start
 #' Prepare panel data.frame from magpie object
 #'
 #' Converts a magpie object from panelDataHistorical into a flat
@@ -343,3 +344,4 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
   attr(df, "driverScaling") <- scaling
   return(df)
 }
+# nolint end

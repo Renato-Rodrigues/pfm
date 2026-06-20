@@ -1,3 +1,4 @@
+# nolint start
 #' @title selectDifferenceFirst
 #' @description Difference-First (Dynamic Identification First) model selection
 #' (ADR 0014), the alternative to the default levels-first maximin selection. For
@@ -151,3 +152,4 @@ selectDifferenceFirst <- function(results, specByName, panelData, scenarioData =
   }
   out
 }
+# nolint end

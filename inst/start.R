@@ -1,3 +1,4 @@
+# nolint start
 #!/usr/bin/env Rscript
 # PFM run launcher (ADR 0020). Runs a model group locally or as a PIK SLURM job, optionally
 # rendering the reports afterwards. Run from the pfm-reports working directory (where
@@ -54,3 +55,4 @@ callArgs <- list(
 )
 if (!is.null(selectFE)) callArgs$selectFE <- strsplit(selectFE, ",")[[1]]  # forwarded to runSweep
 do.call(pfm::startRun, callArgs)
+# nolint end

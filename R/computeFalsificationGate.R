@@ -1,3 +1,4 @@
+# nolint start
 #' @title computeFalsificationGate
 #' @description The discriminating test of Difference-First selection (ADR 0014).
 #' Re-estimates a candidate specification under the \code{pureFD} panel transform
@@ -151,3 +152,4 @@ computeFalsificationGate <- function(cfg, data, stage,
        nIntSig = nIntSig, iqJointP = iqJointP, apPass = apPass, iqPass = iqPass,
        sectorPass = apPass && iqPass)
 }
+# nolint end

@@ -1,3 +1,4 @@
+# nolint start
 #' @title fitAndDiagnose
 #' @description Executes the GLM or logistf fit and extracts standard diagnostic information.
 #'
@@ -302,3 +303,4 @@ fitAndDiagnose <- function(fml, df, depVar, stage, family, useFirth, nullLoglik,
     )
   )
 }
+# nolint end

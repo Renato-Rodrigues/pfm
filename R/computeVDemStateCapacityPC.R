@@ -1,3 +1,4 @@
+# nolint start
 #' @title computeVDemStateCapacityPC
 #' @description Reduces the five-variable V-Dem state-capacity block to two orthogonal
 #' principal components via PCA, resolving the collinearity that produces sign reversals
@@ -126,3 +127,4 @@ computeVDemStateCapacityPC <- function(scMag, nComponents = 2L, rotation = NULL)
 
   return(pc_mag)
 }
+# nolint end

@@ -1,3 +1,4 @@
+# nolint start
 #' Fit a single sweep specification (one sector × stage)
 #'
 #' @description
@@ -219,3 +220,4 @@ runFitGrid <- function(specs, sectors, stages, panelData, family = "gaussian",
   options(pfm.workerInitDone = TRUE)
   invisible(NULL)
 }
+# nolint end

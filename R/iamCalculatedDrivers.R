@@ -20,12 +20,12 @@ iamCalculatedDrivers <- function(data) {
     years = getYears(data), names = driverList, fill = 0
   )
   # Safe division helper
-  safe_div <- function(num, den) {
+  safeDiv <- function(num, den) {
     val <- num / den
     val[!is.finite(val)] <- 0
     return(val)
   }
-  
+
   clamp01 <- function(x, varName) {
     arr   <- as.array(x)
     below <- which(is.finite(arr) & arr < 0, arr.ind = TRUE)
@@ -34,8 +34,8 @@ iamCalculatedDrivers <- function(data) {
       dn  <- dimnames(arr)
       fmt <- function(idx, vals) {
         paste(sprintf("  %s | %s : %.4f",
-          dn[[1]][idx[, 1]], gsub("^y", "", dn[[2]][idx[, 2]]), vals),
-          collapse = "\n")
+                      dn[[1]][idx[, 1]], gsub("^y", "", dn[[2]][idx[, 2]]), vals),
+              collapse = "\n")
       }
       msg <- paste0("Driver '", varName, "' has out-of-range values (expected [0,1]) — clamping:\n")
       if (nrow(below) > 0) msg <- paste0(msg, " Below 0:\n", fmt(below, arr[below]), "\n")
@@ -46,17 +46,17 @@ iamCalculatedDrivers <- function(data) {
   }
 
   result[, , "Coal primary energy share"] <-
-    clamp01(safe_div(data[, , "pecoal"], data[, , "petotal"]), "Coal primary energy share")
+    clamp01(safeDiv(data[, , "pecoal"], data[, , "petotal"]), "Coal primary energy share")
   result[, , "Oil/Gas primary energy share"] <-
-    clamp01(safe_div(data[, , "pegas"] + data[, , "peoil"], data[, , "petotal"]), "Oil/Gas primary energy share")
+    clamp01(safeDiv(data[, , "pegas"] + data[, , "peoil"], data[, , "petotal"]), "Oil/Gas primary energy share")
   result[, , "Fossil share in Industry"] <-
-    clamp01(safe_div(data[, , "fe_indst_fossil"], data[, , "fe_indst"]), "Fossil share in Industry")
+    clamp01(safeDiv(data[, , "fe_indst_fossil"], data[, , "fe_indst"]), "Fossil share in Industry")
   result[, , "VRE share"] <-
-    clamp01(safe_div(data[, , "wind"] + data[, , "solar"], data[, , "seel"]), "VRE share")
+    clamp01(safeDiv(data[, , "wind"] + data[, , "solar"], data[, , "seel"]), "VRE share")
   result[, , "Electrification"] <-
-    clamp01(safe_div(data[, , "fe_seel"], data[, , "fe_total"]), "Electrification")
+    clamp01(safeDiv(data[, , "fe_seel"], data[, , "fe_total"]), "Electrification")
   result[, , "Clean primary energy share"] <-
-    clamp01(safe_div(
+    clamp01(safeDiv(
       data[, , "pehyd"] + data[, , "peur"] + data[, , "pewin"] + data[, , "pesol"] + data[, , "pegeo"],
       data[, , "petotal"]
     ), "Clean primary energy share")
@@ -66,12 +66,12 @@ iamCalculatedDrivers <- function(data) {
   # Represents the organized constituency (ethanol/biodiesel producers) that gains
   # from carbon pricing on fossil fuels in transport.
   result[, , "Biofuel Displacement"] <-
-    clamp01(safe_div(data[, , "fe_liqbio_tran"], data[, , "fe_liqtran"]), "Biofuel Displacement")
+    clamp01(safeDiv(data[, , "fe_liqbio_tran"], data[, , "fe_liqtran"]), "Biofuel Displacement")
 
   # Hydro + nuclear share of primary energy — control variable for inherited clean energy base.
   # Not in Innovator Power; enters the panel data as a structural control.
   result[, , "Hydro Nuclear Share"] <-
-    clamp01(safe_div(data[, , "pehyd"] + data[, , "peur"], data[, , "petotal"]), "Hydro Nuclear Share")
+    clamp01(safeDiv(data[, , "pehyd"] + data[, , "peur"], data[, , "petotal"]), "Hydro Nuclear Share")
 
   return(result)
 }

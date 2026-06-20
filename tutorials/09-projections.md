@@ -1,6 +1,12 @@
-# Tutorial 6: Running Projections
+# Tutorial 9: Running Projections
 
 > Generating adoption and stringency predictions for future scenario years using REMIND output
+
+> **Note.** This is the low-level, manual projection path (build a scenario panel, load a fitted
+> model, predict by hand). The scenario panel is also produced automatically by
+> `runSweep(gdxFile = ...)` (it feeds the Projection-Sanity gate), and the deliverable's
+> projections are surfaced in the **publication** / **results** reports. Use this tutorial when
+> you want to drive projections directly from R for a specific saved model.
 
 ## Table of Contents
 

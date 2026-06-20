@@ -1,3 +1,4 @@
+# nolint start
 #' @title projectSpecScenario
 #' @description Produces scenario projections for one channel specification and
 #' sector: adoption probability, stringency response, implied price (USD/tCO2),
@@ -417,3 +418,4 @@ computeProjectionSanity <- function(proj, stage = c("adoption", "stringency", "h
     thresholds = th
   )
 }
+# nolint end

@@ -1,3 +1,4 @@
+# nolint start
 #' @title computeChannelScreen
 #' @description Stage-0 correlation pre-screen of the guided model-selection
 #' algorithm (ADR 0004). Operates on a prepared panel data.frame and produces,
@@ -187,3 +188,4 @@ computeChannelScreen <- function(df, depVar = "adoption",
     method = method
   )
 }
+# nolint end

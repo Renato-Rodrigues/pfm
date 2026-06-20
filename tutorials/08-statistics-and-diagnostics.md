@@ -1,4 +1,4 @@
-# Tutorial 4: Statistics and Diagnostics
+# Tutorial 8: Statistics and Diagnostics
 
 > Interpreting AIC, BIC, pseudo-R², VIF, separation, and coefficients
 
@@ -57,7 +57,7 @@ The stringency model is a GLM with a log link. Coefficients are **log-scale effe
 
 **Example:** A coefficient of 0.5 on `GDP per Capita` means a one-unit increase is associated with a 65% higher carbon price (exp(0.5) ≈ 1.65).
 
-**Note on the log-transform:** If `logTransform = TRUE` (default), the dependent variable is `log(1 + ECP)`. Coefficients still have the same qualitative interpretation, but their magnitude is on the log-log scale. See [Tutorial 5](05-model-options.md) for when to disable this.
+**Note on the log-transform:** If `logTransform = TRUE` (default), the dependent variable is `log(1 + ECP)`. Coefficients still have the same qualitative interpretation, but their magnitude is on the log-log scale. See [05-understanding-the-model.md](05-understanding-the-model.md) for the stringency family/link.
 
 ---
 
@@ -148,7 +148,7 @@ VIF measures multicollinearity — how much of a predictor's variance is explain
 
 During model selection, any model with VIF > 5 is **automatically rejected**, regardless of AIC.
 
-**Common causes in PFM:** WGI indicators are highly correlated with each other and with GDP per Capita. Including several WGI indicators simultaneously raises VIF sharply. The group analysis table (Tutorial 3) helps identify which group causes the collinearity.
+**Common causes in PFM:** WGI indicators are highly correlated with each other and with GDP per Capita. Including several WGI indicators simultaneously raises VIF sharply. The Stage-0 channel screen in the **selection** report (forbidden pairs / slot rankings) helps identify which group causes the collinearity.
 
 **What to do:** Remove correlated variables, or use a composite (such as the Actor Power Index, which aggregates correlated individual drivers into one variable).
 

@@ -1,3 +1,4 @@
+# nolint start
 #' @title computeTermContributions
 #' @description Computes per-observation, per-term beta-times-x log-odds contributions
 #'   for a fitted adoption model applied to a supplied data frame. Handles regionFE
@@ -45,45 +46,45 @@ computeTermContributions <- function(fit,
 
   fml    <- if (inherits(m, "logistf")) m$formula else stats::formula(m)
   needed <- intersect(all.vars(fml), colnames(df))
-  df_ok  <- df[stats::complete.cases(df[, needed, drop = FALSE]), , drop = FALSE]
-  if (nrow(df_ok) == 0) return(NULL)
+  dfOk  <- df[stats::complete.cases(df[, needed, drop = FALSE]), , drop = FALSE]
+  if (nrow(dfOk) == 0) return(NULL)
 
   beta        <- stats::coef(m)
-  n           <- nrow(df_ok)
-  contrib_mat <- matrix(0, nrow = n, ncol = length(beta),
+  n           <- nrow(dfOk)
+  contribMat <- matrix(0, nrow = n, ncol = length(beta),
                         dimnames = list(NULL, names(beta)))
 
-  for (term_name in names(beta)) {
-    b <- beta[[term_name]]
-    if (term_name == "(Intercept)") {
-      contrib_mat[, term_name] <- b
-    } else if (grepl("^regionFE", term_name)) {
+  for (termName in names(beta)) {
+    b <- beta[[termName]]
+    if (termName == "(Intercept)") {
+      contribMat[, termName] <- b
+    } else if (grepl("^regionFE", termName)) {
       # Factor dummy: decode from the coefficient name, not model.matrix,
       # so single-country subsets with incomplete factor levels work correctly.
-      fe_level <- sub("^regionFE", "", term_name)
-      contrib_mat[, term_name] <- b * as.integer(
-        as.character(df_ok$regionFE) == fe_level
+      feLevel <- sub("^regionFE", "", termName)
+      contribMat[, termName] <- b * as.integer(
+        as.character(dfOk$regionFE) == feLevel
       )
-    } else if (term_name %in% colnames(df_ok)) {
-      contrib_mat[, term_name] <- b * df_ok[[term_name]]
+    } else if (termName %in% colnames(dfOk)) {
+      contribMat[, termName] <- b * dfOk[[termName]]
     }
-    # Terms absent from df_ok remain 0 (already initialised)
+    # Terms absent from dfOk remain 0 (already initialised)
   }
 
-  df_out          <- as.data.frame(contrib_mat, stringsAsFactors = FALSE)
-  df_out$year     <- df_ok$year
-  df_out$region   <- if ("region" %in% names(df_ok)) df_ok$region else NA_character_
-  df_out$ecp      <- df_ok$ecp
-  df_out$adoption <- as.integer(df_ok$ecp > 0)
-  df_out$eta      <- rowSums(contrib_mat)
-  df_out$prob     <- stats::plogis(df_out$eta)
+  dfOut          <- as.data.frame(contribMat, stringsAsFactors = FALSE)
+  dfOut$year     <- dfOk$year
+  dfOut$region   <- if ("region" %in% names(dfOk)) dfOk$region else NA_character_
+  dfOut$ecp      <- dfOk$ecp
+  dfOut$adoption <- as.integer(dfOk$ecp > 0)
+  dfOut$eta      <- rowSums(contribMat)
+  dfOut$prob     <- stats::plogis(dfOut$eta)
 
-  meta_cols <- c("year", "region", "ecp", "adoption", "eta", "prob")
-  term_cols <- setdiff(names(df_out), meta_cols)
+  metaCols <- c("year", "region", "ecp", "adoption", "eta", "prob")
+  termCols <- setdiff(names(dfOut), metaCols)
 
   long <- tidyr::pivot_longer(
-    df_out,
-    cols      = dplyr::all_of(term_cols),
+    dfOut,
+    cols      = dplyr::all_of(termCols),
     names_to  = "term_raw",
     values_to = "contribution"
   )
@@ -93,18 +94,19 @@ computeTermContributions <- function(fit,
   )
 
   if (isTRUE(aggregate)) {
-    canonical_order <- c("Intercept", "Actor Power", "Inst. Quality", "Interaction",
+    canonicalOrder <- c("Intercept", "Actor Power", "Inst. Quality", "Interaction",
                          "Controls", "Time Trend", "Path Dep.", "Region FE", "Other")
-    long <- long %>%
+    long <- long |>
       dplyr::group_by(
         .data$year, .data$region, .data$ecp, .data$adoption,
         .data$eta, .data$prob, .data$term_group
-      ) %>%
-      dplyr::summarise(contribution = sum(.data$contribution), .groups = "drop") %>%
+      ) |>
+      dplyr::summarise(contribution = sum(.data$contribution), .groups = "drop") |>
       dplyr::mutate(
-        term_group = factor(.data$term_group, levels = canonical_order)
+        term_group = factor(.data$term_group, levels = canonicalOrder)
       )
   }
 
   as.data.frame(long, stringsAsFactors = FALSE)
 }
+# nolint end

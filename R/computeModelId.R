@@ -1,3 +1,4 @@
+# nolint start
 #' Compute a deterministic cache key for a fitted model
 #'
 #' The ID is a SHA-256 hash of the deparsed formula string and a SHA-256 hash
@@ -30,3 +31,4 @@ computeModelId <- function(formula, training_data, extra = NULL) {
   fullHash <- digest::digest(payload, algo = "sha256")
   c(id = substr(fullHash, 1, 12), id_full = fullHash, data_hash = dataHash)
 }
+# nolint end

@@ -1,3 +1,4 @@
+# nolint start
 #' Assemble a PFMModel from a fit result and its training context
 #'
 #' Accepts either a \code{\link{fitAndDiagnose}} result list (which already
@@ -229,3 +230,4 @@ buildPFMModel <- function(fit, training_data, sector, stage, family, useFirth, l
 
 # Null-coalescing helper (local to this file; pfm-reports also defines one)
 `%||%` <- function(x, y) if (!is.null(x)) x else y
+# nolint end

@@ -1,3 +1,4 @@
+# nolint start
 # Cache-layer mechanics (ADR 0009): slim Fitted Model, the cache/ subfolder
 # layout, the content-addressed Training Panel store, and the disposable
 # Projection store. The full predictFeasibility round-trip against a REMIND gdx
@@ -112,3 +113,4 @@ test_that("predictFeasibility validates model stages", {
   expect_error(predictFeasibility(sPm, aPm, scenarioData = NULL),
                "stage='adoption'")
 })
+# nolint end

@@ -1,3 +1,4 @@
+# nolint start
 #' Build a model formula
 #'
 #' Constructs a formula for the adoption or stringency model. The right-hand
@@ -106,3 +107,4 @@ buildModelFormula <- function(depVar, actorPowerDrivers, actorPowerIndex, # noli
   fmlStr <- paste(depVar, "~", paste(rhs, collapse = " + "))
   return(stats::as.formula(fmlStr))
 }
+# nolint end

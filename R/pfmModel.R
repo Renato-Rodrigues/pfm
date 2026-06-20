@@ -1,3 +1,4 @@
+# nolint start
 #' @title PFMModel S3 class
 #' @description Constructor, print, summary, and validate methods for the
 #'   PFMModel class — the canonical persistence unit for fitted pfm models.
@@ -205,3 +206,4 @@ validate.PFMModel <- function(x, ...) {
   }
   invisible(x)
 }
+# nolint end

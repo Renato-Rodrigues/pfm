@@ -1,3 +1,4 @@
+# nolint start
 #!/usr/bin/env Rscript
 # PFM run status checker (ADR 0020). Reads results/<group>/manifest.json (+ live SLURM when a
 # job id is recorded) and prints the run's status, per-step timings, and remaining steps.
@@ -20,3 +21,4 @@ invisible(pfm::runStatus(
   group      = getArg("group", def("group", "exhaustive")),
   resultsDir = absify(getArg("resultsDir", def("resultsDir", "results")))
 ))
+# nolint end

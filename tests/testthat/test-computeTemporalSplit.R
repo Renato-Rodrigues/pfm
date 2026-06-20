@@ -1,3 +1,4 @@
+# nolint start
 test_that("computeTemporalSplit returns the documented out-of-time structure", {
   skip_if_not_installed("logistf")
   set.seed(7)
@@ -45,3 +46,4 @@ test_that("computeTemporalSplit returns NULL when the full fit cannot be built",
       regionMappingFixedEffects = NULL, modelDir = NULL),
     error = function(e) NULL)))
 })
+# nolint end

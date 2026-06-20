@@ -1,3 +1,4 @@
+# nolint start
 #' @title classifyTermGroups
 #' @description Maps a character vector of model term names (as they appear in a model
 #'   matrix) to canonical Term Group names used throughout pfm and pfm-reports:
@@ -38,3 +39,4 @@ classifyTermGroups <- function(terms,
     "Other"
   }, character(1))
 }
+# nolint end

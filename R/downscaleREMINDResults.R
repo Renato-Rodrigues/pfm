@@ -59,8 +59,8 @@ downscaleREMINDResults <- function(gdxFile = "fulldata.gdx", aggregate = FALSE,
     field = "l", react = "silent", restore_zeros = FALSE
   )[, yearsList, ]
   remindData[, , "fe_liqbio_tran"] <- dimSums(demFeSectorTax[, , "trans"][, , "seliqbio"], dim = 3, na.rm = TRUE)
-  fe_liqfos_remind <- dimSums(demFeSectorTax[, , "trans"][, , "seliqfos"], dim = 3, na.rm = TRUE)
-  remindData[, , "fe_liqtran"] <- remindData[, , "fe_liqbio_tran"] + fe_liqfos_remind
+  feLiqfosRemind <- dimSums(demFeSectorTax[, , "trans"][, , "seliqfos"], dim = 3, na.rm = TRUE)
+  remindData[, , "fe_liqtran"] <- remindData[, , "fe_liqbio_tran"] + feLiqfosRemind
 
   # Historical country data used as IPF prior (country universe from the same mapping as the GDX)
   histData <- iamHistoricalData(gdxRegionMappingFile = gdxRegionMappingFile)

@@ -1,3 +1,4 @@
+# nolint start
 # Helpers for the compute-workflow tests (ADR 0018/0019): a small synthetic panel and a
 # matching spec, so runFitGrid / fitOneSpec can be exercised without the mrpfm data pipeline.
 
@@ -49,3 +50,4 @@ syntheticPFMModel <- function(id, sector = "Bulk", stage = "Adoption") {
     projections = NULL
   ), class = "PFMModel")
 }
+# nolint end

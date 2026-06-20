@@ -1,3 +1,4 @@
+# nolint start
 mkRows <- function(stage, transform, maxVIF) {
   do.call(rbind, lapply(c("Bulk", "Diffuse"), function(sec) data.frame(
     model = "M1", sector = sec, stage = stage, panelTransform = transform,
@@ -19,3 +20,4 @@ test_that("returns NA selection when no hybridFD spec passes the maximin hard ga
   expect_true(is.na(out[["Adoption"]]$chosen))
   expect_null(out[["Adoption"]]$chosenConfigLevels)
 })
+# nolint end

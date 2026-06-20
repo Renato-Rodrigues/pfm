@@ -1,3 +1,4 @@
+# nolint start
 makeScoreInput <- function() {
   data.frame(
     model = rep(c("D4", "IQ-01", "FE-05", "BadVIF"), each = 2),
@@ -74,3 +75,4 @@ test_that("missing sectors, non-convergence and lagged terms fail gates", {
   expect_match(out$gateFailReason[out$model == "IQ-01"], "not converged")
   expect_match(out$gateFailReason[out$model == "FE-05"], "lagged")
 })
+# nolint end

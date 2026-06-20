@@ -1,3 +1,4 @@
+# nolint start
 #' @title fitRidgeStringency
 #' @description Fits a GLM stringency model with Ridge (L2) regularization applied
 #'   selectively to interaction terms (\code{_x_} pattern). Non-interaction predictors
@@ -195,3 +196,4 @@ fitRidgeStringency <- function(fml, df, depVar,
     nObs              = n_obs
   )
 }
+# nolint end

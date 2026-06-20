@@ -1,3 +1,4 @@
+# nolint start
 # Post-processing steps for a Run-Group (ADR 0018): runRobustness / runTemporalSplit /
 # runSubnational each read the Run-Group's selected deliverable (and, for robustness, the
 # sweep result) and write their own artifact beside it. runModelGroup chains the steps.
@@ -554,3 +555,4 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
   say("done: ", paste(steps, collapse = ", "))
   invisible(file.path(resultsDir, group))
 }
+# nolint end

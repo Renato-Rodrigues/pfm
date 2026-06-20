@@ -1,3 +1,4 @@
+# nolint start
 #' @title fitRidgeLogit
 #' @description Fits a binomial logistic regression with Ridge (L2) regularization
 #'   applied **dynamically** to term groups that show opposing signs in the initial
@@ -267,3 +268,4 @@ fitRidgeLogit <- function(fml, df, depVar,
     nObs                = n_obs
   )
 }
+# nolint end

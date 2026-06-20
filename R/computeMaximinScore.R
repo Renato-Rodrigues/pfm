@@ -54,7 +54,7 @@ computeTheoryTier <- function(sigActorPower, sigInstQual, sigInteractions) {
 #' @param vifGate Numeric. Hard VIF gate applied per sector. Default: \code{10}.
 #' @param deltaR2Max Numeric. Fit-reliability gate: a sector whose
 #'   \code{deltaR2Theory} exceeds this is rejected as inflated/degenerate. A genuine
-#'   incremental McFadden pseudo-R² lies in [0, 1], so the default \code{1} flags
+#'   incremental McFadden pseudo-R² lies in \code{[0, 1]}, so the default \code{1} flags
 #'   only mathematically-impossible values. Set \code{Inf} to disable.
 #' @param pseudoR2Range Numeric length-2 or \code{NULL}. Optional second reliability
 #'   measure: if the \code{pseudoR2} column is present and this is non-NULL, a sector

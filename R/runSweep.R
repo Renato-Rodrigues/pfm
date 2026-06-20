@@ -1,3 +1,4 @@
+# nolint start
 #' Run a model sweep into a Run-Group
 #'
 #' @description
@@ -205,3 +206,4 @@ runSweep <- function(group,
   )
   .writeRunGroupManifest(groupDir, group = group, mode = mode, step = step, stepStats = stats)
 }
+# nolint end

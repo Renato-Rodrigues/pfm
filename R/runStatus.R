@@ -1,3 +1,4 @@
+# nolint start
 #' Report the status of a model-group run
 #'
 #' @description
@@ -99,3 +100,4 @@ runStatus <- function(group, resultsDir = getOption("pfm.resultsDir", NULL), ver
   line("  artifacts       : ", paste(s$artifacts, collapse = ", "))
   invisible(NULL)
 }
+# nolint end

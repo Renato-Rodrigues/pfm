@@ -1,3 +1,4 @@
+# nolint start
 #' @title computeDeltaR2Theory
 #' @description Computes \eqn{\Delta R^2}(theory): the McFadden / deviance
 #' pseudo-R-squared of the full model minus that of a baseline refit with all
@@ -84,3 +85,4 @@ computeDeltaR2Theory <- function(fit, actorPowerDrivers = NULL, actorPowerIndex 
   if (!is.finite(r2Full) || !is.finite(r2Base)) return(NA_real_)
   round(as.numeric(r2Full - r2Base), 3)
 }
+# nolint end

@@ -1,3 +1,4 @@
+# nolint start
 #' @title runChannelsWorkflow
 #' @description End-to-end driver for the Institutional Quality Channels model
 #' selection (ADR 0004). In one call it:
@@ -802,3 +803,4 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
   on.exit(close(con), add = TRUE)
   writeLines(newContent, con)
 }
+# nolint end

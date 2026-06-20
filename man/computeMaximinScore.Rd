@@ -4,7 +4,13 @@
 \alias{computeMaximinScore}
 \title{computeMaximinScore}
 \usage{
-computeMaximinScore(df, vifGate = 10)
+computeMaximinScore(
+  df,
+  vifGate = 10,
+  deltaR2Max = 1,
+  pseudoR2Range = NULL,
+  nearTieEps = 0.05
+)
 }
 \arguments{
 \item{df}{Data.frame with one row per (model, sector) and columns:
@@ -21,6 +27,24 @@ the spec includes lagged dependent-variable terms.}
 }}
 
 \item{vifGate}{Numeric. Hard VIF gate applied per sector. Default: \code{10}.}
+
+\item{deltaR2Max}{Numeric. Fit-reliability gate: a sector whose
+\code{deltaR2Theory} exceeds this is rejected as inflated/degenerate. A genuine
+incremental McFadden pseudo-R² lies in \code{[0, 1]}, so the default \code{1} flags
+only mathematically-impossible values. Set \code{Inf} to disable.}
+
+\item{pseudoR2Range}{Numeric length-2 or \code{NULL}. Optional second reliability
+measure: if the \code{pseudoR2} column is present and this is non-NULL, a sector
+whose overall pseudo-R² falls outside this band is rejected. Default \code{NULL}
+(off) — enable (e.g. \code{c(0, 1)}) for stages where a negative pseudo-R²
+genuinely signals degeneracy.}
+
+\item{nearTieEps}{Numeric. BIC parsimony tie-break tolerance (ADR 0012). Among
+gate-passing specs of the same worse-sector tier, those whose mean
+\eqn{\Delta R^2}(theory) is within \code{nearTieEps} of the running leader are
+treated as theory-equivalent and ranked by lowest summed BIC (most parsimonious)
+first; requires a \code{bic} column in \code{df}. Default \code{0.05}; set
+\code{0} to disable and fall back to pure tier → \eqn{\Delta R^2} ordering.}
 }
 \value{
 Data.frame with one row per model, ordered best-first:
@@ -36,7 +60,15 @@ Maximin Selection Rule (decided 2026-06-12): a specification is ranked by its
 mean \eqn{\Delta R^2}(theory) across sectors, with the worse sector's
 \eqn{\Delta R^2}(theory) also reported. Hard gates apply to \emph{both}
 sectors: \code{maxVIF < vifGate}, convergence, and no lagged dependent-variable
-terms. Gate-failing specs are ranked last regardless of tier.
+terms, and a \strong{fit-reliability gate} (added 2026-06-16) that rejects
+specifications whose \eqn{\Delta R^2}(theory) is \emph{inflated} — exceeding
+\code{deltaR2Max} (default 1), which is impossible for a genuine incremental
+McFadden pseudo-R² and signals a degenerate, near-separated baseline (typically
+heavy unit-level fixed effects such as 54-region dummies); optionally a
+\code{pseudoR2Range} check rejects specs whose overall pseudo-R² is implausible.
+This stops a numerically-degenerate spec from winning the within-tier
+\eqn{\Delta R^2} tie-break over a trustworthy one. Gate-failing specs are ranked
+last regardless of tier.
 }
 \seealso{
 \code{\link{computeTheoryTier}}, ADR 0004 (guided selection algorithm)

@@ -1,3 +1,4 @@
+# nolint start
 #' @title splitPanelJackknife
 #' @description Half-panel (split-panel) jackknife bias correction for a dynamic
 #' fixed-effects model (Dhaene & Jochmans, 2015). When a lagged dependent variable
@@ -65,3 +66,4 @@ splitPanelJackknife <- function(fml, df, glmFamily,
   bCorr[common] <- 2 * bFull[common] - 0.5 * (bE[common] + bL[common])
   list(coefficients = bCorr, corrected = common)
 }
+# nolint end

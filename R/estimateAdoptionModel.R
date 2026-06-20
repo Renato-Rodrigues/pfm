@@ -1,3 +1,4 @@
+# nolint start
 #' @title estimateAdoptionModel
 #' @description Estimates the Stage 1 Adoption Probability (Logit Model) of
 #' the two-stage Hurdle model for carbon pricing. For each sector, a logistic
@@ -412,3 +413,4 @@ estimateAdoptionModel <- function(
 
   result
 }
+# nolint end

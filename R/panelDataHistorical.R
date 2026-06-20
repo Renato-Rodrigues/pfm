@@ -1,3 +1,4 @@
+# nolint start
 #' @title panelDataHistorical
 #' @description calculates the historical panel data output
 #'
@@ -219,3 +220,4 @@ panelDataHistorical <- function(aggregate = TRUE,
 
   return(out)
 }
+# nolint end

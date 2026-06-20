@@ -39,7 +39,6 @@ actorPowerIndex <- function(
   fossilInd <- data[, , "Fossil share in Industry"]
   vre <- data[, , "VRE share"]
   elec <- data[, , "Electrification"]
-  cleanPE <- data[, , "Clean primary energy share"]
   biofuel <- data[, , "Biofuel Displacement"]
 
   # Pre-allocate output arrays for indices across Sectors ("Bulk", "Diffuse")

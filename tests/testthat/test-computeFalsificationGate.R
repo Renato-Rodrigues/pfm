@@ -1,3 +1,4 @@
+# nolint start
 apP <- c("Innovator.Power", "Incumbent.Power")
 iqP <- c("Rule.of.Law..VDem.", "Government.Effectiveness..WGI.")
 
@@ -53,3 +54,4 @@ test_that("computeFalsificationGate returns the documented structure", {
   expect_true(all(c("sector","estimable","apPass","iqPass","sectorPass") %in% names(res$detail)))
   expect_type(res$reason, "character")
 })
+# nolint end

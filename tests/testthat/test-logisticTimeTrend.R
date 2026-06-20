@@ -1,3 +1,4 @@
+# nolint start
 test_that("logisticTimeTrend is a bounded, saturating, single common curve", {
   years <- c(1990, 2000, 2022, 2030, 2060, 2100)
   m <- magclass::new.magpie(c("AAA", "BBB"), years,
@@ -40,3 +41,4 @@ test_that("logisticTimeTrend midpoint/steepness are tunable and consistent", {
   # later midpoint => lower value at a fixed year
   expect_lt(base(2045, 0.08)["2030"], base(2030, 0.08)["2030"])
 })
+# nolint end

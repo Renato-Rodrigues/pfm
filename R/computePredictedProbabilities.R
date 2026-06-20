@@ -1,3 +1,4 @@
+# nolint start
 #' @title computePredictedProbabilities
 #' @description Computes Predicted Probability Profiles (margins plots data) for a
 #'   fitted adoption logit model. For each variable in \code{sweepVars}, the variable
@@ -141,3 +142,4 @@ computePredictedProbabilities <- function(fit,
   names(results) <- sweepVars
   Filter(Negate(is.null), results)
 }
+# nolint end

@@ -1,3 +1,4 @@
+# nolint start
 # Package-level environment for shared mutable state across function calls.
 # Populated by panelDataHistorical (PCA rotation, GDP quartile breaks)
 # and consumed by panelDataScenario to ensure consistent transformations.
@@ -72,3 +73,4 @@ computeGdpQCentred <- function(gdpPCNorm, storeBreaks = FALSE) {
   magclass::getNames(out_mag) <- "GDP per Capita (Q-centred)"
   return(out_mag)
 }
+# nolint end

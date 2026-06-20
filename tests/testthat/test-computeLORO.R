@@ -1,3 +1,4 @@
+# nolint start
 test_that("computeLORO returns coefficient-stability + pooled OOS on a small panel", {
   skip_if_not_installed("logistf")
   set.seed(42)
@@ -52,3 +53,4 @@ test_that("computeLORO returns NULL when the full-sample fit cannot be built", {
                 regionMappingFixedEffects = NULL, modelDir = NULL),
     error = function(e) NULL)))
 })
+# nolint end

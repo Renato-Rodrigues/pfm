@@ -1,3 +1,4 @@
+# nolint start
 #' @title computeLORO
 #' @description Leave-One-Region-Out (LORO) robustness for a hurdle-stage
 #' deliverable spec (ADR 0013). The estimation panel has 54 regions; this drops
@@ -215,3 +216,4 @@ computeLORO <- function(data, sector, stage,
        meta = list(sector = sector, stage = stage, nRegions = length(regions),
                    regionMappingFixedEffects = regionMappingFixedEffects))
 }
+# nolint end

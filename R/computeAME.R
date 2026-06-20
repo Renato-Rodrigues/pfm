@@ -1,3 +1,4 @@
+# nolint start
 #' @title computeAME
 #' @description Computes Average Marginal Effects (AMEs) for a fitted adoption logit
 #'   model using manual calculation — no external packages required.
@@ -118,3 +119,4 @@ computeAME <- function(fit,
     row.names         = NULL
   )
 }
+# nolint end

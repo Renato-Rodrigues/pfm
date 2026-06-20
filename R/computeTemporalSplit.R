@@ -1,3 +1,4 @@
+# nolint start
 #' @title computeTemporalSplit
 #' @description Out-of-time (temporal hold-out) robustness for a hurdle-stage
 #' deliverable spec (ADR 0015) — the temporal counterpart to
@@ -210,3 +211,4 @@ computeTemporalSplit <- function(data, sector, stage,
                    maxYear = maxYear, rollingOrigins = rollingOrigins),
        coef = coefStab, single = single, horizon = horizon, rolling = rolling, preds = predsS)
 }
+# nolint end

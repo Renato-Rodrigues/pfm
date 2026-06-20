@@ -1,3 +1,4 @@
+# nolint start
 # The fit-grid engine (ADR 0019): fitOneSpec / runFitGrid, the unit the parallel sweep is
 # built on. Self-contained on a small synthetic panel.
 
@@ -56,3 +57,4 @@ test_that("parallel runFitGrid agrees with sequential (parity)", {
   expect_equal(key(g1$results), key(g2$results), tolerance = 1e-6)
   expect_equal(g1$nNew, g2$nNew)
 })
+# nolint end

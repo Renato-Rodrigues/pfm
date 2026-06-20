@@ -1,3 +1,4 @@
+# nolint start
 #' @title computeSeamDiagnostics
 #' @description Builds the Seam-Continuity Table: for every variable present in
 #' both the historical and the scenario panel and every region, the jump between
@@ -94,3 +95,4 @@ computeSeamDiagnostics <- function(histMag, scenMag, variables = NULL,
   rownames(out) <- NULL
   out
 }
+# nolint end

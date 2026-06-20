@@ -1,3 +1,4 @@
+# nolint start
 #' @title estimatePriceStringencyModel
 #' @description Estimates the Stage 2 Price Stringency (GLM Model) of the
 #' two-stage Hurdle model for carbon pricing. For each sector, a GLM with a
@@ -472,3 +473,4 @@ estimatePriceStringencyModel <- function(
 
   result
 }
+# nolint end

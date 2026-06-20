@@ -1,3 +1,4 @@
+# nolint start
 #' @title computeGroupContributions
 #' @description Computes mean beta-times-x contributions per Term Group across all
 #'   observations, along with Theory Score and Theory Fraction.
@@ -36,18 +37,18 @@ computeGroupContributions <- function(fit,
   m <- if (is.list(fit) && !is.null(fit$model)) fit$model else fit
   if (is.null(m)) return(NULL)
 
-  data_src <- if (!is.null(df)) {
+  dataSrc <- if (!is.null(df)) {
     df
   } else if (!is.null(m$model)) {
     m$model
   } else {
     NULL
   }
-  if (is.null(data_src)) return(NULL)
+  if (is.null(dataSrc)) return(NULL)
 
   fml <- if (inherits(m, "logistf")) m$formula else stats::formula(m)
   mm  <- tryCatch(
-    stats::model.matrix(fml, data = data_src),
+    stats::model.matrix(fml, data = dataSrc),
     error = function(e) NULL
   )
   if (is.null(mm) || nrow(mm) == 0) return(NULL)
@@ -58,40 +59,41 @@ computeGroupContributions <- function(fit,
   mm   <- mm[, common, drop = FALSE]
   beta <- beta[common]
 
-  contrib_mat <- sweep(mm, 2, beta, `*`)
+  contribMat <- sweep(mm, 2, beta, `*`)
   groups      <- classifyTermGroups(
     common, actorPowerDrivers, actorPowerIndex, instQualityDrivers, controlDrivers
   )
 
-  group_levels <- c("Intercept", "Actor Power", "Inst. Quality", "Interaction",
+  groupLevels <- c("Intercept", "Actor Power", "Inst. Quality", "Interaction",
                     "Controls", "Time Trend", "Path Dep.", "Region FE", "Other")
 
   result <- list()
-  for (g in group_levels) {
+  for (g in groupLevels) {
     cols <- which(groups == g)
     result[[g]] <- if (length(cols) > 0)
-      round(mean(rowSums(contrib_mat[, cols, drop = FALSE]), na.rm = TRUE), 3)
+      round(mean(rowSums(contribMat[, cols, drop = FALSE]), na.rm = TRUE), 3)
     else
       NA_real_
   }
 
-  eta <- rowSums(contrib_mat)
+  eta <- rowSums(contribMat)
   result[["Total η"]] <- round(mean(eta, na.rm = TRUE), 3)
   result[["Mean P"]]       <- round(mean(stats::plogis(eta), na.rm = TRUE), 3)
 
-  theory_names  <- c("Actor Power", "Inst. Quality", "Interaction")
-  non_int_names <- c("Actor Power", "Inst. Quality", "Interaction",
+  theoryNames  <- c("Actor Power", "Inst. Quality", "Interaction")
+  nonIntNames <- c("Actor Power", "Inst. Quality", "Interaction",
                      "Controls", "Time Trend", "Path Dep.", "Region FE", "Other")
-  safe_val <- function(x) if (!is.null(x) && length(x) == 1 && !is.na(x)) x else 0
+  safeVal <- function(x) if (!is.null(x) && length(x) == 1 && !is.na(x)) x else 0
 
-  theory_score <- sum(vapply(theory_names,  function(g) safe_val(result[[g]]), numeric(1)))
-  abs_denom    <- sum(vapply(non_int_names, function(g) abs(safe_val(result[[g]])), numeric(1)))
+  theoryScore <- sum(vapply(theoryNames,  function(g) safeVal(result[[g]]), numeric(1)))
+  absDenom    <- sum(vapply(nonIntNames, function(g) abs(safeVal(result[[g]])), numeric(1)))
 
-  result[["Theory Score"]] <- round(theory_score, 3)
-  result[["Theory Frac."]] <- if (abs_denom > 0)
-    round(abs(theory_score) / abs_denom, 3)
+  result[["Theory Score"]] <- round(theoryScore, 3)
+  result[["Theory Frac."]] <- if (absDenom > 0)
+    round(abs(theoryScore) / absDenom, 3)
   else
     NA_real_
 
   result
 }
+# nolint end

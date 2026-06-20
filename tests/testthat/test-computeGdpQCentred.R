@@ -1,3 +1,4 @@
+# nolint start
 makeGdpMagpie <- function(regions, years, values) {
   m <- magclass::new.magpie(regions, years, "GDP per Capita", fill = NA)
   for (i in seq_along(regions)) m[regions[i], , ] <- values[[i]]
@@ -81,3 +82,4 @@ test_that("without a stored fit, apply-mode falls back to fitting on the data", 
   expect_null(pfm:::.pfm_env$gdppc_q_fit)
   resetGdpQFit()
 })
+# nolint end

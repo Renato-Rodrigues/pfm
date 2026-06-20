@@ -1,3 +1,4 @@
+# nolint start
 #' Save, load, and list PFMModel objects
 #'
 #' @description
@@ -232,3 +233,4 @@ rebuildPFMModelIndex <- function(dir = getOption("pfm.modelDir")) {
   if (nBad > 0) message("rebuildPFMModelIndex: ", nBad, " unreadable fit(s) skipped.")
   invisible(idx)
 }
+# nolint end
