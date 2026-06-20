@@ -30,7 +30,17 @@
 #'   Required for writing configs into the reports tree, rendering reports, and
 #'   updating findings.md. When NULL, configs go to \code{tempdir()} and the
 #'   render/findings steps are skipped.
+#' @param configDir Character or NULL. Directory for the sweep YAML and the selected-models
+#'   YAML. When NULL, derived from \code{reportsDir} (else \code{tempdir()}). \code{runSweep}
+#'   sets this to the Run-Group directory so the selected spec lands beside the other
+#'   artifacts (ADR 0018).
 #' @param modelDir Character or NULL. PFM model store for fit caching.
+#' @param nCores Integer. Number of cores for the fit sweep. \code{1} (default) runs
+#'   sequentially; \code{> 1} parallelises the fits via \pkg{future.apply}
+#'   (\code{multisession} on Windows, \code{multicore} on Unix), falling back to sequential
+#'   with a warning if \pkg{future.apply} is unavailable. See \code{\link{runFitGrid}} / ADR 0019.
+#' @param forceRefit Logical. Ignore any cached fits and re-estimate every spec. Default
+#'   \code{FALSE} (resume: cached fits are loaded, only missing ones recomputed).
 #' @param family Character. Stringency GLM family for levels specs. Default \code{"Gamma"}.
 #' @param scenarioData Optional \code{magpie}. Scenario panel (e.g.
 #'   \code{panelDataScenario} output). When supplied, the Projection Sanity gate
@@ -49,6 +59,27 @@
 #'   \code{<reportsDir>/output/channels_workflow_<mode>.rds} before rendering
 #'   (the selection report consumes this file). Default \code{TRUE}.
 #' @param selectModels Logical. Run maximin selection. Default \code{TRUE}.
+#' @param selectionMethod Character. \code{"levels-first"} (default — the current
+#'   behaviour: maximin over levels specs, then the Projection Sanity gate) or
+#'   \code{"difference-first"} (Dynamic Identification First, ADR 0014: maximin over
+#'   the \code{hybridFD} specs, then \code{\link{computeFalsificationGate}}, then the
+#'   levels re-estimate + Projection Sanity, via \code{\link{selectDifferenceFirst}}).
+#'   Both methods are supported; difference-first writes a separate
+#'   \code{selected-models-channels-<mode>-difference-first.yml} and never overwrites
+#'   the levels-first deliverable.
+#' @param requireBothSectors Logical. Difference-first only: the Falsification Gate
+#'   must pass in both sectors (\code{TRUE}, default) or any sector (\code{FALSE}).
+#' @param falsificationPThreshold Numeric. Difference-first only: significance
+#'   threshold for the Falsification Gate. Default \code{0.05}.
+#' @param maxFalsificationTries Integer. Difference-first only: maximum number of
+#'   ranked hybridFD candidates to falsification-test. Default \code{25}.
+#' @param iqVanishTest Character. Difference-first only: IQ-vanish rule for the
+#'   Falsification Gate — \code{"jointBlock"} (default, joint Wald test) or
+#'   \code{"perChannel"}; see \code{\link{computeFalsificationGate}}.
+#' @param levelsFE Difference-first only: named list of candidate block-FE strategies
+#'   for the winner's levels re-estimate; the FE is chosen by the Projection Sanity
+#'   gate (hybridFD specs carry no FE). Default \code{{H12, OECDp, Mundlak}}; see
+#'   \code{\link{selectDifferenceFirst}}.
 #' @param selectFE Character vector or \code{NULL}. When set, the deliverable
 #'   selection is restricted to specifications whose region-FE resolution token
 #'   appears here (matched against the spec name's \code{fe:} tag), e.g.
@@ -56,10 +87,16 @@
 #'   inflation-prone 54-unit (\code{FE54}), and the first-difference transforms
 #'   (which carry no region FE). Selection-only; the full results and best-per-sector
 #'   views still include every spec. Default \code{NULL} (no FE constraint).
+#' @param nearTieEps Numeric. BIC parsimony tie-break tolerance passed to
+#'   \code{\link{computeMaximinScore}} (ADR 0012). Default \code{0.05}.
 #' @param writeSelectedConfig Logical. Write \code{selected-models-channels-<mode>.yml}.
 #'   Default \code{TRUE}.
 #' @param renderReports Logical. Render the pfm-reports outputs (requires
 #'   \code{reportsDir} and Rscript on PATH). Default \code{TRUE}.
+#' @param renderRobustness Logical. After the consumer reports, build the robustness
+#'   artifact (\code{build-robustness.R}) and render \code{reports/robustness/}
+#'   (ADR 0012). Heavy (control specification-curve); set \code{FALSE} to skip.
+#'   Default \code{TRUE}.
 #' @param updateFindings Logical. Update the auto-generated section of findings.md.
 #'   Default \code{TRUE}.
 #' @param overwriteConfig Logical. Regenerate the sweep YAML even if present.
@@ -83,7 +120,10 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
                                 outputRegionMappingFile = "regionmapping_54.csv",
                                 sectors = c("Bulk", "Diffuse"),
                                 reportsDir = NULL,
+                                configDir = NULL,
                                 modelDir = getOption("pfm.modelDir", NULL),
+                                nCores = 1L,
+                                forceRefit = FALSE,
                                 # Stringency is fit on log(1+ECP); with logTransform = TRUE
                                 # (the default) estimatePriceStringencyModel uses
                                 # gaussian(identity) regardless of this label. "gaussian"
@@ -95,24 +135,42 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
                                 sanityThresholds = list(),
                                 saveRds = TRUE,
                                 selectModels = TRUE,
+                                selectionMethod = c("levels-first", "difference-first"),
                                 selectFE = NULL,
+                                nearTieEps = 0.05,
+                                requireBothSectors = TRUE,
+                                falsificationPThreshold = 0.05,
+                                maxFalsificationTries = 25L,
+                                iqVanishTest = "jointBlock",
+                                levelsFE = list(
+                                  H12     = list(fe = "regionmappingH12.csv",       mundlak = FALSE),
+                                  OECDp   = list(fe = "regionmapping_EU_OECDp.csv", mundlak = FALSE),
+                                  Mundlak = list(fe = NULL,                          mundlak = TRUE)),
                                 writeSelectedConfig = TRUE,
                                 renderReports = TRUE,
+                                renderRobustness = TRUE,
                                 updateFindings = TRUE,
                                 overwriteConfig = FALSE,
                                 verbose = TRUE) {
   mode <- match.arg(mode)
+  selectionMethod <- match.arg(selectionMethod)
   if (!requireNamespace("yaml", quietly = TRUE)) {
     stop("runChannelsWorkflow: the 'yaml' package is required.")
   }
   say <- function(...) if (isTRUE(verbose)) message("[channels:", mode, "] ", ...)
 
   # ── 1. Config ─────────────────────────────────────────────────────────────────
-  configDir <- if (!is.null(reportsDir)) {
-    file.path(reportsDir, "reports", "model-selection", "model-configs")
-  } else {
-    tempdir()
+  # configDir: where the sweep YAML and the selected-models YAML are written. Explicit
+  # override (used by runSweep to target the Run-Group) takes precedence; otherwise derive
+  # from reportsDir, falling back to a temp dir.
+  if (is.null(configDir)) {
+    configDir <- if (!is.null(reportsDir)) {
+      file.path(reportsDir, "reports", "model-selection", "model-configs")
+    } else {
+      tempdir()
+    }
   }
+  dir.create(configDir, showWarnings = FALSE, recursive = TRUE)
   configPath <- createChannelConfigs(configDir, mode, overwrite = overwriteConfig)
 
   normalizeCfg <- function(cfg) {
@@ -174,82 +232,24 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
   }
   say("Stage-0 Channel Screen complete (", length(screens), " sector/stage screens).")
 
-  # ── 4. Fit all specs x sectors x stages ──────────────────────────────────────
+  # ── 4. Fit all specs x sectors x stages (parallel-capable; ADR 0019) ──────────
+  # The triple loop is delegated to runFitGrid(): one mappable fitOneSpec path used by both
+  # the sequential (nCores = 1) and parallel (future.apply) backends. Workers self-persist
+  # their {id}.rds without touching the index; the index is rebuilt once inside runFitGrid.
   stages <- c("Adoption", "Stringency")
-  rows <- list()
-  coefRows <- list()
-  total <- length(specs) * length(sectors) * length(stages)
-  done <- 0L
-  for (i in seq_along(specs)) {
-    cfg <- specs[[i]]
-    for (stg in stages) {
-      for (sec in sectors) {
-        done <- done + 1L
-        fit <- tryCatch({
-          if (stg == "Adoption") {
-            estimateAdoptionModel(
-              data = panelData, sector = sec,
-              actorPowerDrivers = cfg$actorPowerDrivers,
-              actorPowerIndex = cfg$actorPowerIndex,
-              instQualityDrivers = cfg$instQualityDrivers,
-              controlDrivers = cfg$controlDrivers,
-              includeLaggedAdoption = cfg$includeLagged,
-              interactRegionFE = cfg$interactRegionFE,
-              regionMappingFixedEffects = cfg$regionMappingFixedEffects,
-              useMundlak = cfg$useMundlak,
-              gdpGovInteraction = cfg$gdpGovInteraction,
-              logisticTimeTrend = cfg$logisticTimeTrend,
-              ridgeInteractions = cfg$ridgeInteractions,
-              panelTransform = cfg$panelTransform,
-              modelDir = modelDir, verbose = FALSE,
-              compute = c(ame = FALSE, predictedProbs = FALSE)
-            )
-          } else {
-            estimatePriceStringencyModel(
-              data = panelData, sector = sec, family = family,
-              actorPowerDrivers = cfg$actorPowerDrivers,
-              actorPowerIndex = cfg$actorPowerIndex,
-              instQualityDrivers = cfg$instQualityDrivers,
-              controlDrivers = cfg$controlDrivers,
-              includeLaggedECP = isTRUE(cfg$includeLaggedECP) || isTRUE(cfg$includeLagged),
-              interactRegionFE = cfg$interactRegionFE,
-              regionMappingFixedEffects = cfg$regionMappingFixedEffects,
-              useMundlak = cfg$useMundlak,
-              gdpGovInteraction = cfg$gdpGovInteraction,
-              logisticTimeTrend = cfg$logisticTimeTrend,
-              ridgeInteractions = cfg$ridgeInteractions,
-              panelTransform = cfg$panelTransform,
-              nickellCorrection = isTRUE(cfg$nickellCorrection),
-              modelDir = modelDir, verbose = FALSE
-            )
-          }
-        }, error = function(e) {
-          say("FAILED ", cfg$name, " / ", stg, ": ", sec, " - ", conditionMessage(e))
-          NULL
-        })
-        rows[[length(rows) + 1L]] <- .channelFitMetrics(fit, cfg, sec, stg)
-        if (!is.null(fit) && !is.null(fit$coeftest)) {
-          ct <- as.data.frame(unclass(fit$coeftest))
-          names(ct) <- c("estimate", "stdError", "zValue", "pValue")
-          ct$term <- rownames(fit$coeftest)
-          ct$model <- cfg$name
-          ct$sector <- sec
-          ct$stage <- stg
-          rownames(ct) <- NULL
-          coefRows[[length(coefRows) + 1L]] <- ct
-        }
-        if (done %% 20 == 0 || done == total) say("fits: ", done, "/", total)
-      }
-    }
-  }
-  results <- do.call(rbind, rows)
-  rownames(results) <- NULL
-  coefficients <- if (length(coefRows) > 0) do.call(rbind, coefRows) else NULL
+  grid <- runFitGrid(
+    specs = specs, sectors = sectors, stages = stages, panelData = panelData,
+    family = family, modelDir = modelDir, nCores = nCores, forceRefit = forceRefit,
+    verbose = verbose, say = say
+  )
+  results <- grid$results
+  coefficients <- grid$coefficients
 
   # ── 5. Selection (maximin, then Projection Sanity gate when scenario given) ──
   maximin <- list()
   selected <- list()
   sanity <- list()
+  difSelection <- NULL
   bestPerSector <- NULL
   specByName <- stats::setNames(specs, vapply(specs, `[[`, character(1), "name"))
   if (isTRUE(selectModels)) {
@@ -260,6 +260,27 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
       say("NOTE: no scenarioData supplied - Projection Sanity gate SKIPPED; ",
           "selection is pure maximin.")
     }
+  }
+  if (isTRUE(selectModels) && selectionMethod == "difference-first") {
+    # ── Difference-First (Dynamic Identification First) selection (ADR 0014) ────
+    say("Selection method: difference-first (hybridFD maximin -> Falsification Gate -> levels).")
+    difSelection <- selectDifferenceFirst(
+      results = results, specByName = specByName, panelData = panelData,
+      scenarioData = scenarioData, sectors = sectors, family = family, modelDir = modelDir,
+      nearTieEps = nearTieEps, requireBothSectors = requireBothSectors,
+      pThreshold = falsificationPThreshold, maxTries = maxFalsificationTries,
+      iqVanishTest = iqVanishTest, levelsFE = levelsFE,
+      sanityBatchSize = sanityBatchSize, sanityMaxModels = sanityMaxModels,
+      sanityThresholds = sanityThresholds, regionBlocks = regionBlocks,
+      histPricesBySector = histPricesBySector, say = say)
+    for (stg in names(difSelection)) {
+      maximin[[stg]] <- difSelection[[stg]]$maximin
+      if (!is.na(difSelection[[stg]]$chosen)) selected[[stg]] <- difSelection[[stg]]$chosen
+      if (!is.null(difSelection[[stg]]$sanity)) sanity[[stg]] <- difSelection[[stg]]$sanity
+      if (is.na(difSelection[[stg]]$chosen)) say("WARNING: no ", stg,
+          " spec passed the Falsification Gate (difference-first).")
+    }
+  } else if (isTRUE(selectModels)) {
     for (stg in stages) {
       sub <- results[results$stage == stg, , drop = FALSE]
       # Optional FE constraint (ADR 0011 / fit-reliability follow-up 2026-06-16):
@@ -277,9 +298,10 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
               "] matched no ", stg, " specs; ignoring the FE constraint for this stage.")
         }
       }
-      mm <- computeMaximinScore(sub[, c("model", "sector", "sigActorPower", "sigInstQual",
-                                        "sigInteractions", "deltaR2Theory", "pseudoR2", "maxVIF",
-                                        "converged", "usesLagged"), drop = FALSE])
+      mmCols <- intersect(c("model", "sector", "sigActorPower", "sigInstQual",
+                            "sigInteractions", "deltaR2Theory", "pseudoR2", "bic", "maxVIF",
+                            "converged", "usesLagged"), colnames(sub))
+      mm <- computeMaximinScore(sub[, mmCols, drop = FALSE], nearTieEps = nearTieEps)
       maximin[[stg]] <- mm
       pass <- mm[mm$gatePass, , drop = FALSE]
       if (nrow(pass) == 0) {
@@ -306,6 +328,8 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
             else " (passed Projection Sanity)")
       }
     }
+  }
+  if (isTRUE(selectModels)) {
     results$tier <- computeTheoryTier(results$sigActorPower, results$sigInstQual,
                                       results$sigInteractions)
     tierRank <- c(Green = 3L, Blue = 2L, Yellow = 1L)
@@ -322,9 +346,11 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
   # ── 6. Selected-models config ─────────────────────────────────────────────────
   selectedConfigPath <- NULL
   if (isTRUE(writeSelectedConfig) && length(selected) > 0) {
-    selectedConfigPath <- .writeSelectedChannelConfig(
-      specs, selected, maximin, mode, configDir, sectors
-    )
+    selectedConfigPath <- if (selectionMethod == "difference-first") {
+      .writeDifferenceFirstConfig(difSelection, mode, configDir, sectors)
+    } else {
+      .writeSelectedChannelConfig(specs, selected, maximin, mode, configDir, sectors)
+    }
     say("Selected-models config written: ", selectedConfigPath)
   }
 
@@ -332,7 +358,9 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
   out <- list(
     mode = mode, results = results, coefficients = coefficients,
     screens = screens, maximin = maximin, selected = selected, sanity = sanity,
-    bestPerSector = bestPerSector,
+    bestPerSector = bestPerSector, selectionMethod = selectionMethod,
+    difSelection = difSelection,
+    fitSummary = grid[c("nJobs", "nNew", "nFailed")],
     configPath = configPath, selectedConfigPath = selectedConfigPath,
     generated = Sys.time()
   )
@@ -349,7 +377,7 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
   reportStatus <- NULL
   if (isTRUE(renderReports) && !is.null(reportsDir)) {
     reportStatus <- .renderChannelReports(reportsDir, mode, rdsPath, selectedConfigPath,
-                                          verbose = verbose)
+                                          verbose = verbose, robustness = renderRobustness)
   }
   out$reportStatus <- reportStatus
 
@@ -497,7 +525,7 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
     panelTransform = cfg$panelTransform,
     sigActorPower = 0L, sigInstQual = 0L, sigInteractions = 0L,
     deltaR2Theory = NA_real_, theoryFrac = NA_real_,
-    aic = NA_real_, pseudoR2 = NA_real_, nObs = NA_integer_,
+    aic = NA_real_, bic = NA_real_, pseudoR2 = NA_real_, nObs = NA_integer_,
     maxVIF = NA_real_, converged = FALSE, usesLagged = isTRUE(cfg$includeLagged),
     brier = NA_real_, auc = NA_real_, calibrationSlope = NA_real_, rmse = NA_real_,
     stringsAsFactors = FALSE
@@ -526,6 +554,14 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
   loglik <- if (isLf) as.numeric(m$loglik["full"]) else
     tryCatch(as.numeric(stats::logLik(m)), error = function(e) NA_real_)
   base$aic <- if (isLf) -2 * loglik + 2 * k else as.numeric(m$aic)
+  # BIC derived from the AIC already computed above (robust to slim cached fits):
+  # BIC = AIC - 2*npar + npar*log(n) = AIC + npar*(log(n) - 2).
+  # npar = k for the Firth logistf (penalised-likelihood BIC — approximate); k + 1 for the
+  # Gaussian/Gamma stringency GLM (the +1 is the dispersion parameter), matching m$aic.
+  npar <- if (isLf) k else k + 1L
+  base$bic <- if (is.finite(base$aic) && is.finite(nObs) && nObs > 0) {
+    base$aic + npar * (log(nObs) - 2)
+  } else NA_real_
   base$pseudoR2 <- if (isLf) {
     as.numeric(1 - m$loglik["full"] / m$loglik["null"])
   } else if (!is.null(m$deviance) && !is.null(m$null.deviance) && m$null.deviance > 0) {
@@ -588,11 +624,52 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
   out
 }
 
+# Internal: writes the Difference-First deliverable (ADR 0014) - the hybridFD
+# maximin winner that passed the Falsification Gate, configured for LEVELS
+# estimation. Separate file; never overwrites the levels-first selection.
+#' @keywords internal
+.writeDifferenceFirstConfig <- function(difSelection, mode, configDir, sectors) {
+  if (is.null(difSelection)) return(NULL)
+  entries <- list()
+  for (stg in names(difSelection)) {
+    d <- difSelection[[stg]]
+    cfg <- d$chosenConfigLevels
+    if (is.null(cfg) || is.na(d$chosen)) next
+    fr <- d$falsification
+    baseName <- if (!is.null(d$chosenBase) && !is.na(d$chosenBase)) d$chosenBase else d$chosen
+    frRow <- if (!is.null(fr)) fr[fr$model == baseName, , drop = FALSE] else NULL
+    for (sec in sectors) {
+      e <- cfg
+      e$name <- paste0(d$chosen, " [DIF->levels]")
+      e$panelTransform <- "levels"
+      e$model_type <- paste0(stg, ": ", sec)
+      e$description <- paste0(
+        "Difference-First / Dynamic Identification First (channels-", mode, ", ",
+        format(Sys.Date()), "): hybridFD maximin winner that passed the Falsification ",
+        "Gate (", if (!is.null(frRow) && nrow(frRow)) frRow$reason[1] else "AP persists / IQ vanishes",
+        "), re-estimated in LEVELS for projection with FE = ",
+        if (!is.null(d$chosenFE) && !is.na(d$chosenFE)) d$chosenFE else "H12",
+        " (chosen by the levels Projection Sanity gate; ADR 0014)."
+      )
+      entries[[length(entries) + 1L]] <- e
+    }
+  }
+  out <- file.path(configDir, paste0("selected-models-channels-", mode, "-difference-first.yml"))
+  header <- paste0(
+    "# PFM Selected Models - Difference-First / Dynamic Identification First (", mode, ") - ",
+    format(Sys.Date()), "\n",
+    "# GENERATED by pfm::runChannelsWorkflow(selectionMethod = 'difference-first') - ADR 0014.\n",
+    "# hybridFD maximin -> Falsification Gate (pureFD) -> estimated in LEVELS for projection.\n\n"
+  )
+  writeLines(paste0(header, yaml::as.yaml(entries, indent.mapping.sequence = TRUE)), out)
+  out
+}
+
 # Internal: renders the redesigned pure-consumer reports (ADR 0006);
 # returns named exit codes.
 #' @keywords internal
 .renderChannelReports <- function(reportsDir, mode, rdsPath, selectedConfigPath,
-                                  verbose = TRUE) {
+                                  verbose = TRUE, robustness = TRUE) {
   oldwd <- setwd(reportsDir)
   on.exit(setwd(oldwd), add = TRUE)
   logDir <- file.path(reportsDir, "output", "logs")
@@ -639,6 +716,18 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
       paste0("--reportName=channels-", mode),
       paste0("--theoryConfig=", selectedConfigPath)
     )))
+    # Robustness report (ADR 0012): build the artifact (Robustness Ladder, parsimony
+    # frontier, control specification-curve — heavy, hence a separate build step) then
+    # render the pure-consumer report. Skipped via robustness = FALSE.
+    if (isTRUE(robustness) &&
+        file.exists(file.path(reportsDir, "build-robustness.R")) &&
+        file.exists(file.path(reportsDir, "reports", "robustness", "run.R"))) {
+      status <- c(status, `robustness-build` = runOne("build-robustness", "build-robustness.R"))
+      status <- c(status, robustness = runOne("robustness", c(
+        "reports/robustness/run.R",
+        paste0("--reportName=channels-", mode)
+      )))
+    }
   }
   status
 }

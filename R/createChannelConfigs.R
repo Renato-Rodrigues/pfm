@@ -177,12 +177,22 @@ channelSpecs <- function(mode = c("guided", "exhaustive")) {
   # FE axis applies to LEVELS specs only (FD transforms difference region effects
   # out). Mundlak = within-region group means instead of dummies (fe = NULL,
   # useMundlak = TRUE).
+  # Candidate set restricted to the defensible block-FE strategies (ADR 0011, revised
+  # 2026-06-19 per FULL_RERUN_DECISIONS #10 / Discussion 2): `noFE` (pooled -> omitted-
+  # variable bias) and `FE54` (54 region dummies -> quasi-separation / degenerate inflated
+  # deltaR2) are NOT swept as maximin candidates; they are fit separately only as labelled
+  # bias-variance baselines. This shrinks the candidate space and the multiple-comparisons
+  # exposure and removes the circular "include a degenerate option then gate it out".
   feLevels <- list(
-    "noFE"    = list(fe = NULL,                         mundlak = FALSE),
     "H12"     = list(fe = "regionmappingH12.csv",       mundlak = FALSE),
     "OECDp"   = list(fe = "regionmapping_EU_OECDp.csv", mundlak = FALSE),
-    "FE54"    = list(fe = "regionmapping_54.csv",       mundlak = FALSE),
     "Mundlak" = list(fe = NULL,                         mundlak = TRUE)
+  )
+  # Reported baselines only (not crossed with the IQ x AP x control grid; not in the
+  # maximin pool). Generation of the baseline fits is a follow-up (see ADR 0011).
+  feBaselines <- list(
+    "noFE" = list(fe = NULL,                   mundlak = FALSE),
+    "FE54" = list(fe = "regionmapping_54.csv", mundlak = FALSE)
   )
 
   specs <- list()

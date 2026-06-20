@@ -38,6 +38,11 @@
 #' @param modelDir Character or NULL. Directory for saving/loading \code{PFMModel}
 #'   files. Defaults to \code{getOption("pfm.modelDir", NULL)}. Set to \code{NULL}
 #'   to disable persistence (default when the option is not set).
+#' @param updateIndex Logical. Forwarded to \code{\link{savePFMModel}}; when \code{FALSE}
+#'   the fit is written to disk but the shared \code{index.json} is not touched (parallel
+#'   sweep workers pass \code{FALSE}; the master rebuilds the index once — ADR 0019).
+#' @param ignoreCache Logical. When \code{TRUE}, skip the cache read and always re-estimate
+#'   (forceRefit), overwriting any stale fit on disk. Default \code{FALSE}.
 #' @param label Character. Optional human label stored in the saved model manifest.
 #' @param verbose Logical. If \code{TRUE} (default), prints progress messages when
 #'   loading from cache or estimating.
@@ -117,6 +122,8 @@ estimateAdoptionModel <- function(
     includeLaggedAdoption = FALSE,
     interactRegionFE = FALSE,
     modelDir = getOption("pfm.modelDir", NULL),
+    updateIndex = TRUE,
+    ignoreCache = FALSE,
     label = "",
     verbose = TRUE,
     maxit = 3000,
@@ -195,27 +202,38 @@ estimateAdoptionModel <- function(
   )
 
   # --- 3b. Cache check: return saved model if formula + data unchanged ---
-  if (!is.null(modelDir)) {
+  # A truncated/corrupt cached fit (e.g. a parallel worker killed mid-write, ADR 0019) is
+  # treated as a cache miss and refit, rather than propagating a load error. ignoreCache
+  # (forceRefit) skips the read entirely and re-estimates, overwriting any stale fit.
+  if (!is.null(modelDir) && !isTRUE(ignoreCache)) {
     ids <- computeModelId(fml, df)
     cachedPath <- file.path(modelDir, "models", paste0(ids[["id"]], ".rds"))
     if (file.exists(cachedPath)) {
-      if (isTRUE(verbose)) {
-        message("  [cache hit] Loading adoption model ", ids[["id"]], " from disk.")
+      cachedResult <- tryCatch({
+        cached <- loadPFMModel(ids[["id"]], modelDir)
+        result <- list(
+          model    = .rehydrateFitForConsumers(cached$model, df, fml, "adoption"),
+          coeftest = cached$coeftest,
+          vcov     = cached$vcov,
+          sector   = sector,
+          formula  = fml,
+          data     = df
+        )
+        .appendAdoptionDiagnostics(
+          result, df, compute, sweepVars,
+          actorPowerDrivers, actorPowerIndex, instQualityDrivers, controlDrivers
+        )
+      }, error = function(e) {
+        warning("estimateAdoptionModel: cached fit '", ids[["id"]],
+                "' unreadable (", conditionMessage(e), "); refitting.", call. = FALSE)
+        NULL
+      })
+      if (!is.null(cachedResult)) {
+        if (isTRUE(verbose)) {
+          message("  [cache hit] Loading adoption model ", ids[["id"]], " from disk.")
+        }
+        return(cachedResult)
       }
-      cached <- loadPFMModel(ids[["id"]], modelDir)
-      result <- list(
-        model    = .rehydrateFitForConsumers(cached$model, df, fml, "adoption"),
-        coeftest = cached$coeftest,
-        vcov     = cached$vcov,
-        sector   = sector,
-        formula  = fml,
-        data     = df
-      )
-      result <- .appendAdoptionDiagnostics(
-        result, df, compute, sweepVars,
-        actorPowerDrivers, actorPowerIndex, instQualityDrivers, controlDrivers
-      )
-      return(result)
     }
   }
 
@@ -332,7 +350,7 @@ estimateAdoptionModel <- function(
         panelTransform            = panelTransform
       )
     )
-    savePFMModel(pfmModel, modelDir)
+    savePFMModel(pfmModel, modelDir, updateIndex = updateIndex)
     if (isTRUE(verbose)) {
       message("  [saved] Adoption model ", pfmModel$id, " -> ", modelDir)
     }

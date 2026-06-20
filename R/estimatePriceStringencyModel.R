@@ -47,6 +47,11 @@
 #' @param modelDir Character or NULL. Directory for saving/loading \code{PFMModel}
 #'   files. Defaults to \code{getOption("pfm.modelDir", NULL)}. Set to \code{NULL}
 #'   to disable persistence.
+#' @param updateIndex Logical. Forwarded to \code{\link{savePFMModel}}; when \code{FALSE}
+#'   the fit is written to disk but the shared \code{index.json} is not touched (parallel
+#'   sweep workers pass \code{FALSE}; the master rebuilds the index once — ADR 0019).
+#' @param ignoreCache Logical. When \code{TRUE}, skip the cache read and always re-estimate
+#'   (forceRefit), overwriting any stale fit on disk. Default \code{FALSE}.
 #' @param label Character. Optional human label stored in the saved model manifest.
 #' @param verbose Logical. If \code{TRUE} (default), prints progress messages when
 #'   loading from cache or estimating.
@@ -121,6 +126,8 @@ estimatePriceStringencyModel <- function(
     includeLaggedECP = FALSE,
     interactRegionFE = FALSE,
     modelDir = getOption("pfm.modelDir", NULL),
+    updateIndex = TRUE,
+    ignoreCache = FALSE,
     label = "",
     verbose = TRUE,
     maxit = 3000,
@@ -240,44 +247,55 @@ estimatePriceStringencyModel <- function(
   # so fold it into the cache key (alongside family) to avoid reusing an
   # uncorrected fit for a corrected spec.
   cacheExtra <- paste0(family, if (isTRUE(nickellCorrection)) "+nickellSPJ" else "")
-  if (!is.null(modelDir)) {
+  # ignoreCache (forceRefit) skips the cache read and re-estimates, overwriting any stale fit.
+  if (!is.null(modelDir) && !isTRUE(ignoreCache)) {
     ids <- computeModelId(fml, df, extra = cacheExtra)
     cachedPath <- file.path(modelDir, "models", paste0(ids[["id"]], ".rds"))
     if (file.exists(cachedPath)) {
-      if (isTRUE(verbose)) {
-        message("  [cache hit] Loading stringency model ", ids[["id"]], " from disk.")
-      }
-      cached <- loadPFMModel(ids[["id"]], modelDir)
-      cached_result <- list(
-        model    = .rehydrateFitForConsumers(cached$model, df, fml, "ecp"),
-        coeftest = cached$coeftest,
-        vcov     = cached$vcov,
-        sector   = sector,
-        family   = family,
-        formula  = fml,
-        data     = df
-      )
-      # Restore VIF from model store; fall back to computing from the formula
-      cached_vif <- cached$diagnostics$vif
-      if (!is.null(cached_vif) && length(cached_vif$values) > 0) {
-        cached_result$vifRaw    <- cached_vif$values
-        cached_result$maxVIF    <- cached_vif$maxVIF
-        cached_result$highVIF   <- cached_vif$highVIF
-        cached_result$vifFlagged <- cached_vif$flagged %||% character(0)
-      } else {
-        vifRes <- tryCatch(computeVIF(data = df, formula = fml), error = function(e) NULL)
-        if (!is.null(vifRes)) {
-          cached_result$vifRaw    <- vifRes$values
-          cached_result$maxVIF    <- vifRes$maxVIF
-          cached_result$highVIF   <- vifRes$highVIF
-          cached_result$vifFlagged <- vifRes$flagged %||% character(0)
+      # A truncated/corrupt cached fit is treated as a cache miss and refit (ADR 0019).
+      cached_result <- tryCatch({
+        cached <- loadPFMModel(ids[["id"]], modelDir)
+        cr <- list(
+          model    = .rehydrateFitForConsumers(cached$model, df, fml, "ecp"),
+          coeftest = cached$coeftest,
+          vcov     = cached$vcov,
+          sector   = sector,
+          family   = family,
+          formula  = fml,
+          data     = df
+        )
+        # Restore VIF from model store; fall back to computing from the formula
+        cached_vif <- cached$diagnostics$vif
+        if (!is.null(cached_vif) && length(cached_vif$values) > 0) {
+          cr$vifRaw    <- cached_vif$values
+          cr$maxVIF    <- cached_vif$maxVIF
+          cr$highVIF   <- cached_vif$highVIF
+          cr$vifFlagged <- cached_vif$flagged %||% character(0)
+        } else {
+          vifRes <- tryCatch(computeVIF(data = df, formula = fml), error = function(e) NULL)
+          if (!is.null(vifRes)) {
+            cr$vifRaw    <- vifRes$values
+            cr$maxVIF    <- vifRes$maxVIF
+            cr$highVIF   <- vifRes$highVIF
+            cr$vifFlagged <- vifRes$flagged %||% character(0)
+          }
         }
+        cr$predictiveDiagnostics <- tryCatch(
+          computePredictiveDiagnostics(cr$model, stage = "stringency"),
+          error = function(e) NULL
+        )
+        cr
+      }, error = function(e) {
+        warning("estimatePriceStringencyModel: cached fit '", ids[["id"]],
+                "' unreadable (", conditionMessage(e), "); refitting.", call. = FALSE)
+        NULL
+      })
+      if (!is.null(cached_result)) {
+        if (isTRUE(verbose)) {
+          message("  [cache hit] Loading stringency model ", ids[["id"]], " from disk.")
+        }
+        return(cached_result)
       }
-      cached_result$predictiveDiagnostics <- tryCatch(
-        computePredictiveDiagnostics(cached_result$model, stage = "stringency"),
-        error = function(e) NULL
-      )
-      return(cached_result)
     }
   }
 
@@ -431,7 +449,7 @@ estimatePriceStringencyModel <- function(
         logTransform              = logTransform
       )
     )
-    savePFMModel(pfmModel, modelDir)
+    savePFMModel(pfmModel, modelDir, updateIndex = updateIndex)
     if (isTRUE(verbose)) {
       message("  [saved] Stringency model ", pfmModel$id, " -> ", modelDir)
     }

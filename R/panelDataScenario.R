@@ -155,31 +155,30 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   # PCA will be added after harmonization (rotation populated by panelDataHistorical call below)
 
   # Control Variables
-  pop <- calcOutput("Population",
-    scenario = c("SSP1", "SSP2", "SSP3", "SSP4", "SSP5"),
+  # SSP2 GDP/Population (mrdrivers): one harmonized series (history + projection, 1960-2150)
+  # used for BOTH the future trajectory and the historical normalization reference, so training
+  # and scenario share a single source. Keep the "SSP2" name for the downstream [,,"SSP2"] slices.
+  pop <- calcOutput("Population", scenario = "SSP2",
     aggregate = aggregate, regionmapping = outputRegionMappingFile
   )
-  gdp <- calcOutput("GDP",
-    scenario = c("SSP1", "SSP2", "SSP3", "SSP4", "SSP5"),
+  gdp <- calcOutput("GDP", scenario = "SSP2", average2020 = FALSE,
     aggregate = aggregate, regionmapping = outputRegionMappingFile
   )
-  gdpPerCapita <- magclass::collapseNames(
-    gdp[, intersect(getYears(pop), getYears(gdp)), ] /
-      pop[, intersect(getYears(pop), getYears(gdp)), ]
-  )
-  # Log-scale bounds from historical regional data — same reference as historical panel so the
-  # model receives inputs on the same scale it was trained on; clamp since long-run projections
-  # may mildly exceed the historical maximum in log space
-  popHist  <- calcOutput("PopulationPast", aggregate = aggregate, regionmapping = outputRegionMappingFile)
-  gdpHist  <- calcOutput("GDPPast", aggregate = aggregate, regionmapping = outputRegionMappingFile)
-  gdpPCHist <- magclass::collapseNames(
-    gdpHist[, intersect(getYears(gdpHist), getYears(popHist)), ] /
-      popHist[, intersect(getYears(gdpHist), getYears(popHist)), ]
-  )
-  popLogMin   <- min(log(popHist), na.rm = TRUE)
-  popLogMax   <- max(log(popHist), na.rm = TRUE)
-  gdpLogMin   <- min(log(gdpHist), na.rm = TRUE)
-  gdpLogMax   <- max(log(gdpHist), na.rm = TRUE)
+  gdpPerCapita <- gdp[, intersect(getYears(pop), getYears(gdp)), ] /
+    pop[, intersect(getYears(pop), getYears(gdp)), ]
+  # Log-scale bounds from the HISTORICAL window of the same SSP2 series (anchor = WGI horizon),
+  # so the model receives inputs on the same scale it was trained on and future values clamp to
+  # the historical max. (For an exact training/scenario seam, train the historical panel to the
+  # same horizon; the bounds are a linear transform so model tiers/significance are unaffected.)
+  .histEnd <- max(getYears(wgi, as.integer = TRUE))
+  popH  <- pop[, getYears(pop, as.integer = TRUE) <= .histEnd, ]
+  gdpH  <- gdp[, getYears(gdp, as.integer = TRUE) <= .histEnd, ]
+  gdpPCHist <- gdpH[, intersect(getYears(gdpH), getYears(popH)), ] /
+    popH[, intersect(getYears(gdpH), getYears(popH)), ]
+  popLogMin   <- min(log(popH), na.rm = TRUE)
+  popLogMax   <- max(log(popH), na.rm = TRUE)
+  gdpLogMin   <- min(log(gdpH), na.rm = TRUE)
+  gdpLogMax   <- max(log(gdpH), na.rm = TRUE)
   gdpPCLogMin <- min(log(gdpPCHist), na.rm = TRUE)
   gdpPCLogMax <- max(log(gdpPCHist), na.rm = TRUE)
   popNorm          <- toolNormalize(log(pop), minVal = popLogMin, maxVal = popLogMax, targetRange = c(0, 1), clamp = TRUE)
@@ -195,7 +194,9 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   landAreaNorm   <- toolNormalize(log(landArea), minVal = landAreaLogMin, maxVal = landAreaLogMax, targetRange = c(0, 1))
   # IEA energy intensity — log1p; fixed ceiling consistent with historical panel;
   # future intensity only falls so upper breach is not a concern
-  energyIntensity <- modelDownscale[, y, "fe_total"] * 31.536 / (gdp[, y, ] / 1e6) # (EJ / million US$)
+  energyIntensity <- setNames(
+    magclass::collapseNames(modelDownscale[, y, "fe_total"]) * 31.536 /
+      (magclass::collapseNames(gdp[, y, ]) / 1e6), "SSP2") # (EJ / million US$)
   energyIntensityNorm <- toolNormalize(log1p(energyIntensity), minVal = 0, maxVal = log1p(600), targetRange = c(0, 1))
 
   out <- mbind(

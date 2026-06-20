@@ -61,6 +61,12 @@ computeTheoryTier <- function(sigActorPower, sigInstQual, sigInteractions) {
 #'   whose overall pseudo-R² falls outside this band is rejected. Default \code{NULL}
 #'   (off) — enable (e.g. \code{c(0, 1)}) for stages where a negative pseudo-R²
 #'   genuinely signals degeneracy.
+#' @param nearTieEps Numeric. BIC parsimony tie-break tolerance (ADR 0012). Among
+#'   gate-passing specs of the same worse-sector tier, those whose mean
+#'   \eqn{\Delta R^2}(theory) is within \code{nearTieEps} of the running leader are
+#'   treated as theory-equivalent and ranked by lowest summed BIC (most parsimonious)
+#'   first; requires a \code{bic} column in \code{df}. Default \code{0.05}; set
+#'   \code{0} to disable and fall back to pure tier → \eqn{\Delta R^2} ordering.
 #'
 #' @return Data.frame with one row per model, ordered best-first:
 #'   \code{model, minTier, meanDeltaR2, minDeltaR2, tierBySector, deltaR2BySector,
@@ -72,7 +78,8 @@ computeTheoryTier <- function(sigActorPower, sigInstQual, sigInteractions) {
 #'
 #' @export
 #' @author Renato Rodrigues
-computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range = NULL) {
+computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range = NULL,
+                                nearTieEps = 0.05) {
   required <- c("model", "sector", "sigActorPower", "sigInstQual",
                 "sigInteractions", "deltaR2Theory", "maxVIF", "converged")
   missingCols <- setdiff(required, colnames(df))
@@ -137,6 +144,7 @@ computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range 
       minTier = names(tierRank)[match(minTierRank, tierRank)],
       meanDeltaR2 = mean(m$deltaR2Theory, na.rm = TRUE),
       minDeltaR2 = suppressWarnings(min(m$deltaR2Theory, na.rm = TRUE)),
+      sumBIC = if ("bic" %in% colnames(m)) sum(m$bic) else NA_real_,
       tierBySector = paste(paste0(names(tierVec), ": ", tierVec), collapse = "; "),
       deltaR2BySector = paste(paste0(names(dr2Vec), ": ", round(dr2Vec, 3)), collapse = "; "),
       gatePass = length(failReasons) == 0,
@@ -147,9 +155,34 @@ computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range 
   out <- do.call(rbind, rows)
   rownames(out) <- NULL
 
-  # Order: gate pass first, then worse-sector tier, then mean deltaR2(theory)
+  # Base order: gate pass, worse-sector tier, mean deltaR2(theory), then name.
   out <- out[order(-out$gatePass, -tierRank[out$minTier],
                    -out$meanDeltaR2, out$model), , drop = FALSE]
+  rownames(out) <- NULL
+
+  # BIC parsimony tie-break (ADR 0012): within gate-passing specs of the same tier,
+  # treat those whose meanDeltaR2(theory) is within nearTieEps of the running leader as
+  # theory-equivalent and rank the most parsimonious (lowest summed BIC) first. Falls
+  # back to the pure tier->deltaR2 order when BIC is unavailable or nearTieEps == 0.
+  haveBIC <- "sumBIC" %in% colnames(out) && any(is.finite(out$sumBIC))
+  if (haveBIC && nearTieEps > 0) {
+    bicKey <- ifelse(is.finite(out$sumBIC), out$sumBIC, Inf)
+    placed <- integer(0)
+    remaining <- which(out$gatePass)            # already tier->deltaR2 ordered
+    while (length(remaining) > 0) {
+      lead <- remaining[1]
+      dl <- out$meanDeltaR2[lead]
+      band <- if (is.na(dl)) lead else
+        remaining[out$minTier[remaining] == out$minTier[lead] &
+                    !is.na(out$meanDeltaR2[remaining]) &
+                    out$meanDeltaR2[remaining] >= dl - nearTieEps]
+      band <- band[order(bicKey[band], out$model[band])]   # parsimony, then name
+      placed <- c(placed, band)
+      remaining <- setdiff(remaining, band)
+    }
+    out <- out[c(placed, which(!out$gatePass)), , drop = FALSE]
+    rownames(out) <- NULL
+  }
   out$rank <- seq_len(nrow(out))
   rownames(out) <- NULL
   out

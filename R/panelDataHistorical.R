@@ -138,9 +138,18 @@ panelDataHistorical <- function(aggregate = TRUE,
   scPC <- computeVDemStateCapacityPC(scNorm[, y, ])
   if (!is.null(scPC)) out <- mbind(out, scPC)
 
-  # Control Variables
-  pop <- calcOutput("PopulationPast", aggregate = aggregate, regionmapping = outputRegionMappingFile)
-  gdp <- calcOutput("GDPPast", aggregate = aggregate, regionmapping = outputRegionMappingFile)
+  # Control Variables — SSP2 GDP/Population (mrdrivers). These return a single harmonized
+  # series spanning history + projection (1960-2150, yearly), which gives recent historical
+  # years (incl. 2024) that the *Past variants lacked. Restrict to the historical/training
+  # window so the log min/max normalization bounds (reused as the projection clamp) are not
+  # distorted by projected future values.
+  .histEnd <- max(as.integer(gsub("y", "", as.character(y))))
+  pop <- magclass::collapseNames(calcOutput("Population", scenario = "SSP2",
+    aggregate = aggregate, regionmapping = outputRegionMappingFile))
+  gdp <- magclass::collapseNames(calcOutput("GDP", scenario = "SSP2", average2020 = FALSE,
+    aggregate = aggregate, regionmapping = outputRegionMappingFile))
+  pop <- pop[, getYears(pop, as.integer = TRUE) <= .histEnd, ]
+  gdp <- gdp[, getYears(gdp, as.integer = TRUE) <= .histEnd, ]
   gdpPerCapita <- magclass::collapseNames(
     gdp[, intersect(getYears(pop), getYears(gdp)), ] /
       pop[, intersect(getYears(pop), getYears(gdp)), ]

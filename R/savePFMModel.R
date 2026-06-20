@@ -22,18 +22,22 @@ NULL
 #'
 #' @param model A \code{PFMModel} object.
 #' @param dir Character. Directory to write to. Defaults to \code{getOption("pfm.modelDir")}.
+#' @param updateIndex Logical. When \code{TRUE} (default) the shared \code{index.json} is
+#'   updated after writing \code{{id}.rds}. Parallel sweep workers pass \code{FALSE} so they
+#'   only write their (unique) \code{.rds} and never race on the index; the master then calls
+#'   \code{\link{rebuildPFMModelIndex}} once after the run (ADR 0019).
 #'
 #' @importFrom jsonlite fromJSON write_json
 #' @return \code{model} invisibly.
 #' @export
-savePFMModel <- function(model, dir = getOption("pfm.modelDir")) {
+savePFMModel <- function(model, dir = getOption("pfm.modelDir"), updateIndex = TRUE) {
   stopifnot(inherits(model, "PFMModel"))
   if (is.null(dir)) stop("Supply 'dir' or set options(pfm.modelDir = '...')", call. = FALSE)
   modelsDir <- file.path(dir, "models")
   dir.create(modelsDir, showWarnings = FALSE, recursive = TRUE)
 
   saveRDS(model, file = file.path(modelsDir, paste0(model$id, ".rds")))
-  .updatePFMModelIndex(model, dir)
+  if (isTRUE(updateIndex)) .updatePFMModelIndex(model, dir)
   invisible(model)
 }
 
@@ -125,14 +129,13 @@ listPFMModels <- function(dir = getOption("pfm.modelDir")) {
   idx
 }
 
-.updatePFMModelIndex <- function(model, dir) {
-  idxPath <- file.path(dir, "index.json")
-
+# Internal: build the one-row index data.frame for a single PFMModel.
+#' @keywords internal
+.pfmModelIndexEntry <- function(model) {
   null2na <- function(val, default = NA) {
     if (is.null(val) || length(val) == 0) default else val
   }
-
-  entry <- data.frame(
+  data.frame(
     id              = null2na(model$id, ""),
     id_full         = null2na(model$id_full, ""),
     created_at      = null2na(model$created_at, ""),
@@ -158,6 +161,11 @@ listPFMModels <- function(dir = getOption("pfm.modelDir")) {
     has_projections = !is.null(model$projections),
     stringsAsFactors = FALSE
   )
+}
+
+.updatePFMModelIndex <- function(model, dir) {
+  idxPath <- file.path(dir, "index.json")
+  entry <- .pfmModelIndexEntry(model)
 
   existing <- if (file.exists(idxPath)) {
     tryCatch(jsonlite::fromJSON(idxPath, simplifyDataFrame = TRUE), error = function(e) data.frame())
@@ -184,4 +192,43 @@ listPFMModels <- function(dir = getOption("pfm.modelDir")) {
 
   jsonlite::write_json(updated, idxPath, pretty = TRUE, auto_unbox = TRUE)
   invisible(NULL)
+}
+
+#' Rebuild \code{index.json} by scanning the model store
+#'
+#' Reconstructs \code{{dir}/index.json} from every \code{{dir}/models/*.rds} fit on disk.
+#' This is the repair/migration counterpart to \code{savePFMModel(updateIndex = FALSE)}:
+#' parallel sweep workers write their \code{.rds} files without touching the index (ADR 0019),
+#' and the index is rebuilt once afterwards. It also recovers the index after an interrupted
+#' run, since the \code{.rds} fits are the source of truth. Unreadable/truncated \code{.rds}
+#' files (e.g. a worker killed mid-write) are skipped with a warning.
+#'
+#' @param dir Character. Cache root. Defaults to \code{getOption("pfm.modelDir")}.
+#' @return The rebuilt index as a \code{data.frame}, invisibly.
+#' @importFrom jsonlite write_json
+#' @export
+rebuildPFMModelIndex <- function(dir = getOption("pfm.modelDir")) {
+  if (is.null(dir)) stop("Supply 'dir' or set options(pfm.modelDir = '...')", call. = FALSE)
+  modelsDir <- file.path(dir, "models")
+  idxPath <- file.path(dir, "index.json")
+  rds <- if (dir.exists(modelsDir)) {
+    list.files(modelsDir, pattern = "\\.rds$", full.names = TRUE)
+  } else {
+    character(0)
+  }
+  entries <- list()
+  nBad <- 0L
+  for (f in rds) {
+    m <- tryCatch(readRDS(f), error = function(e) NULL)
+    if (is.null(m) || !inherits(m, "PFMModel")) {
+      nBad <- nBad + 1L
+      warning("rebuildPFMModelIndex: skipping unreadable/invalid fit '", basename(f), "'")
+      next
+    }
+    entries[[length(entries) + 1L]] <- .pfmModelIndexEntry(m)
+  }
+  idx <- if (length(entries) > 0) do.call(rbind, entries) else data.frame()
+  jsonlite::write_json(idx, idxPath, pretty = TRUE, auto_unbox = TRUE)
+  if (nBad > 0) message("rebuildPFMModelIndex: ", nBad, " unreadable fit(s) skipped.")
+  invisible(idx)
 }
