@@ -21,7 +21,7 @@
 #'   \code{SLURM_CPUS_PER_TASK} when set, else \code{parallel::detectCores() - 1}.
 #' @param cluster \code{"auto"} (default), \code{"slurm"}, or \code{"local"}.
 #' @param time,qos,partition,account,mem,chdir SLURM directives (PIK defaults: 24h / short /
-#'   standard / default account / node-default mem / \code{/p/tmp/$USER/pfm-runs/<group>}).
+#'   standard / default account / node-default mem / \code{resultsDir/<group>}).
 #' @param reportsDir Character or NULL. pfm-reports root, used only when \code{render = TRUE}.
 #' @param render Logical. After the run, shell out to render the pfm-reports outputs for the
 #'   group (requires \code{reportsDir}). Default \code{FALSE}.
@@ -136,7 +136,7 @@ startRun <- function(group,
   resultsDir <- abspath(resultsDir); cacheDir <- abspath(cacheDir)
   gdxFile <- abspath(gdxFile); reportsDir <- abspath(reportsDir)
   user <- Sys.getenv("USER", Sys.getenv("USERNAME", "user"))
-  if (is.null(chdir)) chdir <- file.path("/p/tmp", user, "pfm-runs", group)
+  if (is.null(chdir)) chdir <- file.path(resultsDir, group)
   dir.create(chdir, showWarnings = FALSE, recursive = TRUE)         # must exist before sbatch
   dir.create(file.path(resultsDir, group), showWarnings = FALSE, recursive = TRUE)
 
