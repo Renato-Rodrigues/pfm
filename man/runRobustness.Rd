@@ -7,7 +7,8 @@
 runRobustness(
   group,
   resultsDir = getOption("pfm.resultsDir", NULL),
-  cacheDir = getOption("pfm.modelDir", NULL),
+  modelDir = getOption("pfm.modelDir", NULL),
+  cachefolder = NULL,
   panelData = NULL,
   quick = FALSE,
   loro = TRUE,
@@ -17,7 +18,7 @@ runRobustness(
 )
 }
 \arguments{
-\item{group, resultsDir, cacheDir}{Run-Group locators (see \code{\link{runSweep}}).}
+\item{group, resultsDir, modelDir}{Run-Group locators (see \code{\link{runSweep}}).}
 
 \item{panelData}{Optional pre-built panel; built via \code{panelDataHistorical} when NULL.}
 

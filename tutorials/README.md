@@ -14,7 +14,8 @@ live with it.
 ```r
 library(pfm)
 runModelGroup("exhaustive", mode = "exhaustive", nCores = 128,
-              resultsDir = "results", cacheDir = "cache", gdxFile = "data/fulldata.gdx")
+              resultsDir = "../output", modelDir = "../output",
+              cachefolder = "../data/cache", gdxFile = "../data/fulldata.gdx")
 ```
 
 This builds the panel (from the madrat cache), runs the sweep + selection, and the robustness /

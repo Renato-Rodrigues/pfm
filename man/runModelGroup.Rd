@@ -8,7 +8,8 @@ runModelGroup(
   group,
   steps = c("sweep", "robustness", "temporal", "subnational"),
   resultsDir = getOption("pfm.resultsDir", NULL),
-  cacheDir = getOption("pfm.modelDir", NULL),
+  modelDir = getOption("pfm.modelDir", NULL),
+  cachefolder = NULL,
   gdxFile = NULL,
   mode = c("exhaustive", "guided"),
   selectionMethod = c("levels-first", "difference-first"),
@@ -21,11 +22,18 @@ runModelGroup(
 \arguments{
 \item{group}{Character. Run-Group name.}
 
-\item{steps}{Character vector subset of \code{c("sweep","robustness","temporal","subnational")}.}
+\item{steps}{Character vector subset of \code{c("sweep","robustness","temporal",
+"subnational","difference-first")}. Default is the first four (the standard pipeline);
+\code{"difference-first"} is recognised but off by default (the ADR 0014 alternative
+selection comparison, a post-hoc consumer of the sweep).}
 
-\item{resultsDir, cacheDir}{Configurable Results Root / Fit Cache.}
+\item{resultsDir, modelDir}{Configurable Results Root / Fit Cache (the ADR 0009 model store).}
 
-\item{gdxFile}{Character or NULL. Scenario gdx (forwarded to the sweep).}
+\item{cachefolder}{Character or NULL. The \strong{madrat} data-cache folder (distinct from
+\code{modelDir}); set on madrat for every step when non-NULL.}
+
+\item{gdxFile}{Character or NULL. Scenario gdx (forwarded to the sweep and to
+difference-first's FE-by-sanity choice).}
 
 \item{mode, selectionMethod, nCores, forceRefit}{Forwarded to \code{\link{runSweep}}.}
 
@@ -43,5 +51,5 @@ order, each writing its artifact into \code{<resultsDir>/<group>/}. \code{"sweep
 }
 \seealso{
 \code{\link{runSweep}}, \code{\link{runRobustness}}, \code{\link{runTemporalSplit}},
-\code{\link{runSubnational}}, ADR 0018
+\code{\link{runSubnational}}, \code{\link{runDifferenceFirst}}, ADR 0018
 }

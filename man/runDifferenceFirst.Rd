@@ -7,7 +7,8 @@
 runDifferenceFirst(
   group,
   resultsDir = getOption("pfm.resultsDir", NULL),
-  cacheDir = getOption("pfm.modelDir", NULL),
+  modelDir = getOption("pfm.modelDir", NULL),
+  cachefolder = NULL,
   gdxFile = NULL,
   panelData = NULL,
   scenarioData = NULL,
@@ -18,7 +19,7 @@ runDifferenceFirst(
 )
 }
 \arguments{
-\item{group, resultsDir, cacheDir}{Run-Group locators.}
+\item{group, resultsDir, modelDir}{Run-Group locators.}
 
 \item{gdxFile}{Character or NULL. Scenario gdx (enables the levels FE-by-sanity choice).}
 

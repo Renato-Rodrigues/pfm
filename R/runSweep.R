@@ -14,8 +14,12 @@
 #' @param mode Character. \code{"exhaustive"} or \code{"guided"}. Default \code{"exhaustive"}.
 #' @param resultsDir Character. Results Root (configurable). Default
 #'   \code{getOption("pfm.resultsDir")}. The Run-Group is \code{file.path(resultsDir, group)}.
-#' @param cacheDir Character. Fit Cache root (configurable). Default
-#'   \code{getOption("pfm.modelDir")}; also set as \code{options(pfm.modelDir=)} for the run.
+#' @param modelDir Character. Fit Cache root (configurable; ADR 0009 model store — distinct
+#'   from the madrat \code{cachefolder}). Default \code{getOption("pfm.modelDir")}; also set as
+#'   \code{options(pfm.modelDir=)} for the run.
+#' @param cachefolder Character or NULL. The \strong{madrat} data-cache folder. When non-NULL,
+#'   \code{madrat::setConfig(cachefolder = ...)} so the panel/CarbonPrice load from there. NULL
+#'   (default) leaves the ambient madrat config untouched (only \code{forcecache} is set).
 #' @param gdxFile Character or NULL. REMIND \code{fulldata.gdx} for the scenario panel
 #'   (enables the Projection Sanity gate). When NULL/missing, the gate is skipped.
 #' @param panelData,scenarioData Optional pre-built panels (skip the build step).
@@ -38,7 +42,8 @@
 runSweep <- function(group,
                      mode = c("exhaustive", "guided"),
                      resultsDir = getOption("pfm.resultsDir", NULL),
-                     cacheDir = getOption("pfm.modelDir", NULL),
+                     modelDir = getOption("pfm.modelDir", NULL),
+                     cachefolder = NULL,
                      gdxFile = NULL,
                      panelData = NULL,
                      scenarioData = NULL,
@@ -64,15 +69,15 @@ runSweep <- function(group,
 
   # Compute layer runs offline from the madrat cache (the panels/CarbonPrice load by
   # args-hash). forcecache makes that the default so `library(pfm); runSweep(...)` works
-  # without the raw sources present.
-  madrat::setConfig(forcecache = TRUE)
+  # without the raw sources present; cachefolder (when given) points madrat at the data cache.
+  .useMadratCache(cachefolder)
   t0 <- Sys.time()
 
   groupDir <- file.path(resultsDir, group)
   dir.create(groupDir, showWarnings = FALSE, recursive = TRUE)
-  if (!is.null(cacheDir)) {
-    dir.create(cacheDir, showWarnings = FALSE, recursive = TRUE)
-    options(pfm.modelDir = cacheDir)
+  if (!is.null(modelDir)) {
+    dir.create(modelDir, showWarnings = FALSE, recursive = TRUE)
+    options(pfm.modelDir = modelDir)
   }
 
   # Historical panel — built the same way the report driver did (+ GDP^2 column).
@@ -92,7 +97,7 @@ runSweep <- function(group,
   }
   # Store the shared Training Panel once (content-addressed) so the fits saved this run
   # reference it by hash rather than embedding their own copy (ADR 0009).
-  if (!is.null(cacheDir)) saveTrainingPanel(panelData, dir = cacheDir)
+  if (!is.null(modelDir)) saveTrainingPanel(panelData, dir = modelDir)
 
   # Scenario panel — optional; enables the Projection Sanity selection gate.
   if (is.null(scenarioData) && !is.null(gdxFile) && file.exists(gdxFile)) {
@@ -111,7 +116,7 @@ runSweep <- function(group,
   # written into the Run-Group via configDir.
   res <- runChannelsWorkflow(
     mode = mode, panelData = panelData, scenarioData = scenarioData, sectors = sectors,
-    configDir = groupDir, modelDir = cacheDir, nCores = nCores, forceRefit = forceRefit,
+    configDir = groupDir, modelDir = modelDir, nCores = nCores, forceRefit = forceRefit,
     family = family, selectionMethod = selectionMethod,
     reportsDir = NULL, renderReports = FALSE, renderRobustness = FALSE,
     updateFindings = FALSE, saveRds = FALSE, writeSelectedConfig = TRUE,
@@ -141,6 +146,19 @@ runSweep <- function(group,
 
   say("Run-Group written: ", groupDir)
   invisible(res)
+}
+
+# Internal: point madrat at the data cache (the compute layer runs offline from it). Always sets
+# forcecache = TRUE; when a cachefolder is supplied, also sets it. Distinct from the Fit Cache /
+# model store (options(pfm.modelDir)) — that is the `modelDir` argument, not this.
+#' @keywords internal
+.useMadratCache <- function(cachefolder = NULL) {
+  if (!is.null(cachefolder) && nzchar(cachefolder)) {
+    madrat::setConfig(cachefolder = cachefolder, forcecache = TRUE)
+  } else {
+    madrat::setConfig(forcecache = TRUE)
+  }
+  invisible(NULL)
 }
 
 # Internal: write/update the Run-Group manifest (provenance contract; ADR 0018). Each step

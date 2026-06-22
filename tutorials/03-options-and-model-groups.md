@@ -120,8 +120,9 @@ are wired to CLI flags):
 
 ```r
 library(pfm)
-runSweep("exhaustive", mode = "exhaustive", nCores = 128,
-         resultsDir = "results", cacheDir = "cache", gdxFile = "data/fulldata.gdx",
+runSweep("exhaustive", mode = "exhaustive", nCores = 32,
+         resultsDir = "../output", modelDir = "../output",
+         cachefolder = "../data/cache", gdxFile = "../data/fulldata.gdx",
          selectFE = c("H12","OECDp","Mundlak"), nearTieEps = 0.10)
 ```
 

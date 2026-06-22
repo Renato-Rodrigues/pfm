@@ -7,7 +7,8 @@
 runSubnational(
   group,
   resultsDir = getOption("pfm.resultsDir", NULL),
-  cacheDir = getOption("pfm.modelDir", NULL),
+  modelDir = getOption("pfm.modelDir", NULL),
+  cachefolder = NULL,
   y = 2000:2022,
   outputRegionMappingFile = "regionmapping_54.csv",
   panelData = NULL,
@@ -15,7 +16,7 @@ runSubnational(
 )
 }
 \arguments{
-\item{group, resultsDir, cacheDir}{Run-Group locators.}
+\item{group, resultsDir, modelDir}{Run-Group locators.}
 
 \item{y, outputRegionMappingFile}{Panel build parameters.}
 

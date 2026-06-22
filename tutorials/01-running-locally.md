@@ -21,12 +21,15 @@ fast path for development, small runs, and rendering.
 3. **A populated madrat cache.** The compute layer runs *offline from the madrat cache*
    (`forcecache = TRUE`), so the cache files must already exist. See `MRPFM_EXTERNAL_CACHE_DEPS.md`
    for the list. Point `config.yml` at it (next step).
-4. **`config.yml`** in the `pfm-reports` root (copy `config.yml.example`):
+4. **`config.yml`** in the `pfm-reports` root (copy `config.yml.example`). Note the two
+   caches are **distinct**: `cachefolder` is the madrat *data* cache; `modelDir` is the
+   *Fit Cache* / model store (ADR 0009). Relative paths resolve against the working directory.
    ```yaml
-   modelDir:   "cache"      # Fit Cache + madrat cache root (relative to pfm-reports, or absolute)
-   resultsDir: "results"    # Run-Group artifacts land here
-   gdxPath:    "data/fulldata.gdx"   # for the Projection-Sanity gate (optional)
-   group:      "exhaustive" # default Run-Group the reports render against
+   cachefolder: "../data/cache"          # madrat data cache (CarbonPrice, EDGAR, PE/FE, ...)
+   modelDir:    "../output"              # Fit Cache / model store (models/, panels/, index.json)
+   resultsDir:  "../output"             # Run-Group artifacts land here
+   gdxPath:     "../data/fulldata.gdx"   # for the Projection-Sanity gate (optional)
+   group:       "exhaustive"            # default Run-Group the reports render against
    ```
 
 ## The one-liner
@@ -71,7 +74,7 @@ The CLI just wraps exported functions; you can call them directly:
 
 ```r
 library(pfm)
-options(pfm.modelDir = "cache", pfm.resultsDir = "results")
+options(pfm.modelDir = "../output", pfm.resultsDir = "../output")
 
 # whole pipeline:
 runModelGroup("guided", mode = "guided", nCores = 4,

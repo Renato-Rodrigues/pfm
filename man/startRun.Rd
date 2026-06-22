@@ -10,7 +10,8 @@ startRun(
   mode = c("exhaustive", "guided"),
   selectionMethod = c("levels-first", "difference-first"),
   resultsDir = getOption("pfm.resultsDir", NULL),
-  cacheDir = getOption("pfm.modelDir", NULL),
+  modelDir = getOption("pfm.modelDir", NULL),
+  cachefolder = NULL,
   gdxFile = NULL,
   nCores = NULL,
   cluster = c("auto", "slurm", "local"),
@@ -30,13 +31,19 @@ startRun(
 \arguments{
 \item{group}{Character. Run-Group name. Required.}
 
-\item{steps}{Character subset of \code{c("sweep","robustness","temporal","subnational")}.}
+\item{steps}{Character subset of \code{c("sweep","robustness","temporal","subnational",
+"difference-first")}. Default is the first four; \code{"difference-first"} is the ADR 0014
+alternative-selection comparison (off by default).}
 
 \item{mode}{\code{"exhaustive"} (default) or \code{"guided"}.}
 
 \item{selectionMethod}{\code{"levels-first"} (default) or \code{"difference-first"}.}
 
-\item{resultsDir, cacheDir}{Configurable Results Root / Fit Cache (defaults from options).}
+\item{resultsDir, modelDir}{Configurable Results Root / Fit Cache (the ADR 0009 model store;
+defaults from options).}
+
+\item{cachefolder}{Character or NULL. The \strong{madrat} data-cache folder (distinct from
+\code{modelDir}); when set, madrat reads inputs from there on every node.}
 
 \item{gdxFile}{Character or NULL. Scenario gdx (forwarded to the sweep).}
 
@@ -46,7 +53,7 @@ startRun(
 \item{cluster}{\code{"auto"} (default), \code{"slurm"}, or \code{"local"}.}
 
 \item{time, qos, partition, account, mem, chdir}{SLURM directives (PIK defaults: 24h / short /
-standard / default account / node-default mem / \code{/p/tmp/$USER/pfm-runs/<group>}).}
+standard / default account / node-default mem / \code{resultsDir/<group>}).}
 
 \item{reportsDir}{Character or NULL. pfm-reports root, used only when \code{render = TRUE}.}
 

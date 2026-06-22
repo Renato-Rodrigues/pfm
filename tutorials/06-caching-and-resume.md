@@ -4,14 +4,17 @@ How the Fit Cache works, why a run resumes for free, and how to run offline. (AD
 
 ## Two distinct caches
 
-1. **madrat cache** (`cacheDir`/`cachefolder`) — the *data* cache: the outputs of mrpfm's
-   `calcOutput()`/`readSource()` (CarbonPrice, EDGAR, PE/FE, V-Dem, …). The compute layer runs
-   with `forcecache = TRUE`, so it loads these by filename (type + args-hash) **without** the
-   raw sources present. This is what lets the whole pipeline run offline.
-2. **Fit Cache** (the same root, `models/` + `panels/` + `index.json`) — the *model* store
-   (ADR 0009): every fitted model keyed by a hash of its formula + training data.
+1. **madrat data cache** — the `cachefolder` (config `cachefolder`, default `../data/cache`):
+   the outputs of mrpfm's `calcOutput()`/`readSource()` (CarbonPrice, EDGAR, PE/FE, V-Dem, …).
+   The compute layer runs with `forcecache = TRUE`, so it loads these by filename (type +
+   args-hash) **without** the raw sources present. This is what lets the whole pipeline run
+   offline.
+2. **Fit Cache** — the `modelDir` (config `modelDir`, default `../output`): the model store
+   (ADR 0009) holding `models/` + `panels/` + `index.json`; every fitted model keyed by a hash
+   of its formula + training data.
 
-Both live under `modelDir` (`config.yml`). Keep it on `/p/tmp` on the cluster.
+These are **distinct** directories with distinct config keys — don't point one at the other.
+On the cluster keep both on `/p/tmp`.
 
 ## Content-addressing → resume for free
 
@@ -67,6 +70,7 @@ after an abnormal exit. Unreadable fits are skipped with a warning.
 ## Which cache files do I need to run offline?
 
 `MRPFM_EXTERNAL_CACHE_DEPS.md` lists the external (Tier-1) madrat caches the panel build needs
-(EDGAR, PE, FE, Ember, GDP/Population, V-Dem, …). With those present and `forcecache = TRUE`
-(the compute layer sets this), `runSweep` rebuilds the panel and runs without any raw source
-folders. The Fit Cache is created/extended by the run itself.
+(EDGAR, PE, FE, Ember, GDP/Population, V-Dem, …). Place them in the `cachefolder` (default
+`../data/cache`); with those present and `forcecache = TRUE` (the compute layer sets this),
+`runSweep` rebuilds the panel and runs without any raw source folders. The Fit Cache (`modelDir`,
+default `../output`) is created/extended by the run itself.

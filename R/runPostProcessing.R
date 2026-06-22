@@ -45,13 +45,13 @@
   byStage
 }
 
-# Internal: resolve + create the Run-Group dir, set the cache option/forcecache.
+# Internal: resolve + create the Run-Group dir, set the Fit-Cache option + madrat cache.
 #' @keywords internal
-.resolveGroupDir <- function(group, resultsDir, cacheDir) {
+.resolveGroupDir <- function(group, resultsDir, modelDir, cachefolder = NULL) {
   if (missing(group) || is.null(group) || !nzchar(group)) stop("'group' is required.", call. = FALSE)
   if (is.null(resultsDir)) stop("Supply 'resultsDir' or set options(pfm.resultsDir=).", call. = FALSE)
-  madrat::setConfig(forcecache = TRUE)
-  if (!is.null(cacheDir)) options(pfm.modelDir = cacheDir)
+  .useMadratCache(cachefolder)
+  if (!is.null(modelDir)) options(pfm.modelDir = modelDir)
   groupDir <- file.path(resultsDir, group)
   if (!dir.exists(groupDir)) stop("Run-Group '", groupDir, "' does not exist. Run runSweep() first.",
                                   call. = FALSE)
@@ -65,7 +65,7 @@
 #' and a Leave-One-Region-Out (LORO) sweep on the deliverable specs. Writes
 #' \code{<group>/robustness.rds}.
 #'
-#' @param group,resultsDir,cacheDir Run-Group locators (see \code{\link{runSweep}}).
+#' @param group,resultsDir,modelDir Run-Group locators (see \code{\link{runSweep}}).
 #' @param panelData Optional pre-built panel; built via \code{panelDataHistorical} when NULL.
 #' @param quick Logical. Skip the (heavy) control specification-curve. Default \code{FALSE}.
 #' @param loro Logical. Run the Leave-One-Region-Out sweep. Default \code{TRUE}.
@@ -75,10 +75,11 @@
 #' @seealso ADR 0012, ADR 0013, \code{\link{computeLORO}}, \code{\link{computeMaximinScore}}
 #' @export
 runRobustness <- function(group, resultsDir = getOption("pfm.resultsDir", NULL),
-                          cacheDir = getOption("pfm.modelDir", NULL), panelData = NULL,
+                          modelDir = getOption("pfm.modelDir", NULL), cachefolder = NULL,
+                          panelData = NULL,
                           quick = FALSE, loro = TRUE, y = 2000:2022,
                           outputRegionMappingFile = "regionmapping_54.csv", verbose = TRUE) {
-  groupDir <- .resolveGroupDir(group, resultsDir, cacheDir)
+  groupDir <- .resolveGroupDir(group, resultsDir, modelDir, cachefolder)
   say <- function(...) if (isTRUE(verbose)) message("[robustness:", group, "] ", ...)
   t0 <- Sys.time()
   sectors <- c("Bulk", "Diffuse")
@@ -98,7 +99,7 @@ runRobustness <- function(group, resultsDir = getOption("pfm.resultsDir", NULL),
           regionMappingFixedEffects = cfg$regionMappingFixedEffects, useMundlak = isTRUE(cfg$useMundlak),
           gdpGovInteraction = isTRUE(cfg$gdpGovInteraction), logisticTimeTrend = isTRUE(cfg$logisticTimeTrend),
           ridgeInteractions = isTRUE(cfg$ridgeInteractions), panelTransform = cfg$panelTransform %||% "levels",
-          modelDir = cacheDir, verbose = FALSE, compute = c(ame = FALSE, predictedProbs = FALSE))
+          modelDir = modelDir, verbose = FALSE, compute = c(ame = FALSE, predictedProbs = FALSE))
       else
         estimatePriceStringencyModel(data = panel, sector = sector, family = "gaussian",
           actorPowerDrivers = cfg$actorPowerDrivers, actorPowerIndex = cfg$actorPowerIndex,
@@ -107,7 +108,7 @@ runRobustness <- function(group, resultsDir = getOption("pfm.resultsDir", NULL),
           regionMappingFixedEffects = cfg$regionMappingFixedEffects, useMundlak = isTRUE(cfg$useMundlak),
           gdpGovInteraction = isTRUE(cfg$gdpGovInteraction), logisticTimeTrend = isTRUE(cfg$logisticTimeTrend),
           ridgeInteractions = isTRUE(cfg$ridgeInteractions), panelTransform = cfg$panelTransform %||% "levels",
-          nickellCorrection = isTRUE(cfg$nickellCorrection), modelDir = cacheDir, verbose = FALSE)
+          nickellCorrection = isTRUE(cfg$nickellCorrection), modelDir = modelDir, verbose = FALSE)
     }, error = function(e) { say("FAILED ", rung, "/", stage, ":", sector, " - ", conditionMessage(e)); NULL })
     base <- data.frame(rung = rung, stage = stage, sector = sector, nParams = NA_integer_,
       deltaR2Theory = NA_real_, pseudoR2 = NA_real_, aic = NA_real_, bic = NA_real_, maxVIF = NA_real_,
@@ -243,7 +244,7 @@ runRobustness <- function(group, resultsDir = getOption("pfm.resultsDir", NULL),
 #' Runs \code{\link{computeTemporalSplit}} on the selected deliverable specs over the panel
 #' extended to the latest driver-supported year. Writes \code{<group>/temporal-split.rds}.
 #'
-#' @param group,resultsDir,cacheDir Run-Group locators.
+#' @param group,resultsDir,modelDir Run-Group locators.
 #' @param maxYear Integer. Latest year to extend the panel to (falls back to 2022). Default 2023.
 #' @param outputRegionMappingFile Panel region mapping.
 #' @param panelData Optional pre-built (extended) panel; built when NULL.
@@ -252,10 +253,11 @@ runRobustness <- function(group, resultsDir = getOption("pfm.resultsDir", NULL),
 #' @seealso ADR 0015, \code{\link{computeTemporalSplit}}
 #' @export
 runTemporalSplit <- function(group, resultsDir = getOption("pfm.resultsDir", NULL),
-                             cacheDir = getOption("pfm.modelDir", NULL), maxYear = 2023,
+                             modelDir = getOption("pfm.modelDir", NULL), cachefolder = NULL,
+                             maxYear = 2023,
                              outputRegionMappingFile = "regionmapping_54.csv",
                              panelData = NULL, verbose = TRUE) {
-  groupDir <- .resolveGroupDir(group, resultsDir, cacheDir)
+  groupDir <- .resolveGroupDir(group, resultsDir, modelDir, cachefolder)
   say <- function(...) if (isTRUE(verbose)) message("[temporal:", group, "] ", ...)
   t0 <- Sys.time()
   panel <- panelData
@@ -297,7 +299,7 @@ runTemporalSplit <- function(group, resultsDir = getOption("pfm.resultsDir", NUL
 #' on both panels. Writes \code{<group>/subnational.rds}. Cache-only assembly (national price
 #' from the Fit/madrat cache plus the \code{*Subnational} reader subtypes).
 #'
-#' @param group,resultsDir,cacheDir Run-Group locators.
+#' @param group,resultsDir,modelDir Run-Group locators.
 #' @param y,outputRegionMappingFile Panel build parameters.
 #' @param panelData Optional pre-built national panel; built when NULL.
 #' @param verbose Logical. Default \code{TRUE}.
@@ -306,10 +308,11 @@ runTemporalSplit <- function(group, resultsDir = getOption("pfm.resultsDir", NUL
 #' @importFrom magclass getNames getYears getItems mselect dimSums collapseNames setNames mbind
 #' @export
 runSubnational <- function(group, resultsDir = getOption("pfm.resultsDir", NULL),
-                           cacheDir = getOption("pfm.modelDir", NULL), y = 2000:2022,
+                           modelDir = getOption("pfm.modelDir", NULL), cachefolder = NULL,
+                           y = 2000:2022,
                            outputRegionMappingFile = "regionmapping_54.csv",
                            panelData = NULL, verbose = TRUE) {
-  groupDir <- .resolveGroupDir(group, resultsDir, cacheDir)
+  groupDir <- .resolveGroupDir(group, resultsDir, modelDir, cachefolder)
   say <- function(...) if (isTRUE(verbose)) message("[subnat:", group, "] ", ...)
   t0 <- Sys.time()
 
@@ -420,7 +423,7 @@ runSubnational <- function(group, resultsDir = getOption("pfm.resultsDir", NULL)
 #' \code{<group>/difference-first.rds} (diagnostics for the report) and the difference-first
 #' selected-models YAML. Does not re-fit the sweep.
 #'
-#' @param group,resultsDir,cacheDir Run-Group locators.
+#' @param group,resultsDir,modelDir Run-Group locators.
 #' @param gdxFile Character or NULL. Scenario gdx (enables the levels FE-by-sanity choice).
 #' @param panelData,scenarioData Optional pre-built panels.
 #' @param maxTries Integer. Max ranked hybridFD candidates to falsification-test. Default 25.
@@ -430,11 +433,12 @@ runSubnational <- function(group, resultsDir = getOption("pfm.resultsDir", NULL)
 #' @seealso ADR 0014, \code{\link{selectDifferenceFirst}}, \code{\link{computeFalsificationGate}}
 #' @export
 runDifferenceFirst <- function(group, resultsDir = getOption("pfm.resultsDir", NULL),
-                               cacheDir = getOption("pfm.modelDir", NULL), gdxFile = NULL,
+                               modelDir = getOption("pfm.modelDir", NULL), cachefolder = NULL,
+                               gdxFile = NULL,
                                panelData = NULL, scenarioData = NULL, maxTries = 25L,
                                y = 2000:2022, outputRegionMappingFile = "regionmapping_54.csv",
                                verbose = TRUE) {
-  groupDir <- .resolveGroupDir(group, resultsDir, cacheDir)
+  groupDir <- .resolveGroupDir(group, resultsDir, modelDir, cachefolder)
   say <- function(...) if (isTRUE(verbose)) message("[DIF:", group, "] ", ...)
   t0 <- Sys.time()
   if (!requireNamespace("yaml", quietly = TRUE)) stop("The 'yaml' package is required.")
@@ -456,7 +460,7 @@ runDifferenceFirst <- function(group, resultsDir = getOption("pfm.resultsDir", N
 
   say("difference-first selection (maxTries = ", maxTries, ") ...")
   dif <- selectDifferenceFirst(results = res, specByName = specByName, panelData = panel,
-    scenarioData = scenarioData, modelDir = cacheDir, maxTries = maxTries,
+    scenarioData = scenarioData, modelDir = modelDir, maxTries = maxTries,
     regionBlocks = .h12RegionBlocks(),
     histPricesBySector = .histPricesBySector(panel, sectors), say = say)
 
@@ -520,38 +524,47 @@ runDifferenceFirst <- function(group, resultsDir = getOption("pfm.resultsDir", N
 #' (or have run) before the post-processing steps, which read its selected deliverable.
 #'
 #' @param group Character. Run-Group name.
-#' @param steps Character vector subset of \code{c("sweep","robustness","temporal","subnational")}.
-#' @param resultsDir,cacheDir Configurable Results Root / Fit Cache.
-#' @param gdxFile Character or NULL. Scenario gdx (forwarded to the sweep).
+#' @param steps Character vector subset of \code{c("sweep","robustness","temporal",
+#'   "subnational","difference-first")}. Default is the first four (the standard pipeline);
+#'   \code{"difference-first"} is recognised but off by default (the ADR 0014 alternative
+#'   selection comparison, a post-hoc consumer of the sweep).
+#' @param resultsDir,modelDir Configurable Results Root / Fit Cache (the ADR 0009 model store).
+#' @param cachefolder Character or NULL. The \strong{madrat} data-cache folder (distinct from
+#'   \code{modelDir}); set on madrat for every step when non-NULL.
+#' @param gdxFile Character or NULL. Scenario gdx (forwarded to the sweep and to
+#'   difference-first's FE-by-sanity choice).
 #' @param mode,selectionMethod,nCores,forceRefit Forwarded to \code{\link{runSweep}}.
 #' @param verbose Logical. Default \code{TRUE}.
 #' @param ... Forwarded to \code{\link{runSweep}}.
 #' @return The Run-Group directory path (invisibly).
 #' @seealso \code{\link{runSweep}}, \code{\link{runRobustness}}, \code{\link{runTemporalSplit}},
-#'   \code{\link{runSubnational}}, ADR 0018
+#'   \code{\link{runSubnational}}, \code{\link{runDifferenceFirst}}, ADR 0018
 #' @export
 runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "subnational"),
                           resultsDir = getOption("pfm.resultsDir", NULL),
-                          cacheDir = getOption("pfm.modelDir", NULL), gdxFile = NULL,
+                          modelDir = getOption("pfm.modelDir", NULL), cachefolder = NULL,
+                          gdxFile = NULL,
                           mode = c("exhaustive", "guided"),
                           selectionMethod = c("levels-first", "difference-first"),
                           nCores = 1L, forceRefit = FALSE, verbose = TRUE, ...) {
   mode <- match.arg(mode)
   selectionMethod <- match.arg(selectionMethod)
-  allSteps <- c("sweep", "robustness", "temporal", "subnational")
+  allSteps <- c("sweep", "robustness", "temporal", "subnational", "difference-first")
   steps <- intersect(allSteps, steps)
   if (length(steps) == 0) stop("runModelGroup: no valid steps. Choose from ",
                                paste(allSteps, collapse = ", "), ".", call. = FALSE)
   say <- function(...) if (isTRUE(verbose)) message("[runModelGroup:", group, "] ", ...)
   if ("sweep" %in% steps) {
     say("step: sweep")
-    runSweep(group, mode = mode, resultsDir = resultsDir, cacheDir = cacheDir, gdxFile = gdxFile,
+    runSweep(group, mode = mode, resultsDir = resultsDir, modelDir = modelDir,
+             cachefolder = cachefolder, gdxFile = gdxFile,
              nCores = nCores, forceRefit = forceRefit, selectionMethod = selectionMethod,
              verbose = verbose, ...)
   }
-  if ("robustness" %in% steps) { say("step: robustness"); runRobustness(group, resultsDir = resultsDir, cacheDir = cacheDir, verbose = verbose) }
-  if ("temporal" %in% steps) { say("step: temporal"); runTemporalSplit(group, resultsDir = resultsDir, cacheDir = cacheDir, verbose = verbose) }
-  if ("subnational" %in% steps) { say("step: subnational"); runSubnational(group, resultsDir = resultsDir, cacheDir = cacheDir, verbose = verbose) }
+  if ("robustness" %in% steps) { say("step: robustness"); runRobustness(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, verbose = verbose) }
+  if ("temporal" %in% steps) { say("step: temporal"); runTemporalSplit(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, verbose = verbose) }
+  if ("subnational" %in% steps) { say("step: subnational"); runSubnational(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, verbose = verbose) }
+  if ("difference-first" %in% steps) { say("step: difference-first"); runDifferenceFirst(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile, verbose = verbose) }
   say("done: ", paste(steps, collapse = ", "))
   invisible(file.path(resultsDir, group))
 }

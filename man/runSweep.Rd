@@ -8,7 +8,8 @@ runSweep(
   group,
   mode = c("exhaustive", "guided"),
   resultsDir = getOption("pfm.resultsDir", NULL),
-  cacheDir = getOption("pfm.modelDir", NULL),
+  modelDir = getOption("pfm.modelDir", NULL),
+  cachefolder = NULL,
   gdxFile = NULL,
   panelData = NULL,
   scenarioData = NULL,
@@ -33,8 +34,13 @@ custom experiment name). Required.}
 \item{resultsDir}{Character. Results Root (configurable). Default
 \code{getOption("pfm.resultsDir")}. The Run-Group is \code{file.path(resultsDir, group)}.}
 
-\item{cacheDir}{Character. Fit Cache root (configurable). Default
-\code{getOption("pfm.modelDir")}; also set as \code{options(pfm.modelDir=)} for the run.}
+\item{modelDir}{Character. Fit Cache root (configurable; ADR 0009 model store — distinct
+from the madrat \code{cachefolder}). Default \code{getOption("pfm.modelDir")}; also set as
+\code{options(pfm.modelDir=)} for the run.}
+
+\item{cachefolder}{Character or NULL. The \strong{madrat} data-cache folder. When non-NULL,
+\code{madrat::setConfig(cachefolder = ...)} so the panel/CarbonPrice load from there. NULL
+(default) leaves the ambient madrat config untouched (only \code{forcecache} is set).}
 
 \item{gdxFile}{Character or NULL. REMIND \code{fulldata.gdx} for the scenario panel
 (enables the Projection Sanity gate). When NULL/missing, the gate is skipped.}

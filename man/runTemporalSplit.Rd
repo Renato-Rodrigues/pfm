@@ -7,7 +7,8 @@
 runTemporalSplit(
   group,
   resultsDir = getOption("pfm.resultsDir", NULL),
-  cacheDir = getOption("pfm.modelDir", NULL),
+  modelDir = getOption("pfm.modelDir", NULL),
+  cachefolder = NULL,
   maxYear = 2023,
   outputRegionMappingFile = "regionmapping_54.csv",
   panelData = NULL,
@@ -15,7 +16,7 @@ runTemporalSplit(
 )
 }
 \arguments{
-\item{group, resultsDir, cacheDir}{Run-Group locators.}
+\item{group, resultsDir, modelDir}{Run-Group locators.}
 
 \item{maxYear}{Integer. Latest year to extend the panel to (falls back to 2022). Default 2023.}
 

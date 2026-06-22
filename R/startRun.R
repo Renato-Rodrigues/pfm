@@ -12,10 +12,15 @@
 #' one-node job; else we run locally. \code{"slurm"} / \code{"local"} force the choice.
 #'
 #' @param group Character. Run-Group name. Required.
-#' @param steps Character subset of \code{c("sweep","robustness","temporal","subnational")}.
+#' @param steps Character subset of \code{c("sweep","robustness","temporal","subnational",
+#'   "difference-first")}. Default is the first four; \code{"difference-first"} is the ADR 0014
+#'   alternative-selection comparison (off by default).
 #' @param mode \code{"exhaustive"} (default) or \code{"guided"}.
 #' @param selectionMethod \code{"levels-first"} (default) or \code{"difference-first"}.
-#' @param resultsDir,cacheDir Configurable Results Root / Fit Cache (defaults from options).
+#' @param resultsDir,modelDir Configurable Results Root / Fit Cache (the ADR 0009 model store;
+#'   defaults from options).
+#' @param cachefolder Character or NULL. The \strong{madrat} data-cache folder (distinct from
+#'   \code{modelDir}); when set, madrat reads inputs from there on every node.
 #' @param gdxFile Character or NULL. Scenario gdx (forwarded to the sweep).
 #' @param nCores Integer or NULL. Cores for the parallel sweep; NULL (default) uses
 #'   \code{SLURM_CPUS_PER_TASK} when set, else \code{parallel::detectCores() - 1}.
@@ -39,7 +44,8 @@ startRun <- function(group,
                      mode = c("exhaustive", "guided"),
                      selectionMethod = c("levels-first", "difference-first"),
                      resultsDir = getOption("pfm.resultsDir", NULL),
-                     cacheDir = getOption("pfm.modelDir", NULL),
+                     modelDir = getOption("pfm.modelDir", NULL),
+                     cachefolder = NULL,
                      gdxFile = NULL,
                      nCores = NULL,
                      cluster = c("auto", "slurm", "local"),
@@ -50,7 +56,7 @@ startRun <- function(group,
   mode <- match.arg(mode)
   selectionMethod <- match.arg(selectionMethod)
   cluster <- match.arg(cluster)
-  steps <- intersect(c("sweep", "robustness", "temporal", "subnational"), steps)
+  steps <- intersect(c("sweep", "robustness", "temporal", "subnational", "difference-first"), steps)
   if (length(steps) == 0) stop("startRun: no valid steps.", call. = FALSE)
   if (missing(group) || is.null(group) || !nzchar(group)) stop("startRun: 'group' is required.", call. = FALSE)
   if (is.null(resultsDir)) stop("startRun: supply 'resultsDir' or set options(pfm.resultsDir = '...').", call. = FALSE)
@@ -66,7 +72,8 @@ startRun <- function(group,
 
   if (doSubmit) {
     return(.submitSlurm(group = group, steps = steps, mode = mode, selectionMethod = selectionMethod,
-      resultsDir = resultsDir, cacheDir = cacheDir, gdxFile = gdxFile, nCores = nCores,
+      resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile,
+      nCores = nCores,
       time = time, qos = qos, partition = partition, account = account, mem = mem, chdir = chdir,
       reportsDir = reportsDir, render = render, forceRefit = forceRefit, say = say, dots = list(...)))
   }
@@ -74,7 +81,7 @@ startRun <- function(group,
   # ── Local (in-process) run ──────────────────────────────────────────────────
   groupDir <- file.path(resultsDir, group)
   dir.create(groupDir, showWarnings = FALSE, recursive = TRUE)
-  if (!is.null(cacheDir)) options(pfm.modelDir = cacheDir)
+  if (!is.null(modelDir)) options(pfm.modelDir = modelDir)
   pkgver <- function(p) tryCatch(as.character(utils::packageVersion(p)), error = function(e) NA_character_)
   t0 <- Sys.time()
   .writeRunGroupManifest(groupDir, group = group, mode = mode, run = list(
@@ -87,9 +94,9 @@ startRun <- function(group,
   say(if (inJob) "running on SLURM node" else "running locally", " (nCores = ", nCores, "); steps: ",
       paste(steps, collapse = ", "))
   ok <- tryCatch({
-    runModelGroup(group = group, steps = steps, resultsDir = resultsDir, cacheDir = cacheDir,
-      gdxFile = gdxFile, mode = mode, selectionMethod = selectionMethod, nCores = nCores,
-      forceRefit = forceRefit, verbose = verbose, ...)
+    runModelGroup(group = group, steps = steps, resultsDir = resultsDir, modelDir = modelDir,
+      cachefolder = cachefolder, gdxFile = gdxFile, mode = mode, selectionMethod = selectionMethod,
+      nCores = nCores, forceRefit = forceRefit, verbose = verbose, ...)
     TRUE
   }, error = function(e) { say("RUN FAILED: ", conditionMessage(e)); FALSE })
 
@@ -129,12 +136,12 @@ startRun <- function(group,
 # Internal: write the submit script + job script and sbatch it (ADR 0020). Returns invisibly
 # list(submitted=TRUE, jobId=, script=).
 #' @keywords internal
-.submitSlurm <- function(group, steps, mode, selectionMethod, resultsDir, cacheDir, gdxFile,
-                         nCores, time, qos, partition, account, mem, chdir, reportsDir, render,
-                         forceRefit, say, dots) {
+.submitSlurm <- function(group, steps, mode, selectionMethod, resultsDir, modelDir, cachefolder,
+                         gdxFile, nCores, time, qos, partition, account, mem, chdir, reportsDir,
+                         render, forceRefit, say, dots) {
   abspath <- function(p) if (is.null(p)) NULL else normalizePath(p, winslash = "/", mustWork = FALSE)
-  resultsDir <- abspath(resultsDir); cacheDir <- abspath(cacheDir)
-  gdxFile <- abspath(gdxFile); reportsDir <- abspath(reportsDir)
+  resultsDir <- abspath(resultsDir); modelDir <- abspath(modelDir)
+  cachefolder <- abspath(cachefolder); gdxFile <- abspath(gdxFile); reportsDir <- abspath(reportsDir)
   user <- Sys.getenv("USER", Sys.getenv("USERNAME", "user"))
   if (is.null(chdir)) chdir <- file.path(resultsDir, group)
   dir.create(chdir, showWarnings = FALSE, recursive = TRUE)         # must exist before sbatch
@@ -142,10 +149,11 @@ startRun <- function(group,
 
   # Job R script: re-invoke startRun in local mode on the compute node.
   call <- sprintf(paste0(
-    "pfm::startRun(group=%s, steps=%s, mode=%s, selectionMethod=%s, resultsDir=%s, cacheDir=%s, ",
-    "gdxFile=%s, nCores=%d, cluster=\"local\", forceRefit=%s, render=%s, reportsDir=%s%s)"),
+    "pfm::startRun(group=%s, steps=%s, mode=%s, selectionMethod=%s, resultsDir=%s, modelDir=%s, ",
+    "cachefolder=%s, gdxFile=%s, nCores=%d, cluster=\"local\", forceRefit=%s, render=%s, reportsDir=%s%s)"),
     .rlit(group), .rlit(steps), .rlit(mode), .rlit(selectionMethod), .rlit(resultsDir),
-    .rlit(cacheDir), .rlit(gdxFile), nCores, .rlit(forceRefit), .rlit(render), .rlit(reportsDir),
+    .rlit(modelDir), .rlit(cachefolder), .rlit(gdxFile), nCores, .rlit(forceRefit), .rlit(render),
+    .rlit(reportsDir),
     if (length(dots)) paste0(", ", paste(sprintf("%s=%s", names(dots),
       vapply(dots, .rlit, character(1))), collapse = ", ")) else "")
   jobR <- file.path(chdir, paste0("pfm-", group, "-job.R"))
@@ -197,11 +205,12 @@ startRun <- function(group,
 #' @keywords internal
 .renderReports <- function(reportsDir, group, steps, say) {
   base <- c("selection" = "reports/selection/run.R",
+            "model-selection" = "reports/model-selection/run.R",
             "results-adoption" = "reports/results-adoption/run.R",
             "results-stringency" = "reports/results-stringency/run.R",
             "publication" = "reports/publication/run.R")
   reps <- names(base)
-  if (any(c("robustness", "temporal") %in% steps)) reps <- c(reps, "robustness")
+  if (any(c("robustness", "temporal", "difference-first") %in% steps)) reps <- c(reps, "robustness")
   if ("subnational" %in% steps) reps <- c(reps, "subnational")
   extra <- c("robustness" = "reports/robustness/run.R", "subnational" = "reports/subnational/run.R")
   paths <- c(base, extra)
