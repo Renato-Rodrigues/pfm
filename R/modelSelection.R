@@ -84,7 +84,7 @@
 #'     \item{\code{sector}, \code{stage}, \code{testMode}}{Tracking arguments for the selection workflow.}
 #'   }
 #' @param modelDir Character or NULL. Directory for saving/loading \code{PFMModel} files.
-#'   Defaults to \code{getOption("pfm.modelDir", NULL)}. Each candidate model evaluated during
+#'   Defaults to \code{getOption("pfm.modelDir", "output")}. Each candidate model evaluated during
 #'   selection is saved immediately after fitting. On subsequent runs with the same data and
 #'   formula, the saved model is loaded from disk instead of re-fitted.
 #' @author Renato Rodrigues
@@ -127,7 +127,7 @@ modelSelection <- function( # nolint: cyclocomp_linter.
     stabilityShift = 0,
     logTransform = TRUE,
     lag = 1,
-    modelDir = getOption("pfm.modelDir", NULL),
+    modelDir = getOption("pfm.modelDir", "output"),
     maxit = 3000) {
   # --- 1. Argument validation ---
   stage <- match.arg(stage, c("adoption", "stringency"))

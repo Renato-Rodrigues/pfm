@@ -109,7 +109,7 @@ modelSelectionWorkflow <- function( # nolint: cyclocomp_linter.
     logTransform = TRUE,
     includeLaggedECP = FALSE,
     panelData = NULL,
-    modelDir = getOption("pfm.modelDir", NULL)) {
+    modelDir = getOption("pfm.modelDir", "output")) {
   # --- 1. Load data once ---
   if (is.null(panelData)) {
     message("Loading historical panel data...")

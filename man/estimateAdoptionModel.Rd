@@ -23,7 +23,7 @@ estimateAdoptionModel(
   lag = 1,
   includeLaggedAdoption = FALSE,
   interactRegionFE = FALSE,
-  modelDir = getOption("pfm.modelDir", NULL),
+  modelDir = getOption("pfm.modelDir", "output"),
   updateIndex = TRUE,
   ignoreCache = FALSE,
   label = "",
@@ -78,7 +78,7 @@ separation. Recommended for the adoption stage.}
 adoption status (\code{adoption_lagged}) as a predictor. Default: \code{FALSE}.}
 
 \item{modelDir}{Character or NULL. Directory for saving/loading \code{PFMModel}
-files. Defaults to \code{getOption("pfm.modelDir", NULL)}. Set to \code{NULL}
+files. Defaults to \code{getOption("pfm.modelDir", "output")}. Set to \code{NULL}
 to disable persistence (default when the option is not set).}
 
 \item{updateIndex}{Logical. Forwarded to \code{\link{savePFMModel}}; when \code{FALSE}

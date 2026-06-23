@@ -108,7 +108,7 @@ modelEstimationWorkflow <- function(
     includeLaggedECP = FALSE,
     interactRegionFE = FALSE,
     panelData = NULL,
-    modelDir = getOption("pfm.modelDir", NULL),
+    modelDir = getOption("pfm.modelDir", "output"),
     verbose = TRUE,
     maxit = 3000,
     compute = c(ame = TRUE, predictedProbs = TRUE),

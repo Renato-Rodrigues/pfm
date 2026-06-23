@@ -74,8 +74,8 @@
 #' @return The robustness artifact (invisibly).
 #' @seealso ADR 0012, ADR 0013, \code{\link{computeLORO}}, \code{\link{computeMaximinScore}}
 #' @export
-runRobustness <- function(group, resultsDir = getOption("pfm.resultsDir", NULL),
-                          modelDir = getOption("pfm.modelDir", NULL), cachefolder = NULL,
+runRobustness <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
+                          modelDir = getOption("pfm.modelDir", "output"), cachefolder = NULL,
                           panelData = NULL,
                           quick = FALSE, loro = TRUE, y = 2000:2022,
                           outputRegionMappingFile = "regionmapping_54.csv", verbose = TRUE) {
@@ -252,8 +252,8 @@ runRobustness <- function(group, resultsDir = getOption("pfm.resultsDir", NULL),
 #' @return The temporal-split artifact (invisibly).
 #' @seealso ADR 0015, \code{\link{computeTemporalSplit}}
 #' @export
-runTemporalSplit <- function(group, resultsDir = getOption("pfm.resultsDir", NULL),
-                             modelDir = getOption("pfm.modelDir", NULL), cachefolder = NULL,
+runTemporalSplit <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
+                             modelDir = getOption("pfm.modelDir", "output"), cachefolder = NULL,
                              maxYear = 2023,
                              outputRegionMappingFile = "regionmapping_54.csv",
                              panelData = NULL, verbose = TRUE) {
@@ -307,8 +307,8 @@ runTemporalSplit <- function(group, resultsDir = getOption("pfm.resultsDir", NUL
 #' @seealso ADR 0016
 #' @importFrom magclass getNames getYears getItems mselect dimSums collapseNames setNames mbind
 #' @export
-runSubnational <- function(group, resultsDir = getOption("pfm.resultsDir", NULL),
-                           modelDir = getOption("pfm.modelDir", NULL), cachefolder = NULL,
+runSubnational <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
+                           modelDir = getOption("pfm.modelDir", "output"), cachefolder = NULL,
                            y = 2000:2022,
                            outputRegionMappingFile = "regionmapping_54.csv",
                            panelData = NULL, verbose = TRUE) {
@@ -432,8 +432,8 @@ runSubnational <- function(group, resultsDir = getOption("pfm.resultsDir", NULL)
 #' @return The difference-first diagnostics list (invisibly).
 #' @seealso ADR 0014, \code{\link{selectDifferenceFirst}}, \code{\link{computeFalsificationGate}}
 #' @export
-runDifferenceFirst <- function(group, resultsDir = getOption("pfm.resultsDir", NULL),
-                               modelDir = getOption("pfm.modelDir", NULL), cachefolder = NULL,
+runDifferenceFirst <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
+                               modelDir = getOption("pfm.modelDir", "output"), cachefolder = NULL,
                                gdxFile = NULL,
                                panelData = NULL, scenarioData = NULL, maxTries = 25L,
                                y = 2000:2022, outputRegionMappingFile = "regionmapping_54.csv",
@@ -541,8 +541,8 @@ runDifferenceFirst <- function(group, resultsDir = getOption("pfm.resultsDir", N
 #'   \code{\link{runSubnational}}, \code{\link{runDifferenceFirst}}, ADR 0018
 #' @export
 runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "subnational"),
-                          resultsDir = getOption("pfm.resultsDir", NULL),
-                          modelDir = getOption("pfm.modelDir", NULL), cachefolder = NULL,
+                          resultsDir = getOption("pfm.resultsDir", "output"),
+                          modelDir = getOption("pfm.modelDir", "output"), cachefolder = NULL,
                           gdxFile = NULL,
                           mode = c("exhaustive", "guided"),
                           selectionMethod = c("levels-first", "difference-first"),

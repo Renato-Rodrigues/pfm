@@ -6,7 +6,7 @@
 \usage{
 runStatus(
   group,
-  resultsDir = getOption("pfm.resultsDir", NULL),
+  resultsDir = getOption("pfm.resultsDir", "output"),
   verbose = TRUE
 )
 }

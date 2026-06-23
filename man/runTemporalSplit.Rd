@@ -6,8 +6,8 @@
 \usage{
 runTemporalSplit(
   group,
-  resultsDir = getOption("pfm.resultsDir", NULL),
-  modelDir = getOption("pfm.modelDir", NULL),
+  resultsDir = getOption("pfm.resultsDir", "output"),
+  modelDir = getOption("pfm.modelDir", "output"),
   cachefolder = NULL,
   maxYear = 2023,
   outputRegionMappingFile = "regionmapping_54.csv",

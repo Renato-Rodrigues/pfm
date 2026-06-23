@@ -10,7 +10,7 @@ projectSpecScenario(
   histData,
   scenarioData,
   family = "Gamma",
-  modelDir = getOption("pfm.modelDir", NULL),
+  modelDir = getOption("pfm.modelDir", "output"),
   extrapLogMargin = 2,
   priceCeiling = 5000,
   minProjYear = NULL,

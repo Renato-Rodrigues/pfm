@@ -25,7 +25,7 @@ estimatePriceStringencyModel(
   useFirth = FALSE,
   includeLaggedECP = FALSE,
   interactRegionFE = FALSE,
-  modelDir = getOption("pfm.modelDir", NULL),
+  modelDir = getOption("pfm.modelDir", "output"),
   updateIndex = TRUE,
   ignoreCache = FALSE,
   label = "",
@@ -92,7 +92,7 @@ transformed to \code{log(1 + ECP)}. Default: \code{TRUE}.}
 carbon price (\code{lagged_ecp}) as a predictor. Default: \code{FALSE}.}
 
 \item{modelDir}{Character or NULL. Directory for saving/loading \code{PFMModel}
-files. Defaults to \code{getOption("pfm.modelDir", NULL)}. Set to \code{NULL}
+files. Defaults to \code{getOption("pfm.modelDir", "output")}. Set to \code{NULL}
 to disable persistence.}
 
 \item{updateIndex}{Logical. Forwarded to \code{\link{savePFMModel}}; when \code{FALSE}

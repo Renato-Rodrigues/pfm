@@ -46,7 +46,7 @@
 #' @param includeLaggedECP Logical. If \code{TRUE}, includes the lagged
 #'   carbon price (\code{lagged_ecp}) as a predictor. Default: \code{FALSE}.
 #' @param modelDir Character or NULL. Directory for saving/loading \code{PFMModel}
-#'   files. Defaults to \code{getOption("pfm.modelDir", NULL)}. Set to \code{NULL}
+#'   files. Defaults to \code{getOption("pfm.modelDir", "output")}. Set to \code{NULL}
 #'   to disable persistence.
 #' @param updateIndex Logical. Forwarded to \code{\link{savePFMModel}}; when \code{FALSE}
 #'   the fit is written to disk but the shared \code{index.json} is not touched (parallel
@@ -126,7 +126,7 @@ estimatePriceStringencyModel <- function(
     useFirth = FALSE,
     includeLaggedECP = FALSE,
     interactRegionFE = FALSE,
-    modelDir = getOption("pfm.modelDir", NULL),
+    modelDir = getOption("pfm.modelDir", "output"),
     updateIndex = TRUE,
     ignoreCache = FALSE,
     label = "",

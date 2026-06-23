@@ -45,7 +45,7 @@
 #' @export
 #' @author Renato Rodrigues
 projectSpecScenario <- function(cfg, sector, histData, scenarioData,
-                                family = "Gamma", modelDir = getOption("pfm.modelDir", NULL),
+                                family = "Gamma", modelDir = getOption("pfm.modelDir", "output"),
                                 extrapLogMargin = 2, priceCeiling = 5000,
                                 minProjYear = NULL, verbose = FALSE) {
   if (!identical(cfg$panelTransform %||% "levels", "levels")) {

@@ -17,7 +17,7 @@
 #' @seealso \code{\link{startRun}}, ADR 0020
 #' @export
 #' @author Renato Rodrigues
-runStatus <- function(group, resultsDir = getOption("pfm.resultsDir", NULL), verbose = TRUE) {
+runStatus <- function(group, resultsDir = getOption("pfm.resultsDir", "output"), verbose = TRUE) {
   if (missing(group) || is.null(group) || !nzchar(group)) stop("runStatus: 'group' is required.", call. = FALSE)
   if (is.null(resultsDir)) stop("runStatus: supply 'resultsDir' or set options(pfm.resultsDir = '...').", call. = FALSE)
   groupDir <- file.path(resultsDir, group)

@@ -12,7 +12,7 @@ runChannelsWorkflow(
   sectors = c("Bulk", "Diffuse"),
   reportsDir = NULL,
   configDir = NULL,
-  modelDir = getOption("pfm.modelDir", NULL),
+  modelDir = getOption("pfm.modelDir", "output"),
   nCores = 1L,
   forceRefit = FALSE,
   family = "gaussian",

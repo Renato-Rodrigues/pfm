@@ -6,8 +6,8 @@
 \usage{
 runDifferenceFirst(
   group,
-  resultsDir = getOption("pfm.resultsDir", NULL),
-  modelDir = getOption("pfm.modelDir", NULL),
+  resultsDir = getOption("pfm.resultsDir", "output"),
+  modelDir = getOption("pfm.modelDir", "output"),
   cachefolder = NULL,
   gdxFile = NULL,
   panelData = NULL,

@@ -6,8 +6,8 @@
 \usage{
 runSubnational(
   group,
-  resultsDir = getOption("pfm.resultsDir", NULL),
-  modelDir = getOption("pfm.modelDir", NULL),
+  resultsDir = getOption("pfm.resultsDir", "output"),
+  modelDir = getOption("pfm.modelDir", "output"),
   cachefolder = NULL,
   y = 2000:2022,
   outputRegionMappingFile = "regionmapping_54.csv",
