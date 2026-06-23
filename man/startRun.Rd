@@ -21,7 +21,7 @@ startRun(
   account = NULL,
   mem = NULL,
   chdir = NULL,
-  reportsDir = NULL,
+  outputDir = NULL,
   render = FALSE,
   forceRefit = FALSE,
   verbose = TRUE,
@@ -55,7 +55,9 @@ defaults from options).}
 \item{time, qos, partition, account, mem, chdir}{SLURM directives (PIK defaults: 24h / short /
 standard / default account / node-default mem / \code{resultsDir/<group>}).}
 
-\item{reportsDir}{Character or NULL. pfm-reports root, used only when \code{render = TRUE}.}
+\item{outputDir}{Character or NULL. Where rendered reports are written when \code{render =
+TRUE} (defaults to \code{resultsDir}). Rendering shells out to the installed \pkg{pfmreports}
+package (ADR 0021); \code{pfm} gains no dependency on it.}
 
 \item{render}{Logical. After the run, shell out to render the pfm-reports outputs for the
 group (requires \code{reportsDir}). Default \code{FALSE}.}

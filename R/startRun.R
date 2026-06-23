@@ -27,7 +27,9 @@
 #' @param cluster \code{"auto"} (default), \code{"slurm"}, or \code{"local"}.
 #' @param time,qos,partition,account,mem,chdir SLURM directives (PIK defaults: 24h / short /
 #'   standard / default account / node-default mem / \code{resultsDir/<group>}).
-#' @param reportsDir Character or NULL. pfm-reports root, used only when \code{render = TRUE}.
+#' @param outputDir Character or NULL. Where rendered reports are written when \code{render =
+#'   TRUE} (defaults to \code{resultsDir}). Rendering shells out to the installed \pkg{pfmreports}
+#'   package (ADR 0021); \code{pfm} gains no dependency on it.
 #' @param render Logical. After the run, shell out to render the pfm-reports outputs for the
 #'   group (requires \code{reportsDir}). Default \code{FALSE}.
 #' @param forceRefit Logical. Ignore cached fits. Default \code{FALSE}.
@@ -51,7 +53,7 @@ startRun <- function(group,
                      cluster = c("auto", "slurm", "local"),
                      time = "24:00:00", qos = "short", partition = "standard",
                      account = NULL, mem = NULL, chdir = NULL,
-                     reportsDir = NULL, render = FALSE,
+                     outputDir = NULL, render = FALSE,
                      forceRefit = FALSE, verbose = TRUE, ...) {
   mode <- match.arg(mode)
   selectionMethod <- match.arg(selectionMethod)
@@ -75,7 +77,7 @@ startRun <- function(group,
       resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile,
       nCores = nCores,
       time = time, qos = qos, partition = partition, account = account, mem = mem, chdir = chdir,
-      reportsDir = reportsDir, render = render, forceRefit = forceRefit, say = say, dots = list(...)))
+      outputDir = outputDir, render = render, forceRefit = forceRefit, say = say, dots = list(...)))
   }
 
   # ── Local (in-process) run ──────────────────────────────────────────────────
@@ -106,8 +108,9 @@ startRun <- function(group,
     seconds = round(as.numeric(difftime(endedAt, t0, units = "secs")), 1)))
 
   if (ok && isTRUE(render)) {
-    if (is.null(reportsDir)) say("render = TRUE but reportsDir not supplied; skipping reports.")
-    else .renderReports(reportsDir, group, steps, say)
+    .renderReports(group = group, resultsDir = resultsDir, modelDir = modelDir,
+                   cachefolder = cachefolder, gdxFile = gdxFile,
+                   outputDir = outputDir %||% resultsDir, steps = steps, say = say)
   }
   say(if (ok) "DONE" else "FAILED", " - ", groupDir)
   invisible(list(group = group, status = if (ok) "completed" else "failed", dir = groupDir))
@@ -137,11 +140,11 @@ startRun <- function(group,
 # list(submitted=TRUE, jobId=, script=).
 #' @keywords internal
 .submitSlurm <- function(group, steps, mode, selectionMethod, resultsDir, modelDir, cachefolder,
-                         gdxFile, nCores, time, qos, partition, account, mem, chdir, reportsDir,
+                         gdxFile, nCores, time, qos, partition, account, mem, chdir, outputDir,
                          render, forceRefit, say, dots) {
   abspath <- function(p) if (is.null(p)) NULL else normalizePath(p, winslash = "/", mustWork = FALSE)
   resultsDir <- abspath(resultsDir); modelDir <- abspath(modelDir)
-  cachefolder <- abspath(cachefolder); gdxFile <- abspath(gdxFile); reportsDir <- abspath(reportsDir)
+  cachefolder <- abspath(cachefolder); gdxFile <- abspath(gdxFile); outputDir <- abspath(outputDir)
   user <- Sys.getenv("USER", Sys.getenv("USERNAME", "user"))
   if (is.null(chdir)) chdir <- file.path(resultsDir, group)
   dir.create(chdir, showWarnings = FALSE, recursive = TRUE)         # must exist before sbatch
@@ -150,10 +153,10 @@ startRun <- function(group,
   # Job R script: re-invoke startRun in local mode on the compute node.
   call <- sprintf(paste0(
     "pfm::startRun(group=%s, steps=%s, mode=%s, selectionMethod=%s, resultsDir=%s, modelDir=%s, ",
-    "cachefolder=%s, gdxFile=%s, nCores=%d, cluster=\"local\", forceRefit=%s, render=%s, reportsDir=%s%s)"),
+    "cachefolder=%s, gdxFile=%s, nCores=%d, cluster=\"local\", forceRefit=%s, render=%s, outputDir=%s%s)"),
     .rlit(group), .rlit(steps), .rlit(mode), .rlit(selectionMethod), .rlit(resultsDir),
     .rlit(modelDir), .rlit(cachefolder), .rlit(gdxFile), nCores, .rlit(forceRefit), .rlit(render),
-    .rlit(reportsDir),
+    .rlit(outputDir),
     if (length(dots)) paste0(", ", paste(sprintf("%s=%s", names(dots),
       vapply(dots, .rlit, character(1))), collapse = ", ")) else "")
   jobR <- file.path(chdir, paste0("pfm-", group, "-job.R"))
@@ -203,28 +206,33 @@ startRun <- function(group,
 # Maps the steps that ran to the reports that consume them; never makes pfm depend on
 # pfm-reports (it only invokes run.R scripts in the supplied directory).
 #' @keywords internal
-.renderReports <- function(reportsDir, group, steps, say) {
-  base <- c("selection" = "reports/selection/run.R",
-            "model-selection" = "reports/model-selection/run.R",
-            "results-adoption" = "reports/results-adoption/run.R",
-            "results-stringency" = "reports/results-stringency/run.R",
-            "publication" = "reports/publication/run.R")
-  reps <- names(base)
+.renderReports <- function(group, resultsDir, modelDir, cachefolder, gdxFile, outputDir,
+                           steps, say) {
+  # Retargeted shell-out (ADR 0021): render via the installed pfmreports package — pfm gains no
+  # dependency on it. Skipped (with a note) when pfmreports is not installed.
+  haveReports <- nzchar(system2("Rscript",
+    c("-e", shQuote("cat(requireNamespace('pfmreports', quietly=TRUE))")),
+    stdout = TRUE, stderr = FALSE)[1] == "TRUE")
+  if (!isTRUE(haveReports)) {
+    say("render = TRUE but the 'pfmreports' package is not installed; skipping report rendering.")
+    return(invisible(NULL))
+  }
+  reps <- c("selection", "model-selection", "results-adoption", "results-stringency", "publication")
   if (any(c("robustness", "temporal", "difference-first") %in% steps)) reps <- c(reps, "robustness")
   if ("subnational" %in% steps) reps <- c(reps, "subnational")
-  extra <- c("robustness" = "reports/robustness/run.R", "subnational" = "reports/subnational/run.R")
-  paths <- c(base, extra)
-  oldwd <- setwd(reportsDir); on.exit(setwd(oldwd), add = TRUE)
-  for (rep in reps) {
-    rp <- paths[[rep]]
-    if (!file.exists(rp)) { say("report '", rep, "' (", rp, ") not found; skipping."); next }
-    say("rendering report: ", rep)
-    st <- tryCatch(system2("Rscript", c(rp, paste0("--group=", group), paste0("--reportName=", group)),
-                           stdout = TRUE, stderr = TRUE),
-                   error = function(e) paste("render-error:", conditionMessage(e)))
-    if (!is.null(attr(st, "status")) && attr(st, "status") != 0) {
-      say("report '", rep, "' FAILED (see its output/logs).")
-    }
+  lit <- function(x) if (is.null(x)) "NULL" else paste0('"', gsub('"', '\\\\"', x), '"')
+  expr <- sprintf(paste0(
+    "suppressMessages(library(pfmreports)); ",
+    "pfmreports::renderGroup(group=%s, reports=c(%s), resultsDir=%s, modelDir=%s, ",
+    "cachefolder=%s, gdxFile=%s, reportName=%s, outputDir=%s)"),
+    lit(group), paste(vapply(reps, lit, character(1)), collapse = ", "),
+    lit(resultsDir), lit(modelDir), lit(cachefolder), lit(gdxFile), lit(group), lit(outputDir))
+  say("rendering reports via pfmreports::renderGroup (", paste(reps, collapse = ", "), ") ...")
+  st <- tryCatch(system2("Rscript", c("-e", shQuote(expr)), stdout = TRUE, stderr = TRUE),
+                 error = function(e) { say("render-error: ", conditionMessage(e)); NULL })
+  if (!is.null(attr(st, "status")) && attr(st, "status") != 0) {
+    say("report rendering returned a non-zero status (see output above).")
   }
+  invisible(NULL)
 }
 # nolint end
