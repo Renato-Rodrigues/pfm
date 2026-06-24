@@ -35,7 +35,7 @@
 #' @export
 #' @author Renato Rodrigues
 predictFeasibility <- function(adoptionModel, stringencyModel, scenarioData,
-                               extrapLogMargin = 2, priceCeiling = 5000,
+                               extrapLogMargin = c(Bulk = 2, Diffuse = 1), priceCeiling = 5000,
                                minProjYear = NULL, verbose = FALSE) {
   stopifnot(inherits(adoptionModel, "PFMModel"),
             inherits(stringencyModel, "PFMModel"))
@@ -86,8 +86,11 @@ predictFeasibility <- function(adoptionModel, stringencyModel, scenarioData,
 
   # ── Stringency response and price ────────────────────────────────────────────
   sDf <- .alignRegionFEStored(scenDf(stringencyModel), stringencyModel)
+  marg <- if (!is.null(names(extrapLogMargin)) && sector %in% names(extrapLogMargin)) {
+    extrapLogMargin[[sector]]
+  } else extrapLogMargin[[1]]
   capVal <- if (is.finite(stringencyModel$applyState$insMaxResp %||% NA_real_)) {
-    stringencyModel$applyState$insMaxResp + extrapLogMargin
+    stringencyModel$applyState$insMaxResp + marg
   } else Inf
 
   hasLag <- "lagged_ecp" %in% all.vars(stringencyModel$formula)

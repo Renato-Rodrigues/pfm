@@ -51,7 +51,8 @@
 #' @author Renato Rodrigues
 selectDifferenceFirst <- function(results, specByName, panelData, scenarioData = NULL,
                                   sectors = c("Bulk", "Diffuse"), family = "gaussian",
-                                  modelDir = NULL, nearTieEps = 0.05,
+                                  modelDir = NULL, nearTieEps = 0.025, feParsimonyWeight = 0,
+                                  dropIdleControls = TRUE, softVifGate = 6, trendShareGate = 0.6,
                                   requireBothSectors = TRUE, pThreshold = 0.05, maxTries = 25L,
                                   iqVanishTest = "jointBlock",
                                   levelsFE = list(
@@ -68,14 +69,17 @@ selectDifferenceFirst <- function(results, specByName, panelData, scenarioData =
   if (is.null(levelsFE)) levelsFE <- list(noFE = list(fe = NULL, mundlak = FALSE))
   stages <- intersect(c("Adoption", "Stringency"), unique(results$stage))
   mmCols <- c("model", "sector", "sigActorPower", "sigInstQual", "sigInteractions",
-              "deltaR2Theory", "pseudoR2", "bic", "maxVIF", "converged", "usesLagged")
+              "deltaR2Theory", "pseudoR2", "bic", "maxVIF", "converged", "usesLagged", "nFE",
+              "nObs", "sigControl", "nControl", "trendShare")
 
   out <- list()
   for (stg in stages) {
     sub <- results[results$stage == stg & results$panelTransform == "hybridFD", , drop = FALSE]
     if (!nrow(sub)) { say("DIF: no hybridFD rows for ", stg); next }
     mm <- computeMaximinScore(sub[, intersect(mmCols, colnames(sub)), drop = FALSE],
-                              nearTieEps = nearTieEps)
+                              nearTieEps = nearTieEps, feParsimonyWeight = feParsimonyWeight,
+                              dropIdleControls = dropIdleControls, softVifGate = softVifGate,
+                              trendShareGate = trendShareGate)
     ranked <- mm[mm$gatePass, , drop = FALSE]
     if (!nrow(ranked)) { say("DIF: no gate-passing hybridFD spec for ", stg);
       out[[stg]] <- list(chosen = NA_character_, chosenConfigLevels = NULL, maximin = mm,

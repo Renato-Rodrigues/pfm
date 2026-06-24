@@ -87,9 +87,26 @@
 #'   \code{c("H12", "OECDp", "Mundlak")} to exclude pooled (\code{noFE}), the
 #'   inflation-prone 54-unit (\code{FE54}), and the first-difference transforms
 #'   (which carry no region FE). Selection-only; the full results and best-per-sector
-#'   views still include every spec. Default \code{NULL} (no FE constraint).
+#'   views still include every spec. Default \code{c("H12", "OECDp", "Mundlak")} —
+#'   a real region-FE (or Mundlak) deliverable is required, so a pooled \code{noFE}
+#'   spec is never auto-selected. Pass \code{NULL} to lift the constraint.
 #' @param nearTieEps Numeric. BIC parsimony tie-break tolerance passed to
-#'   \code{\link{computeMaximinScore}} (ADR 0012). Default \code{0.05}.
+#'   \code{\link{computeMaximinScore}} (ADR 0012). Default \code{0.025} (tightened
+#'   2026-06-24 from 0.05: specs more than 0.025 mean-\eqn{\Delta R^2}(theory) below
+#'   the leader are no longer treated as theory-equivalent, so a lower-\eqn{\Delta R^2}
+#'   spec cannot win purely on parsimony).
+#' @param feParsimonyWeight Numeric in \code{[0, 1]}. Weight on the region-FE BIC
+#'   penalty in the parsimony tie-break, forwarded to \code{\link{computeMaximinScore}}.
+#'   Default \code{0} (region-FE dummies are not penalised, so FE granularity does not
+#'   decide the selection on parameter count alone). Set \code{1} for classic BIC.
+#' @param dropIdleControls Logical. Forwarded to \code{\link{computeMaximinScore}}: within a
+#'   near-tie band, prefer specs without an idle (present-but-never-significant) control over
+#'   otherwise-equivalent specs that carry one. Default \code{TRUE}.
+#' @param softVifGate,trendShareGate Numeric or \code{NULL}. Forwarded to
+#'   \code{\link{computeMaximinScore}}: within a near-tie band, demote high-collinearity
+#'   (\code{maxVIF > softVifGate}, default 6) and high-trend-reliance
+#'   (\code{trendShare > trendShareGate}, default 0.6) specs behind cleaner equivalents.
+#'   \code{NULL} disables either preference.
 #' @param writeSelectedConfig Logical. Write \code{selected-models-channels-<mode>.yml}.
 #'   Default \code{TRUE}.
 #' @param renderReports Logical. Render the pfm-reports outputs (requires
@@ -137,8 +154,12 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
                                 saveRds = TRUE,
                                 selectModels = TRUE,
                                 selectionMethod = c("levels-first", "difference-first"),
-                                selectFE = NULL,
-                                nearTieEps = 0.05,
+                                selectFE = c("H12", "OECDp", "Mundlak"),
+                                nearTieEps = 0.025,
+                                feParsimonyWeight = 0,
+                                dropIdleControls = TRUE,
+                                softVifGate = 6,
+                                trendShareGate = 0.6,
                                 requireBothSectors = TRUE,
                                 falsificationPThreshold = 0.05,
                                 maxFalsificationTries = 25L,
@@ -268,7 +289,9 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
     difSelection <- selectDifferenceFirst(
       results = results, specByName = specByName, panelData = panelData,
       scenarioData = scenarioData, sectors = sectors, family = family, modelDir = modelDir,
-      nearTieEps = nearTieEps, requireBothSectors = requireBothSectors,
+      nearTieEps = nearTieEps, feParsimonyWeight = feParsimonyWeight,
+      dropIdleControls = dropIdleControls, softVifGate = softVifGate,
+      trendShareGate = trendShareGate, requireBothSectors = requireBothSectors,
       pThreshold = falsificationPThreshold, maxTries = maxFalsificationTries,
       iqVanishTest = iqVanishTest, levelsFE = levelsFE,
       sanityBatchSize = sanityBatchSize, sanityMaxModels = sanityMaxModels,
@@ -301,8 +324,12 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
       }
       mmCols <- intersect(c("model", "sector", "sigActorPower", "sigInstQual",
                             "sigInteractions", "deltaR2Theory", "pseudoR2", "bic", "maxVIF",
-                            "converged", "usesLagged"), colnames(sub))
-      mm <- computeMaximinScore(sub[, mmCols, drop = FALSE], nearTieEps = nearTieEps)
+                            "converged", "usesLagged", "nFE", "nObs", "sigControl", "nControl",
+                            "trendShare"), colnames(sub))
+      mm <- computeMaximinScore(sub[, mmCols, drop = FALSE], nearTieEps = nearTieEps,
+                                feParsimonyWeight = feParsimonyWeight,
+                                dropIdleControls = dropIdleControls,
+                                softVifGate = softVifGate, trendShareGate = trendShareGate)
       maximin[[stg]] <- mm
       pass <- mm[mm$gatePass, , drop = FALSE]
       if (nrow(pass) == 0) {
@@ -525,8 +552,10 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
     model = cfg$name, sector = sector, stage = stage,
     panelTransform = cfg$panelTransform,
     sigActorPower = 0L, sigInstQual = 0L, sigInteractions = 0L,
+    sigControl = 0L, nControl = length(cfg$controlDrivers),
     deltaR2Theory = NA_real_, theoryFrac = NA_real_,
-    aic = NA_real_, bic = NA_real_, pseudoR2 = NA_real_, nObs = NA_integer_,
+    aic = NA_real_, bic = NA_real_, pseudoR2 = NA_real_, nObs = NA_integer_, nFE = NA_integer_,
+    trendShare = NA_real_,
     maxVIF = NA_real_, converged = FALSE, usesLagged = isTRUE(cfg$includeLagged),
     brier = NA_real_, auc = NA_real_, calibrationSlope = NA_real_, rmse = NA_real_,
     stringsAsFactors = FALSE
@@ -548,9 +577,29 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
   base$sigInteractions <- sigInt
   base$sigInstQual <- countMatches(sigBase, cfg$instQualityDrivers)
   base$sigActorPower <- countMatches(sigBase, c(cfg$actorPowerDrivers, cfg$actorPowerIndex))
+  # Control-term significance (for the drop-idle-control tie-break, 2026-06-24): a control
+  # is "idle" when present (nControl > 0) but never significant across sectors.
+  base$sigControl <- countMatches(sigBase, cfg$controlDrivers)
 
   isLf <- inherits(m, "logistf")
   k <- length(stats::coef(m))
+  # Region-FE parameter count (for the FE-discounted BIC parsimony tie-break, 2026-06-24).
+  base$nFE <- tryCatch(sum(grepl("^regionFE", names(stats::coef(m)))), error = function(e) NA_integer_)
+  # Trend reliance = share of the fitted linear-predictor variance from the time-trend term
+  # (for the low-trend selection preference, 2026-06-24). NA when not computable -> no preference.
+  base$trendShare <- tryCatch({
+    co <- stats::coef(m)
+    tn <- intersect(c("logisticTimeTrend", "timeTrend"), names(co))
+    d <- fit$data %||% m$data %||% m$model
+    if (length(tn) == 1L && is.finite(co[[tn]]) && !is.null(d) && tn %in% names(d)) {
+      contrib <- co[[tn]] * as.numeric(d[[tn]])
+      mm0 <- stats::model.matrix(stats::as.formula(fit$formula), data = d)
+      sh <- intersect(colnames(mm0), names(co))
+      lp <- as.numeric(mm0[, sh, drop = FALSE] %*% co[sh])
+      vlp <- stats::var(lp, na.rm = TRUE)
+      if (is.finite(vlp) && vlp > 0) stats::var(contrib, na.rm = TRUE) / vlp else NA_real_
+    } else NA_real_
+  }, error = function(e) NA_real_)
   nObs <- if (isLf) m$n else tryCatch(stats::nobs(m), error = function(e) NA_integer_)
   loglik <- if (isLf) as.numeric(m$loglik["full"]) else
     tryCatch(as.numeric(stats::logLik(m)), error = function(e) NA_real_)

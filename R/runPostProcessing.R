@@ -166,7 +166,8 @@ runRobustness <- function(group, resultsDir = getOption("pfm.resultsDir", "outpu
   res <- readRDS(file.path(groupDir, "sweep.rds"))
   realFE <- "fe:(H12|OECDp|Mundlak)"
   mmCols <- c("model", "sector", "sigActorPower", "sigInstQual", "sigInteractions",
-              "deltaR2Theory", "pseudoR2", "bic", "maxVIF", "converged", "usesLagged")
+              "deltaR2Theory", "pseudoR2", "bic", "maxVIF", "converged", "usesLagged", "nFE",
+              "nObs", "sigControl", "nControl", "trendShare")
   frontier <- do.call(rbind, lapply(c("Adoption", "Stringency"), function(stg) {
     sub <- res$results[res$results$stage == stg, ]; sub <- sub[grepl(realFE, sub$model), ]
     if (!"bic" %in% colnames(sub) || nrow(sub) == 0) return(NULL)

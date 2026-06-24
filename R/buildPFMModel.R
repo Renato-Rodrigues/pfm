@@ -72,7 +72,14 @@ buildPFMModel <- function(fit, training_data, sector, stage, family, useFirth, l
   } else NULL
   applyState <- list(
     seed_prices     = seedPrices,
-    insMaxResp      = if (length(fittedVals) > 0) max(fittedVals, na.rm = TRUE) else NA_real_,
+    # Clamp anchor = in-sample OBSERVED response max (log(1+ECP) for stringency), not the
+    # fitted max which an ill-conditioned GLM can inflate (2026-06-24, ADR 0023).
+    insMaxResp      = {
+      respVals <- if (identical(tolower(stage), "stringency") && "ecp" %in% names(training_data)) {
+        training_data$ecp
+      } else fittedVals
+      if (length(respVals) > 0) max(respVals, na.rm = TRUE) else NA_real_
+    },
     regionFE_levels = feLevels
   )
 

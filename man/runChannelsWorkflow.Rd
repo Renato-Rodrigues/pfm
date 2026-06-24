@@ -23,8 +23,12 @@ runChannelsWorkflow(
   saveRds = TRUE,
   selectModels = TRUE,
   selectionMethod = c("levels-first", "difference-first"),
-  selectFE = NULL,
-  nearTieEps = 0.05,
+  selectFE = c("H12", "OECDp", "Mundlak"),
+  nearTieEps = 0.025,
+  feParsimonyWeight = 0,
+  dropIdleControls = TRUE,
+  softVifGate = 6,
+  trendShareGate = 0.6,
   requireBothSectors = TRUE,
   falsificationPThreshold = 0.05,
   maxFalsificationTries = 25L,
@@ -114,10 +118,30 @@ appears here (matched against the spec name's \code{fe:} tag), e.g.
 \code{c("H12", "OECDp", "Mundlak")} to exclude pooled (\code{noFE}), the
 inflation-prone 54-unit (\code{FE54}), and the first-difference transforms
 (which carry no region FE). Selection-only; the full results and best-per-sector
-views still include every spec. Default \code{NULL} (no FE constraint).}
+views still include every spec. Default \code{c("H12", "OECDp", "Mundlak")} —
+a real region-FE (or Mundlak) deliverable is required, so a pooled \code{noFE}
+spec is never auto-selected. Pass \code{NULL} to lift the constraint.}
 
 \item{nearTieEps}{Numeric. BIC parsimony tie-break tolerance passed to
-\code{\link{computeMaximinScore}} (ADR 0012). Default \code{0.05}.}
+\code{\link{computeMaximinScore}} (ADR 0012). Default \code{0.025} (tightened
+2026-06-24 from 0.05: specs more than 0.025 mean-\eqn{\Delta R^2}(theory) below
+the leader are no longer treated as theory-equivalent, so a lower-\eqn{\Delta R^2}
+spec cannot win purely on parsimony).}
+
+\item{feParsimonyWeight}{Numeric in \code{[0, 1]}. Weight on the region-FE BIC
+penalty in the parsimony tie-break, forwarded to \code{\link{computeMaximinScore}}.
+Default \code{0} (region-FE dummies are not penalised, so FE granularity does not
+decide the selection on parameter count alone). Set \code{1} for classic BIC.}
+
+\item{dropIdleControls}{Logical. Forwarded to \code{\link{computeMaximinScore}}: within a
+near-tie band, prefer specs without an idle (present-but-never-significant) control over
+otherwise-equivalent specs that carry one. Default \code{TRUE}.}
+
+\item{softVifGate, trendShareGate}{Numeric or \code{NULL}. Forwarded to
+\code{\link{computeMaximinScore}}: within a near-tie band, demote high-collinearity
+(\code{maxVIF > softVifGate}, default 6) and high-trend-reliance
+(\code{trendShare > trendShareGate}, default 0.6) specs behind cleaner equivalents.
+\code{NULL} disables either preference.}
 
 \item{requireBothSectors}{Logical. Difference-first only: the Falsification Gate
 must pass in both sectors (\code{TRUE}, default) or any sector (\code{FALSE}).}

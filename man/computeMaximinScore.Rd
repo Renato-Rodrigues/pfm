@@ -9,7 +9,11 @@ computeMaximinScore(
   vifGate = 10,
   deltaR2Max = 1,
   pseudoR2Range = NULL,
-  nearTieEps = 0.05
+  nearTieEps = 0.05,
+  feParsimonyWeight = 0,
+  dropIdleControls = TRUE,
+  softVifGate = 6,
+  trendShareGate = 0.6
 )
 }
 \arguments{
@@ -45,6 +49,41 @@ gate-passing specs of the same worse-sector tier, those whose mean
 treated as theory-equivalent and ranked by lowest summed BIC (most parsimonious)
 first; requires a \code{bic} column in \code{df}. Default \code{0.05}; set
 \code{0} to disable and fall back to pure tier → \eqn{\Delta R^2} ordering.}
+
+\item{feParsimonyWeight}{Numeric in \code{[0, 1]}. Weight on the \emph{region-FE}
+parameter penalty in the BIC used for the parsimony tie-break (the 2026-06-24
+FE-discount). \code{1} = classic BIC (every region-FE dummy fully penalised);
+\code{0} = region-FE parameters carry \emph{no} BIC penalty, so models are
+compared on fit + non-FE complexity only — preventing a coarse FE resolution
+(e.g. 4-region \code{OECDp}, nFE=3) from beating a finer one (12-region
+\code{H12}, nFE=11) on dummy count alone. Applied as
+\code{adjBIC = bic - (1 - feParsimonyWeight) * nFE * log(nObs)} per sector, and
+only when both \code{nFE} and \code{nObs} columns are present (otherwise the raw
+\code{bic} is used). Default \code{0}. Note: the FE-discount equalises the
+\emph{parameter-count} advantage but not a genuine in-sample \emph{fit} advantage.}
+
+\item{dropIdleControls}{Logical. The drop-idle-control tie-break (2026-06-24): within a
+near-tie band, rank specs carrying an \emph{idle} control (a control present but
+statistically insignificant in \emph{every} sector) \emph{behind} otherwise-equivalent
+specs that either have no control or a significant one — before the BIC parsimony
+tie-break. A control improving in-sample fit just enough to lower BIC while never being
+significant is a researcher-degree-of-freedom; this prefers the cleaner spec. Requires
+\code{nControl} (controls in the spec) and \code{sigControl} (significant controls)
+columns; no-ops without them. Default \code{TRUE}.}
+
+\item{softVifGate}{Numeric or \code{NULL}. Soft collinearity preference (2026-06-24): within
+a near-tie band, specs whose \code{maxVIF} exceeds this in any sector are demoted behind
+lower-collinearity equivalents (ahead of the BIC tie-break). Distinct from the hard
+\code{vifGate} (which excludes a spec entirely); this only re-orders near-ties, e.g.
+nudging selection toward a low-VIF composite-AP stringency spec over a high-VIF split-AP
+one. \code{NULL} disables. Default \code{6}.}
+
+\item{trendShareGate}{Numeric or \code{NULL}. Soft low-trend-reliance preference
+(2026-06-24): within a near-tie band, specs whose \code{trendShare} (share of the fitted
+linear-predictor variance attributable to the time-trend term) exceeds this in any sector
+are demoted behind less trend-reliant equivalents. Prefers specs whose signal comes from
+the theory drivers rather than a calendar trend (lower extrapolation fragility). Requires a
+\code{trendShare} column; no-ops without it. \code{NULL} disables. Default \code{0.6}.}
 }
 \value{
 Data.frame with one row per model, ordered best-first:

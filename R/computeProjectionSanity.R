@@ -46,7 +46,7 @@
 #' @author Renato Rodrigues
 projectSpecScenario <- function(cfg, sector, histData, scenarioData,
                                 family = "Gamma", modelDir = getOption("pfm.modelDir", "output"),
-                                extrapLogMargin = 2, priceCeiling = 5000,
+                                extrapLogMargin = c(Bulk = 2, Diffuse = 1), priceCeiling = 5000,
                                 minProjYear = NULL, verbose = FALSE) {
   if (!identical(cfg$panelTransform %||% "levels", "levels")) {
     if (isTRUE(verbose)) {
@@ -131,19 +131,29 @@ projectSpecScenario <- function(cfg, sector, histData, scenarioData,
   # projected response cannot exceed the in-sample fitted maximum + extrapLogMargin,
   # keeping prices finite when ill-conditioned coefficients overshoot. Used both as
   # the one-shot clamp and as the per-year clamp in the recursive (lagged) path.
-  insResp <- tryCatch(as.numeric(stats::fitted(stringencyFit$model)),
-                      error = function(e) NULL)
-  capVal <- if (!is.null(insResp) && length(insResp) > 0) {
-    max(insResp, na.rm = TRUE) + extrapLogMargin
+  # Per-sector extrapolation margin (2026-06-24): diffuse prices are bounded more tightly.
+  marg <- if (!is.null(names(extrapLogMargin)) && sector %in% names(extrapLogMargin)) {
+    extrapLogMargin[[sector]]
+  } else extrapLogMargin[[1]]
+  # Anchor the clamp to the in-sample OBSERVED response max, not the fitted max (an
+  # ill-conditioned GLM can inflate the fitted range); fall back to fitted if unavailable.
+  insObs <- tryCatch(as.numeric(stringencyFit$data$ecp), error = function(e) NULL)
+  if (is.null(insObs) || !length(insObs) || all(is.na(insObs))) {
+    insObs <- tryCatch(as.numeric(stats::fitted(stringencyFit$model)), error = function(e) NULL)
+  }
+  capVal <- if (!is.null(insObs) && length(insObs) > 0) {
+    max(insObs, na.rm = TRUE) + marg
   } else Inf
 
   hasLag <- "lagged_ecp" %in% all.vars(stringencyFit$formula)
+  respRaw <- rep(NA_real_, nrow(sDf))   # pre-clamp response, for the clamp-reliance signal
   if (!hasLag) {
     resp <- tryCatch(
       as.numeric(stats::predict(stringencyFit$model, newdata = sDf, type = "response")),
       error = function(e) rep(NA_real_, nrow(sDf))
     )
-    if (is.finite(capVal)) resp <- pmin(pmax(resp, 0), capVal)
+    respRaw <- pmax(resp, 0)
+    resp <- if (is.finite(capVal)) pmin(respRaw, capVal) else respRaw
   } else {
     # ── Recursive (dynamic) projection: a lagged-price model needs last year's
     # PREDICTED price as an input, so future years are simulated forward, not
@@ -173,7 +183,9 @@ projectSpecScenario <- function(cfg, sector, histData, scenarioData,
       for (i in idx) {
         e <- etaFixed[i] + bLag * lagv
         if (!is.finite(e)) { resp[i] <- NA_real_; next }
-        if (is.finite(capVal)) e <- min(max(e, 0), capVal)
+        eRaw <- max(e, 0)
+        respRaw[i] <- eRaw
+        e <- if (is.finite(capVal)) min(eRaw, capVal) else eRaw
         resp[i] <- e
         lagv <- e
       }
@@ -187,10 +199,16 @@ projectSpecScenario <- function(cfg, sector, histData, scenarioData,
   # binds. Set priceCeiling = Inf to disable.
   if (is.finite(priceCeiling)) price <- pmin(price, priceCeiling)
 
+  # Pre-clamp price + which region-years were pinned at the extrapolation guard. A spec whose
+  # projection leans heavily on the clamp is extrapolating beyond its data (clamp-reliance gate).
+  priceUnclamped <- expm1(respRaw)
+  clampPinned <- is.finite(respRaw) & is.finite(capVal) & (respRaw > capVal + 1e-9)
+
   out <- data.frame(
     region = aDf$region, year = aDf$year, sector = sector,
     prob = prob, stringencyResponse = resp,
     price = price, expectedPrice = prob * price,
+    priceUnclamped = priceUnclamped, clampPinned = clampPinned,
     stringsAsFactors = FALSE
   )
 
@@ -278,7 +296,7 @@ computeProjectionSanity <- function(proj, stage = c("adoption", "stringency", "h
   th <- utils::modifyList(list(
     priceExplosion = 2000, probSaturationHigh = 0.99, probDeadLow = 0.01,
     saturationSevereBefore = NA_real_, seamProbJump = 0.3, seamPriceFactor = 2,
-    spikeFactor = 2, spikeMinPrice = 10, missingShareWarn = 0.05
+    spikeFactor = 2, spikeMinPrice = 10, missingShareWarn = 0.05, clampReliance = 0.25
   ), thresholds)
 
   flags <- list()
@@ -319,6 +337,17 @@ computeProjectionSanity <- function(proj, stage = c("adoption", "stringency", "h
     if (length(bad) > 0) {
       addFlag("price-invalid", "severe", proj$region[bad[1]], proj$year[bad[1]],
               p[bad[1]], paste0(length(bad), " negative/infinite price values"))
+    }
+    # Rule 1b: clamp-reliance (severe) — the projection-plausibility hard filter (2026-06-24).
+    # A spec whose forward projection is pinned against the extrapolation guard for more than
+    # `clampReliance` of region-years is extrapolating beyond its data; .sanitySelect rejects it
+    # rather than reporting a clamped (guard-rail) price.
+    if ("clampPinned" %in% colnames(proj)) {
+      pinFrac <- mean(proj$clampPinned, na.rm = TRUE)
+      if (is.finite(pinFrac) && pinFrac > th$clampReliance) {
+        addFlag("clamp-reliance", "severe", "(extrapolation)", NA, pinFrac,
+                sprintf("%.0f%% of region-years pinned at the extrapolation clamp", pinFrac * 100))
+      }
     }
     # Rule 5: spikes (warning)
     for (r in unique(proj$region)) {

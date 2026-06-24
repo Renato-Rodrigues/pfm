@@ -8,7 +8,7 @@ predictFeasibility(
   adoptionModel,
   stringencyModel,
   scenarioData,
-  extrapLogMargin = 2,
+  extrapLogMargin = c(Bulk = 2, Diffuse = 1),
   priceCeiling = 5000,
   minProjYear = NULL,
   verbose = FALSE
