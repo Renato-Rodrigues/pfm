@@ -105,9 +105,11 @@
 #' @param softVifGate,temporalSignGate Numeric or \code{NULL}. Forwarded to
 #'   \code{\link{computeMaximinScore}}: within a near-tie band, demote high-collinearity
 #'   (\code{maxVIF > softVifGate}, default 6) and temporally sign-unstable
-#'   (\code{temporalSignStable < temporalSignGate}, default 0.6) specs behind cleaner equivalents;
+#'   (\code{temporalSignStable < temporalSignGate}) specs behind cleaner equivalents;
 #'   low trend reliance is additionally preferred as a relative within-band ordering.
-#'   \code{NULL} disables either preference.
+#'   \code{NULL} disables either preference. \strong{\code{temporalSignGate} defaults to
+#'   \code{NULL}} (2026-06-25): temporal sign-stability no longer influences the deliverable — it
+#'   is reported as the Temporal-Stability Frontier in the robustness step instead.
 #' @param writeSelectedConfig Logical. Write \code{selected-models-channels-<mode>.yml}.
 #'   Default \code{TRUE}.
 #' @param renderReports Logical. Render the pfm-reports outputs (requires
@@ -160,7 +162,7 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
                                 feParsimonyWeight = 0,
                                 dropIdleControls = TRUE,
                                 softVifGate = 6,
-                                temporalSignGate = 0.6,
+                                temporalSignGate = NULL,
                                 requireBothSectors = TRUE,
                                 falsificationPThreshold = 0.05,
                                 maxFalsificationTries = 25L,

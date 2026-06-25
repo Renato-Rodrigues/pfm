@@ -13,7 +13,7 @@ computeMaximinScore(
   feParsimonyWeight = 0,
   dropIdleControls = TRUE,
   softVifGate = 6,
-  temporalSignGate = 0.6
+  temporalSignGate = NULL
 )
 }
 \arguments{
@@ -84,7 +84,10 @@ band, specs whose \code{temporalSignStable} (fraction of \emph{theory-term} coef
 that match between the full fit and an out-of-time refit) is below this are demoted behind
 more stable equivalents. A \strong{soft} preference, never a hard gate (with few pre-2017
 events a flip is often a small-sample artefact). Requires a \code{temporalSignStable} column
-(populated for the near-tie band candidates only); no-ops without it. Default \code{0.6}.
+(populated for the near-tie band candidates only); no-ops without it. Default \code{NULL}
+(2026-06-25: temporal stability was removed from the deliverable selection and is now a
+reported robustness exhibit — the Temporal-Stability Frontier; set a value only to re-enable
+the within-band demotion).
 Low \emph{trend reliance} is also preferred within the band as a \emph{relative} ordering
 (lower \code{trendShare} first; no threshold) when a \code{trendShare} column is present —
 a mild interpretability nudge, applied after the binary demotions and before the BIC

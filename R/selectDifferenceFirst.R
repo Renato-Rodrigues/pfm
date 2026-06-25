@@ -52,7 +52,7 @@
 selectDifferenceFirst <- function(results, specByName, panelData, scenarioData = NULL,
                                   sectors = c("Bulk", "Diffuse"), family = "gaussian",
                                   modelDir = NULL, nearTieEps = 0.025, feParsimonyWeight = 0,
-                                  dropIdleControls = TRUE, softVifGate = 6, temporalSignGate = 0.6,
+                                  dropIdleControls = TRUE, softVifGate = 6, temporalSignGate = NULL,
                                   requireBothSectors = TRUE, pThreshold = 0.05, maxTries = 25L,
                                   iqVanishTest = "jointBlock",
                                   levelsFE = list(

@@ -179,6 +179,62 @@ runRobustness <- function(group, resultsDir = getOption("pfm.resultsDir", "outpu
     }))
   }))
 
+  # ── Temporal-Stability Frontier (2026-06-25, ADR 0027) ──────────────────────────
+  # Temporal sign-stability is NOT in the deliverable selection (temporalSignGate=NULL); here it
+  # is a reported robustness frontier. For each stage: score the gate-passing pool's worse-sector
+  # temporal sign-stability (early-window refit, .bandTemporalSignStable), then sweep the minimum
+  # required stability tau over the DISTINCT observed levels (ascending from 0): at each tau the
+  # frontier entry is the best maximin spec (temporal-free) among specs with stability >= tau,
+  # collapsed to the tau-points where the WINNER changes.
+  say("Computing temporal-stability frontier ...")
+  tfFiles <- grep("yml$", list.files(groupDir, pattern = "channels-", full.names = TRUE), value = TRUE)
+  temporalFrontier <- NULL
+  if (length(tfFiles)) {
+    tfSpecs <- yaml::read_yaml(tfFiles[[1]])
+    tfNorm <- function(s) { for (f in c("actorPowerDrivers", "actorPowerIndex", "instQualityDrivers",
+                                       "controlDrivers")) if (!is.null(s[[f]])) s[[f]] <- unlist(s[[f]])
+      s$panelTransform <- s$panelTransform %||% "levels"; s }
+    tfByName <- stats::setNames(lapply(tfSpecs, tfNorm), vapply(tfSpecs, function(s) s$name, character(1)))
+    tfChan <- function(m) vapply(strsplit(as.character(m), " ", fixed = TRUE),
+                                 function(x) if (length(x) >= 2) x[[2]] else "", character(1))
+    tfTopK <- 40L
+    temporalFrontier <- do.call(rbind, lapply(c("Adoption", "Stringency"), function(stg) {
+      sub <- res$results[res$results$stage == stg & grepl(realFE, res$results$model), ]
+      if (!nrow(sub)) return(NULL)
+      mm0 <- computeMaximinScore(sub[, intersect(mmCols, colnames(sub))])
+      pool <- utils::head(mm0$model[mm0$gatePass %in% TRUE], tfTopK)
+      pool <- pool[pool %in% names(tfByName)]
+      if (!length(pool)) return(NULL)
+      tss <- tryCatch(.bandTemporalSignStable(pool, tfByName, panel, stg, sectors, "gaussian",
+                                              modelDir, say), error = function(e) NULL)
+      if (is.null(tss) || !nrow(tss)) return(NULL)
+      worse <- tapply(tss$temporalSignStable, tss$model, function(v) suppressWarnings(min(v, na.rm = TRUE)))
+      worse <- worse[is.finite(worse)]
+      if (!length(worse)) return(NULL)
+      taus <- sort(unique(c(0, as.numeric(worse))))   # ascending: tau = 0 (deliverable) -> 1
+      rows <- list(); prevModel <- ""
+      for (tau in taus) {
+        elig <- names(worse)[worse >= tau - 1e-9]
+        se <- sub[sub$model %in% elig, ]
+        if (!nrow(se)) next
+        mm <- computeMaximinScore(se[, intersect(mmCols, colnames(se))])
+        top <- mm[mm$gatePass %in% TRUE, , drop = FALSE]
+        if (!nrow(top) || is.na(top$model[1]) || identical(top$model[1], prevModel)) next
+        prevModel <- top$model[1]
+        w <- sub[sub$model == top$model[1], ]
+        rows[[length(rows) + 1L]] <- data.frame(
+          stage = stg, minStability = tau, model = top$model[1], channels = tfChan(top$model[1]),
+          minTier = top$minTier[1], meanDeltaR2 = top$meanDeltaR2[1],
+          maxVIF = suppressWarnings(max(w$maxVIF, na.rm = TRUE)), sumBIC = top$sumBIC[1],
+          stability = as.numeric(worse[[top$model[1]]]),
+          auc = if (stg == "Adoption") suppressWarnings(min(w$auc, na.rm = TRUE)) else NA_real_,
+          rmse = if (stg == "Stringency") suppressWarnings(max(w$rmse, na.rm = TRUE)) else NA_real_,
+          stringsAsFactors = FALSE)
+      }
+      if (length(rows)) do.call(rbind, rows) else NULL
+    }))
+  }
+
   controlGrid <- function() {
     inc <- list(none = character(0), "GDP-Q" = "GDP per Capita (Q-centred)",
                 "GDP-Q+Q2" = c("GDP per Capita (Q-centred)", "GDP per Capita (Q-centred) Sq"),
@@ -226,12 +282,14 @@ runRobustness <- function(group, resultsDir = getOption("pfm.resultsDir", "outpu
     }
   }
 
-  out <- list(ladder = ladder, frontier = frontier, ctrlCurve = ctrlCurve, loco = loco,
+  out <- list(ladder = ladder, frontier = frontier, temporalFrontier = temporalFrontier,
+              ctrlCurve = ctrlCurve, loco = loco,
               specs = deliv, generated = Sys.time(), quick = quick)
   saveRDS(out, file.path(groupDir, "robustness.rds"))
   .recordStep(groupDir, group, "robustness", t0, metrics = list(
     ladderRows = if (is.null(ladder)) 0L else nrow(ladder),
     frontierRows = if (is.null(frontier)) 0L else nrow(frontier),
+    temporalFrontierRows = if (is.null(temporalFrontier)) 0L else nrow(temporalFrontier),
     ctrlCurveRows = if (is.null(ctrlCurve)) 0L else nrow(ctrlCurve),
     locoSpecs = if (is.null(loco)) 0L else length(loco),
     quick = quick, loro = loro))

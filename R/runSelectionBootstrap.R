@@ -77,7 +77,13 @@ runSelectionBootstrap <- function(group, resultsDir = getOption("pfm.resultsDir"
 
     set.seed(seed)
     winCh <- character(0); winSpec <- character(0)
+    progEvery <- max(1L, nResamples %/% 20L)   # ~5% steps
     for (r in seq_len(nResamples)) {
+      if (isTRUE(verbose) && (r %% progEvery == 0 || r == nResamples)) {
+        say("stage ", stg, ": resample ", r, "/", nResamples, " (", round(100 * r / nResamples),
+            "%)")
+        utils::flush.console()
+      }
       draw <- sample(regions, length(regions), replace = TRUE)
       rows <- list()
       for (mdl in pool) for (sec in sectors) {

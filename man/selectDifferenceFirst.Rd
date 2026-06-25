@@ -16,7 +16,7 @@ selectDifferenceFirst(
   feParsimonyWeight = 0,
   dropIdleControls = TRUE,
   softVifGate = 6,
-  temporalSignGate = 0.6,
+  temporalSignGate = NULL,
   requireBothSectors = TRUE,
   pThreshold = 0.05,
   maxTries = 25L,
