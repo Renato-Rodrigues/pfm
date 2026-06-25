@@ -235,10 +235,13 @@ startRun <- function(group,
     lit(group), paste(vapply(reps, lit, character(1)), collapse = ", "),
     lit(resultsDir), lit(modelDir), lit(cachefolder), lit(gdxFile), lit(group), lit(outputDir))
   say("rendering reports via pfmreports::renderGroup (", paste(reps, collapse = ", "), ") ...")
-  st <- tryCatch(system2("Rscript", c("-e", shQuote(expr)), stdout = TRUE, stderr = TRUE),
-                 error = function(e) { say("render-error: ", conditionMessage(e)); NULL })
-  if (!is.null(attr(st, "status")) && attr(st, "status") != 0) {
-    say("report rendering returned a non-zero status (see output above).")
+  # Stream the child render output to this run's log (stdout=""/stderr="" instead of capturing) so the
+  # per-report "[pfmreports] rendering <name> -> ..." lines land in the .err live. runStatus parses
+  # those (plus this "rendering reports via ..." marker) to draw the reports progress bar.
+  st <- tryCatch(system2("Rscript", c("-e", shQuote(expr)), stdout = "", stderr = ""),
+                 error = function(e) { say("render-error: ", conditionMessage(e)); NA_integer_ })
+  if (is.numeric(st) && !is.na(st) && st != 0) {
+    say("report rendering returned a non-zero status (see the rendering log above).")
   }
   invisible(NULL)
 }

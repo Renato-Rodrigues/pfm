@@ -46,8 +46,66 @@ runStatus <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
     remaining = setdiff(requested, doneSteps),
     artifacts = unlist(man$artifacts %||% list()), slurm = live
   )
+  # Live progress bars (model fitting / report rendering), parsed from the run log while it is active.
+  active <- (status$manifestStatus %in% c("running", "submitted")) ||
+    (!is.null(live) && toupper(live$state %||% "") %in% c("RUNNING", "PENDING", "CONFIGURING", "COMPLETING"))
+  status$progress <- if (active) .runProgress(groupDir) else NULL
   if (isTRUE(verbose)) .printRunStatus(status)
   invisible(status)
+}
+
+# Internal: an ASCII progress bar, e.g. "[#########---------------------]  41%".
+#' @keywords internal
+.progressBar <- function(frac, width = 30L) {
+  frac <- max(0, min(1, if (is.finite(frac)) frac else 0))
+  n <- round(frac * width)
+  paste0("[", strrep("#", n), strrep("-", width - n), "] ", sprintf("%3d%%", round(100 * frac)))
+}
+
+# Internal: parse live progress from a run's newest .err log.
+# - model fitting: the most recent "[fits] N/M" (sweep) or "resample r/N" (selection bootstrap) line.
+# - report rendering: present only once "rendering reports via ..." appears (i.e. render was requested);
+#   total = the report set listed in that marker, done = count of "[pfmreports] rendering <name>" lines.
+#' @keywords internal
+.runProgress <- function(groupDir) {
+  errs <- list.files(groupDir, pattern = "\\.err$", full.names = TRUE)
+  if (!length(errs)) return(NULL)
+  errFile <- errs[which.max(file.info(errs)$mtime)]
+  ln <- tryCatch(readLines(errFile, warn = FALSE), error = function(e) character(0))
+  if (!length(ln)) return(NULL)
+  res <- list()
+
+  # --- model fitting bar: take whichever fit-progress line appears latest in the log ----------------
+  fitIdx  <- grep("\\[fits\\][[:space:]]+[0-9]+/[0-9]+", ln)
+  bootIdx <- grep("resample[[:space:]]+[0-9]+/[0-9]+", ln)
+  frac2 <- function(line) {
+    mm <- regmatches(line, regexpr("[0-9]+/[0-9]+", line))
+    if (!length(mm)) return(NULL)
+    as.integer(strsplit(mm[[1]], "/")[[1]])
+  }
+  lastFit  <- if (length(fitIdx))  max(fitIdx)  else 0L
+  lastBoot <- if (length(bootIdx)) max(bootIdx) else 0L
+  nm <- NULL; lbl <- NULL
+  if (lastBoot > lastFit) {
+    nm <- frac2(ln[lastBoot]); lbl <- "model bootstrap"
+  } else if (lastFit > 0L) {
+    nm <- frac2(ln[lastFit]);  lbl <- "model fitting  "
+  }
+  if (!is.null(nm) && length(nm) == 2L && nm[2] > 0L) {
+    res$model <- list(label = lbl, done = nm[1], total = nm[2], frac = nm[1] / nm[2])
+  }
+
+  # --- report rendering bar: only once rendering has started (=> --render was part of the run) -------
+  renStart <- grep("rendering reports via", ln)
+  if (length(renStart)) {
+    sline <- ln[max(renStart)]
+    inParen <- regmatches(sline, regexpr("\\(([^)]*)\\)", sline))
+    total <- if (length(inParen)) length(strsplit(gsub("[()]", "", inParen), ",")[[1]]) else NA_integer_
+    done <- length(grep("\\[pfmreports\\][[:space:]]+rendering[[:space:]]", ln))
+    res$render <- list(done = done, total = total,
+                       frac = if (!is.na(total) && total > 0) min(1, done / total) else 0)
+  }
+  if (length(res)) res else NULL
 }
 
 # Internal: live SLURM state for a job id — squeue first (queued/running), then sacct (finished).
@@ -94,6 +152,18 @@ runStatus <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
       line("    - ", nm, ": ", e$status %||% "?", "  ", e$seconds %||% "?", "s", mtr)
     } else {
       line("    - ", nm, ": ", e)
+    }
+  }
+  if (!is.null(s$progress)) {
+    p <- s$progress
+    if (!is.null(p$model)) {
+      line("  ", p$model$label, " : ", .progressBar(p$model$frac),
+           "  (", p$model$done, "/", p$model$total, ")")
+    }
+    if (!is.null(p$render)) {
+      tot <- if (is.na(p$render$total)) "?" else p$render$total
+      line("  reports         : ", .progressBar(p$render$frac),
+           "  (", p$render$done, "/", tot, " rendered)")
     }
   }
   if (length(s$remaining)) line("  remaining       : ", paste(s$remaining, collapse = ", "))
