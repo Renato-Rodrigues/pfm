@@ -68,6 +68,11 @@
 #'   or \code{"pureFD"} (all drivers differenced, hazard/onset sample). Under any FD
 #'   transform the model predicts P(adopt this year | not yet adopted). Incompatible
 #'   with \code{useMundlak = TRUE}.
+#' @param prepared Logical. Refit entry (ADR 0025): when \code{TRUE}, \code{data} is treated as an
+#'   already-prepared data.frame (e.g. a region-resampled copy of a prior fit's \code{$data}) —
+#'   \code{preparePanelData}, the panel transform, the model-store cache read and the save are all
+#'   skipped, and the formula is simply (re)fit. Used by the selection-uncertainty bootstrap so it
+#'   can refit on a resample without re-prepping from a magpie. Default \code{FALSE}.
 #'
 #' @return A list with elements:
 #'   \describe{
@@ -135,7 +140,13 @@ estimateAdoptionModel <- function(
     useMundlak = FALSE,
     gdpGovInteraction = FALSE,
     fePenaltyFactor = 0.5,
-    panelTransform = "levels") {
+    panelTransform = "levels",
+    prepared = FALSE) {
+  # Bootstrap/refit entry (ADR 0025): when prepared = TRUE, `data` is already a prepared
+  # data.frame (e.g. a region-resampled copy of a previous fit's $data) — skip preparePanelData,
+  # the panel transform, the model-store cache read AND the save, and just (re)fit the formula.
+  # Used by the selection-uncertainty bootstrap so it can refit on a resample without re-prepping
+  # from a magpie (which would need an FE mapping for the relabeled regions).
   panelTransform <- match.arg(panelTransform, c("levels", "hybridFD", "pureFD"))
   if (panelTransform != "levels" && isTRUE(useMundlak)) {
     stop("estimateAdoptionModel: useMundlak is incompatible with panelTransform = '",
@@ -153,19 +164,25 @@ estimateAdoptionModel <- function(
   }
   timeTrend <- FALSE
   logisticTimeTrend <- FALSE
-  # --- 1. Prepare data.frame ---
-  df <- preparePanelData(
-    data = data,
-    sector = sector,
-    actorPowerDrivers = actorPowerDrivers,
-    actorPowerIndex = actorPowerIndex,
-    instQualityDrivers = instQualityDrivers,
-    controlDrivers = controlDrivers,
-    regionMappingFixedEffects = if (isTRUE(useMundlak)) NULL else regionMappingFixedEffects,
-    lag = lag,
-    useMundlak = useMundlak,
-    gdpGovInteraction = gdpGovInteraction
-  )
+  # --- 1. Prepare data.frame (skipped when `prepared`: `data` is already a prepared df) ---
+  if (isTRUE(prepared)) {
+    df <- as.data.frame(data)
+    ignoreCache <- TRUE      # transient refit: never read or write the model store
+    updateIndex <- FALSE
+  } else {
+    df <- preparePanelData(
+      data = data,
+      sector = sector,
+      actorPowerDrivers = actorPowerDrivers,
+      actorPowerIndex = actorPowerIndex,
+      instQualityDrivers = instQualityDrivers,
+      controlDrivers = controlDrivers,
+      regionMappingFixedEffects = if (isTRUE(useMundlak)) NULL else regionMappingFixedEffects,
+      lag = lag,
+      useMundlak = useMundlak,
+      gdpGovInteraction = gdpGovInteraction
+    )
+  }
   # Capture the frozen driver-scaling reference before any row subsetting drops
   # the attribute (ADR 0009: bundled into the saved Fitted Model).
   .dscale <- attr(df, "driverScaling")
@@ -174,7 +191,7 @@ estimateAdoptionModel <- function(
   df$adoption <- as.integer(df$ecp > 0)
 
   # --- 2a. Panel Transform (ADR 0005): FD drivers + hazard (onset) sample ---
-  if (panelTransform != "levels") {
+  if (!isTRUE(prepared) && panelTransform != "levels") {
     df <- applyPanelTransform(
       df, panelTransform = panelTransform, stage = "adoption",
       actorPowerDrivers = actorPowerDrivers, actorPowerIndex = actorPowerIndex,
@@ -329,7 +346,7 @@ estimateAdoptionModel <- function(
   )
 
   # --- 5. Save PFMModel if modelDir is configured ---
-  if (!is.null(modelDir)) {
+  if (!is.null(modelDir) && !isTRUE(prepared)) {
     pfmModel <- buildPFMModel(
       fit           = result,
       training_data = df,

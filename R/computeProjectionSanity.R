@@ -84,6 +84,8 @@ projectSpecScenario <- function(cfg, sector, histData, scenarioData,
     useMundlak = isTRUE(cfg$useMundlak), gdpGovInteraction = isTRUE(cfg$gdpGovInteraction),
     logisticTimeTrend = isTRUE(cfg$logisticTimeTrend),
     nickellCorrection = isTRUE(cfg$nickellCorrection),
+    priceLink = cfg$priceLink %||% "log1p",
+    priceCeilingMax = cfg$priceCeilingMax %||% 1000,
     modelDir = modelDir, verbose = verbose
   )
 
@@ -145,6 +147,12 @@ projectSpecScenario <- function(cfg, sector, histData, scenarioData,
     max(insObs, na.rm = TRUE) + marg
   } else Inf
 
+  # Response form (ADR 0026): "saturating" stores logit(price/Pmax) (response can be negative, so
+  # NO lower floor at 0); "log1p" stores log(1+ECP) (response >= 0). Price is reconstructed below.
+  plk <- if (!is.null(stringencyFit$priceLink)) stringencyFit$priceLink else "log1p"
+  pmaxV <- if (!is.null(stringencyFit$priceCeilingMax)) stringencyFit$priceCeilingMax else Inf
+  respLo <- if (identical(plk, "saturating")) -Inf else 0
+
   hasLag <- "lagged_ecp" %in% all.vars(stringencyFit$formula)
   respRaw <- rep(NA_real_, nrow(sDf))   # pre-clamp response, for the clamp-reliance signal
   if (!hasLag) {
@@ -152,7 +160,7 @@ projectSpecScenario <- function(cfg, sector, histData, scenarioData,
       as.numeric(stats::predict(stringencyFit$model, newdata = sDf, type = "response")),
       error = function(e) rep(NA_real_, nrow(sDf))
     )
-    respRaw <- pmax(resp, 0)
+    respRaw <- pmax(resp, respLo)
     resp <- if (is.finite(capVal)) pmin(respRaw, capVal) else respRaw
   } else {
     # ── Recursive (dynamic) projection: a lagged-price model needs last year's
@@ -183,7 +191,7 @@ projectSpecScenario <- function(cfg, sector, histData, scenarioData,
       for (i in idx) {
         e <- etaFixed[i] + bLag * lagv
         if (!is.finite(e)) { resp[i] <- NA_real_; next }
-        eRaw <- max(e, 0)
+        eRaw <- max(e, respLo)
         respRaw[i] <- eRaw
         e <- if (is.finite(capVal)) min(eRaw, capVal) else eRaw
         resp[i] <- e
@@ -191,7 +199,10 @@ projectSpecScenario <- function(cfg, sector, histData, scenarioData,
       }
     }
   }
-  price <- expm1(resp) # depVar is log(1+ECP); response is E[log1p(price)]
+  # Reconstruct price from the response: saturating -> Pmax * logit^{-1}(resp) (bounded by Pmax by
+  # construction); log1p -> expm1(resp) (the unbounded form the clamp/ceiling must guard).
+  invResp <- function(r) if (identical(plk, "saturating")) pmaxV * stats::plogis(r) else expm1(r)
+  price <- invResp(resp)
   # Absolute safety ceiling: a data-anchored clamp still permits absurd values
   # when the in-sample fitted range is itself inflated by ill-conditioned
   # coefficients. priceCeiling is a hard, interpretable bound ("no region feasibly
@@ -201,7 +212,7 @@ projectSpecScenario <- function(cfg, sector, histData, scenarioData,
 
   # Pre-clamp price + which region-years were pinned at the extrapolation guard. A spec whose
   # projection leans heavily on the clamp is extrapolating beyond its data (clamp-reliance gate).
-  priceUnclamped <- expm1(respRaw)
+  priceUnclamped <- invResp(respRaw)
   clampPinned <- is.finite(respRaw) & is.finite(capVal) & (respRaw > capVal + 1e-9)
 
   out <- data.frame(

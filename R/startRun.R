@@ -54,11 +54,13 @@ startRun <- function(group,
                      time = "24:00:00", qos = "short", partition = "standard",
                      account = NULL, mem = NULL, chdir = NULL,
                      outputDir = NULL, render = FALSE,
+                     bootstrapResamples = 200L, bootstrapDetail = "channel", bootstrapTopK = 40L,
                      forceRefit = FALSE, verbose = TRUE, ...) {
   mode <- match.arg(mode)
   selectionMethod <- match.arg(selectionMethod)
   cluster <- match.arg(cluster)
-  steps <- intersect(c("sweep", "robustness", "temporal", "subnational", "difference-first"), steps)
+  steps <- intersect(c("sweep", "robustness", "temporal", "subnational", "difference-first",
+                       "selection-bootstrap"), steps)
   if (length(steps) == 0) stop("startRun: no valid steps.", call. = FALSE)
   if (missing(group) || is.null(group) || !nzchar(group)) stop("startRun: 'group' is required.", call. = FALSE)
   if (is.null(resultsDir)) stop("startRun: supply 'resultsDir' or set options(pfm.resultsDir = '...').", call. = FALSE)
@@ -77,7 +79,9 @@ startRun <- function(group,
       resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile,
       nCores = nCores,
       time = time, qos = qos, partition = partition, account = account, mem = mem, chdir = chdir,
-      outputDir = outputDir, render = render, forceRefit = forceRefit, say = say, dots = list(...)))
+      outputDir = outputDir, render = render, forceRefit = forceRefit,
+      bootstrapResamples = bootstrapResamples, bootstrapDetail = bootstrapDetail,
+      bootstrapTopK = bootstrapTopK, say = say, dots = list(...)))
   }
 
   # ── Local (in-process) run ──────────────────────────────────────────────────
@@ -98,7 +102,8 @@ startRun <- function(group,
   ok <- tryCatch({
     runModelGroup(group = group, steps = steps, resultsDir = resultsDir, modelDir = modelDir,
       cachefolder = cachefolder, gdxFile = gdxFile, mode = mode, selectionMethod = selectionMethod,
-      nCores = nCores, forceRefit = forceRefit, verbose = verbose, ...)
+      nCores = nCores, forceRefit = forceRefit, bootstrapResamples = bootstrapResamples,
+      bootstrapDetail = bootstrapDetail, bootstrapTopK = bootstrapTopK, verbose = verbose, ...)
     TRUE
   }, error = function(e) { say("RUN FAILED: ", conditionMessage(e)); FALSE })
 
@@ -141,7 +146,8 @@ startRun <- function(group,
 #' @keywords internal
 .submitSlurm <- function(group, steps, mode, selectionMethod, resultsDir, modelDir, cachefolder,
                          gdxFile, nCores, time, qos, partition, account, mem, chdir, outputDir,
-                         render, forceRefit, say, dots) {
+                         render, forceRefit, bootstrapResamples = 200L,
+                         bootstrapDetail = "channel", bootstrapTopK = 40L, say, dots) {
   abspath <- function(p) if (is.null(p)) NULL else normalizePath(p, winslash = "/", mustWork = FALSE)
   resultsDir <- abspath(resultsDir); modelDir <- abspath(modelDir)
   cachefolder <- abspath(cachefolder); gdxFile <- abspath(gdxFile); outputDir <- abspath(outputDir)
@@ -153,10 +159,11 @@ startRun <- function(group,
   # Job R script: re-invoke startRun in local mode on the compute node.
   call <- sprintf(paste0(
     "pfm::startRun(group=%s, steps=%s, mode=%s, selectionMethod=%s, resultsDir=%s, modelDir=%s, ",
-    "cachefolder=%s, gdxFile=%s, nCores=%d, cluster=\"local\", forceRefit=%s, render=%s, outputDir=%s%s)"),
+    "cachefolder=%s, gdxFile=%s, nCores=%d, cluster=\"local\", forceRefit=%s, render=%s, outputDir=%s, ",
+    "bootstrapResamples=%d, bootstrapDetail=%s, bootstrapTopK=%d%s)"),
     .rlit(group), .rlit(steps), .rlit(mode), .rlit(selectionMethod), .rlit(resultsDir),
     .rlit(modelDir), .rlit(cachefolder), .rlit(gdxFile), nCores, .rlit(forceRefit), .rlit(render),
-    .rlit(outputDir),
+    .rlit(outputDir), as.integer(bootstrapResamples), .rlit(bootstrapDetail), as.integer(bootstrapTopK),
     if (length(dots)) paste0(", ", paste(sprintf("%s=%s", names(dots),
       vapply(dots, .rlit, character(1))), collapse = ", ")) else "")
   jobR <- file.path(chdir, paste0("pfm-", group, "-job.R"))

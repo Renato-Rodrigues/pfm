@@ -37,7 +37,10 @@ estimatePriceStringencyModel(
   gdpGovInteraction = FALSE,
   fePenaltyFactor = 0.5,
   panelTransform = "levels",
-  nickellCorrection = FALSE
+  nickellCorrection = FALSE,
+  priceLink = "log1p",
+  priceCeilingMax = 1000,
+  prepared = FALSE
 )
 }
 \arguments{
@@ -133,6 +136,22 @@ the coefficients to counter the dynamic-panel / Nickell bias. Falls back to
 the uncorrected fit (with a message) if the half-panels are not estimable.
 Standard-errors are kept from the clustered full-fit vcov. Default
 \code{FALSE}. See \code{\link{splitPanelJackknife}}.}
+
+\item{priceLink}{Character. Response form (ADR 0026): \code{"log1p"} (default — model
+\code{log(1+ECP)}, the current unbounded form) or \code{"saturating"} — model
+\code{logit(ECP / priceCeilingMax)} so the projected price is bounded by
+\code{priceCeilingMax} by construction (a Gaussian-identity GLM either way). The form is
+stored on the fit and in the model store's \code{applyState}, so \code{projectSpecScenario}
+and \code{predictFeasibility} reconstruct the price as \code{Pmax * logit^{-1}(\eta)} for
+\code{"saturating"} vs \code{expm1(\eta)} for \code{"log1p"}. Folded into the cache key.}
+
+\item{priceCeilingMax}{Numeric. The asymptotic price ceiling \eqn{P_{\max}} used by the
+\code{"saturating"} link (USD/tCO2). Default \code{1000} (a citable economic backstop).}
+
+\item{prepared}{Logical. Refit entry (ADR 0025): when \code{TRUE}, \code{data} is an
+already-prepared data.frame (response already transformed) — prep, transforms, the cache read
+and the save are skipped, and the formula is simply (re)fit. Used by the selection-uncertainty
+bootstrap. Default \code{FALSE}.}
 }
 \value{
 A list with elements:

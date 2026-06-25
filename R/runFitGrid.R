@@ -24,9 +24,13 @@
 #' @seealso \code{\link{runFitGrid}}, ADR 0019
 #' @export
 #' @author Renato Rodrigues
-fitOneSpec <- function(cfg, sector, stage, panelData, family = "gaussian",
-                       modelDir = NULL, forceRefit = FALSE, verbose = FALSE) {
-  fit <- tryCatch({
+# Internal: fit a single spec and return the FIT object (with $model, $coeftest, $data, $formula),
+# or a `fitError` structure on failure. The cfg -> estimate*Model() argument mapping lives here so
+# both fitOneSpec() (metrics wrapper) and runSelectionBootstrap() (needs $data to resample) reuse it.
+#' @keywords internal
+.fitSpecModel <- function(cfg, sector, stage, panelData, family = "gaussian",
+                          modelDir = NULL, forceRefit = FALSE, verbose = FALSE, prepared = FALSE) {
+  tryCatch({
     if (stage == "Adoption") {
       estimateAdoptionModel(
         data = panelData, sector = sector,
@@ -43,7 +47,8 @@ fitOneSpec <- function(cfg, sector, stage, panelData, family = "gaussian",
         ridgeInteractions = cfg$ridgeInteractions,
         panelTransform = cfg$panelTransform,
         modelDir = modelDir, updateIndex = FALSE, ignoreCache = forceRefit,
-        verbose = verbose, compute = c(ame = FALSE, predictedProbs = FALSE)
+        verbose = verbose, compute = c(ame = FALSE, predictedProbs = FALSE),
+        prepared = prepared
       )
     } else {
       estimatePriceStringencyModel(
@@ -61,12 +66,19 @@ fitOneSpec <- function(cfg, sector, stage, panelData, family = "gaussian",
         ridgeInteractions = cfg$ridgeInteractions,
         panelTransform = cfg$panelTransform,
         nickellCorrection = isTRUE(cfg$nickellCorrection),
+        priceLink = cfg$priceLink %||% "log1p",
+        priceCeilingMax = cfg$priceCeilingMax %||% 1000,
         modelDir = modelDir, updateIndex = FALSE, ignoreCache = forceRefit,
-        verbose = verbose
+        verbose = verbose, prepared = prepared
       )
     }
   }, error = function(e) structure(list(.err = conditionMessage(e)), class = "fitError"))
+}
 
+fitOneSpec <- function(cfg, sector, stage, panelData, family = "gaussian",
+                       modelDir = NULL, forceRefit = FALSE, verbose = FALSE,
+                       prepared = FALSE) {
+  fit <- .fitSpecModel(cfg, sector, stage, panelData, family, modelDir, forceRefit, verbose, prepared)
   errMsg <- if (inherits(fit, "fitError")) fit$.err else NULL
   if (inherits(fit, "fitError")) fit <- NULL
 

@@ -8,7 +8,9 @@ createExhaustiveCombinations(
   baseVariants = .exhaustiveDefaultBaseVariants(),
   iqVariants = .exhaustiveDefaultIQVariants(),
   feVariants = .exhaustiveDefaultFEVariants(),
-  ridgeInteractions = FALSE
+  ridgeInteractions = FALSE,
+  priceLinks = c("log1p", "saturating"),
+  priceCeilingMax = 1000
 )
 }
 \arguments{
@@ -34,6 +36,16 @@ No FE, Mundlak, 54 Regions.}
 
 \item{ridgeInteractions}{Logical. Passed to every generated config as
 the \code{ridgeInteractions} field. Default: \code{FALSE}.}
+
+\item{priceLinks}{Character vector. Stringency response forms to sweep (ADR 0026): any of
+\code{"log1p"} (unbounded \code{log(1+ECP)}, default) and \code{"saturating"}
+(\code{Pmax}-bounded). Each base spec is emitted once per form (the \code{"saturating"} twin
+gets a \code{"+ satP"} name suffix); only the stringency fit reads \code{priceLink}, so this
+~doubles the stringency fits (adoption fits dedupe via the content-addressed cache). Pass
+\code{"log1p"} alone to skip the saturating sweep.}
+
+\item{priceCeilingMax}{Numeric. \eqn{P_{\max}} for the saturating form (USD/tCO2). Default
+\code{1000}.}
 }
 \value{
 A named list of model config lists, where each element has

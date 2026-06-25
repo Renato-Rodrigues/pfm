@@ -53,13 +53,24 @@
 #' configs_ridge <- createExhaustiveCombinations(ridgeInteractions = TRUE)
 #' }
 #'
+#' @param priceLinks Character vector. Stringency response forms to sweep (ADR 0026): any of
+#'   \code{"log1p"} (unbounded \code{log(1+ECP)}, default) and \code{"saturating"}
+#'   (\code{Pmax}-bounded). Each base spec is emitted once per form (the \code{"saturating"} twin
+#'   gets a \code{"+ satP"} name suffix); only the stringency fit reads \code{priceLink}, so this
+#'   ~doubles the stringency fits (adoption fits dedupe via the content-addressed cache). Pass
+#'   \code{"log1p"} alone to skip the saturating sweep.
+#' @param priceCeilingMax Numeric. \eqn{P_{\max}} for the saturating form (USD/tCO2). Default
+#'   \code{1000}.
+#'
 #' @author Renato Rodrigues
 #' @export
 createExhaustiveCombinations <- function(
     baseVariants  = .exhaustiveDefaultBaseVariants(),
     iqVariants    = .exhaustiveDefaultIQVariants(),
     feVariants    = .exhaustiveDefaultFEVariants(),
-    ridgeInteractions = FALSE) {
+    ridgeInteractions = FALSE,
+    priceLinks = c("log1p", "saturating"),
+    priceCeilingMax = 1000) {
 
   configs <- list()
 
@@ -67,26 +78,35 @@ createExhaustiveCombinations <- function(
     for (p2 in iqVariants) {
       for (p3 in feVariants) {
         cfg_name <- paste(p1$name, "+", p2$name, "+", p3$name)
-        cfg <- list(
-          name = cfg_name,
-          description = paste0(
-            "Auto-generated: ", p1$name,
-            " | IQ: ", p2$name,
-            " | FE: ", p3$name
-          ),
-          actorPowerDrivers        = p1$actorPowerDrivers,
-          actorPowerIndex          = p1$actorPowerIndex,
-          instQualityDrivers       = p2$instQualityDrivers,
-          controlDrivers           = p1$controlDrivers,
-          includeLagged            = isTRUE(p1$includeLagged),
-          interactRegionFE         = FALSE,
-          regionMappingFixedEffects = p3$regionMappingFixedEffects,
-          useMundlak               = isTRUE(p3$useMundlak),
-          logisticTimeTrend        = isTRUE(p1$logisticTimeTrend),
-          gdpGovInteraction        = isTRUE(p1$gdpGovInteraction),
-          ridgeInteractions        = isTRUE(ridgeInteractions)
-        )
-        configs <- c(configs, list(cfg))
+        # Sweep the stringency response form (ADR 0026) as an extra dimension: "log1p" (unbounded,
+        # default) and "saturating" (Pmax-bounded). Only the stringency fit reads priceLink; the
+        # adoption fit ignores it (and dedupes via the content-addressed Fit Cache), so this ~2x's
+        # the stringency fits, not the adoption ones.
+        for (pl in priceLinks) {
+          cfg <- list(
+            name = if (identical(pl, "log1p")) cfg_name else paste(cfg_name, "+ satP"),
+            description = paste0(
+              "Auto-generated: ", p1$name,
+              " | IQ: ", p2$name,
+              " | FE: ", p3$name,
+              if (identical(pl, "saturating")) paste0(" | saturating price (Pmax=", priceCeilingMax, ")") else ""
+            ),
+            actorPowerDrivers        = p1$actorPowerDrivers,
+            actorPowerIndex          = p1$actorPowerIndex,
+            instQualityDrivers       = p2$instQualityDrivers,
+            controlDrivers           = p1$controlDrivers,
+            includeLagged            = isTRUE(p1$includeLagged),
+            interactRegionFE         = FALSE,
+            regionMappingFixedEffects = p3$regionMappingFixedEffects,
+            useMundlak               = isTRUE(p3$useMundlak),
+            logisticTimeTrend        = isTRUE(p1$logisticTimeTrend),
+            gdpGovInteraction        = isTRUE(p1$gdpGovInteraction),
+            ridgeInteractions        = isTRUE(ridgeInteractions),
+            priceLink                = pl,
+            priceCeilingMax          = priceCeilingMax
+          )
+          configs <- c(configs, list(cfg))
+        }
       }
     }
   }

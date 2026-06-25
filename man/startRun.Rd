@@ -23,6 +23,9 @@ startRun(
   chdir = NULL,
   outputDir = NULL,
   render = FALSE,
+  bootstrapResamples = 200L,
+  bootstrapDetail = "channel",
+  bootstrapTopK = 40L,
   forceRefit = FALSE,
   verbose = TRUE,
   ...

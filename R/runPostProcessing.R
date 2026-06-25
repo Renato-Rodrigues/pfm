@@ -547,10 +547,13 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                           gdxFile = NULL,
                           mode = c("exhaustive", "guided"),
                           selectionMethod = c("levels-first", "difference-first"),
-                          nCores = 1L, forceRefit = FALSE, verbose = TRUE, ...) {
+                          nCores = 1L, forceRefit = FALSE,
+                          bootstrapResamples = 200L, bootstrapDetail = "channel",
+                          bootstrapTopK = 40L, verbose = TRUE, ...) {
   mode <- match.arg(mode)
   selectionMethod <- match.arg(selectionMethod)
-  allSteps <- c("sweep", "robustness", "temporal", "subnational", "difference-first")
+  allSteps <- c("sweep", "robustness", "temporal", "subnational", "difference-first",
+                "selection-bootstrap")
   steps <- intersect(allSteps, steps)
   if (length(steps) == 0) stop("runModelGroup: no valid steps. Choose from ",
                                paste(allSteps, collapse = ", "), ".", call. = FALSE)
@@ -566,6 +569,7 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
   if ("temporal" %in% steps) { say("step: temporal"); runTemporalSplit(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, verbose = verbose) }
   if ("subnational" %in% steps) { say("step: subnational"); runSubnational(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, verbose = verbose) }
   if ("difference-first" %in% steps) { say("step: difference-first"); runDifferenceFirst(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile, verbose = verbose) }
+  if ("selection-bootstrap" %in% steps) { say("step: selection-bootstrap"); runSelectionBootstrap(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, nResamples = bootstrapResamples, detail = bootstrapDetail, topK = bootstrapTopK, verbose = verbose) }
   say("done: ", paste(steps, collapse = ", "))
   invisible(file.path(resultsDir, group))
 }

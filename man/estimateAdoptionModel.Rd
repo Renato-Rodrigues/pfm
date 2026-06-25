@@ -36,7 +36,8 @@ estimateAdoptionModel(
   useMundlak = FALSE,
   gdpGovInteraction = FALSE,
   fePenaltyFactor = 0.5,
-  panelTransform = "levels"
+  panelTransform = "levels",
+  prepared = FALSE
 )
 }
 \arguments{
@@ -118,6 +119,12 @@ differenced, Institutional Quality in levels, discrete-time hazard/onset sample)
 or \code{"pureFD"} (all drivers differenced, hazard/onset sample). Under any FD
 transform the model predicts P(adopt this year | not yet adopted). Incompatible
 with \code{useMundlak = TRUE}.}
+
+\item{prepared}{Logical. Refit entry (ADR 0025): when \code{TRUE}, \code{data} is treated as an
+already-prepared data.frame (e.g. a region-resampled copy of a prior fit's \code{$data}) —
+\code{preparePanelData}, the panel transform, the model-store cache read and the save are all
+skipped, and the formula is simply (re)fit. Used by the selection-uncertainty bootstrap so it
+can refit on a resample without re-prepping from a magpie. Default \code{FALSE}.}
 }
 \value{
 A list with elements:

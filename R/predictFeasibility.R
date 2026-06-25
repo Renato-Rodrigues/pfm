@@ -92,6 +92,11 @@ predictFeasibility <- function(adoptionModel, stringencyModel, scenarioData,
   capVal <- if (is.finite(stringencyModel$applyState$insMaxResp %||% NA_real_)) {
     stringencyModel$applyState$insMaxResp + marg
   } else Inf
+  # Response form (ADR 0026): "saturating" -> price = Pmax * logit^{-1}(resp), response may be
+  # negative (no lower floor); "log1p" -> expm1(resp), response >= 0.
+  plk <- stringencyModel$applyState$priceLink %||% "log1p"
+  pmaxV <- stringencyModel$applyState$priceCeilingMax %||% Inf
+  respLo <- if (identical(plk, "saturating")) -Inf else 0
 
   hasLag <- "lagged_ecp" %in% all.vars(stringencyModel$formula)
   if (!hasLag) {
@@ -99,7 +104,7 @@ predictFeasibility <- function(adoptionModel, stringencyModel, scenarioData,
       as.numeric(stats::predict(stringencyModel$model, newdata = sDf, type = "response")),
       error = function(e) rep(NA_real_, nrow(sDf))
     )
-    if (is.finite(capVal)) resp <- pmin(pmax(resp, 0), capVal)
+    if (is.finite(capVal)) resp <- pmin(pmax(resp, respLo), capVal)
   } else {
     # Recursive (dynamic) projection seeded from the stored per-region last
     # historical log(1+ECP) — see projectSpecScenario / CONTEXT.md "Lagged
@@ -123,13 +128,13 @@ predictFeasibility <- function(adoptionModel, stringencyModel, scenarioData,
       for (i in idx) {
         e <- etaFixed[i] + bLag * lagv
         if (!is.finite(e)) { resp[i] <- NA_real_; next }
-        if (is.finite(capVal)) e <- min(max(e, 0), capVal)
+        if (is.finite(capVal)) e <- min(max(e, respLo), capVal)
         resp[i] <- e
         lagv <- e
       }
     }
   }
-  price <- expm1(resp)
+  price <- if (identical(plk, "saturating")) pmaxV * stats::plogis(resp) else expm1(resp)
   if (is.finite(priceCeiling)) price <- pmin(price, priceCeiling)
 
   out <- data.frame(

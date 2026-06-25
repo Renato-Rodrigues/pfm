@@ -92,12 +92,17 @@ computeTheoryTier <- function(sigActorPower, sigInstQual, sigInteractions) {
 #'   \code{vifGate} (which excludes a spec entirely); this only re-orders near-ties, e.g.
 #'   nudging selection toward a low-VIF composite-AP stringency spec over a high-VIF split-AP
 #'   one. \code{NULL} disables. Default \code{6}.
-#' @param trendShareGate Numeric or \code{NULL}. Soft low-trend-reliance preference
-#'   (2026-06-24): within a near-tie band, specs whose \code{trendShare} (share of the fitted
-#'   linear-predictor variance attributable to the time-trend term) exceeds this in any sector
-#'   are demoted behind less trend-reliant equivalents. Prefers specs whose signal comes from
-#'   the theory drivers rather than a calendar trend (lower extrapolation fragility). Requires a
-#'   \code{trendShare} column; no-ops without it. \code{NULL} disables. Default \code{0.6}.
+#' @param temporalSignGate Numeric in \code{[0, 1]} or \code{NULL}. Soft temporal sign-stability
+#'   preference (2026-06-24, ADR-less refinement of the selection machinery): within a near-tie
+#'   band, specs whose \code{temporalSignStable} (fraction of \emph{theory-term} coefficient signs
+#'   that match between the full fit and an out-of-time refit) is below this are demoted behind
+#'   more stable equivalents. A \strong{soft} preference, never a hard gate (with few pre-2017
+#'   events a flip is often a small-sample artefact). Requires a \code{temporalSignStable} column
+#'   (populated for the near-tie band candidates only); no-ops without it. Default \code{0.6}.
+#'   Low \emph{trend reliance} is also preferred within the band as a \emph{relative} ordering
+#'   (lower \code{trendShare} first; no threshold) when a \code{trendShare} column is present —
+#'   a mild interpretability nudge, applied after the binary demotions and before the BIC
+#'   tie-break.
 #'
 #' @return Data.frame with one row per model, ordered best-first:
 #'   \code{model, minTier, meanDeltaR2, minDeltaR2, tierBySector, deltaR2BySector,
@@ -112,7 +117,7 @@ computeTheoryTier <- function(sigActorPower, sigInstQual, sigInteractions) {
 computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range = NULL,
                                 nearTieEps = 0.05, feParsimonyWeight = 0,
                                 dropIdleControls = TRUE, softVifGate = 6,
-                                trendShareGate = 0.6) {
+                                temporalSignGate = 0.6) {
   required <- c("model", "sector", "sigActorPower", "sigInstQual",
                 "sigInteractions", "deltaR2Theory", "maxVIF", "converged")
   missingCols <- setdiff(required, colnames(df))
@@ -189,14 +194,19 @@ computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range 
       idleControl = if (all(c("nControl", "sigControl") %in% colnames(m))) {
         any(m$nControl > 0, na.rm = TRUE) && !any(m$sigControl > 0, na.rm = TRUE)
       } else FALSE,
-      # Fragility demotions (0/1 each): high collinearity and/or high time-trend reliance.
+      # Fragility demotions (0/1 each, binary): high collinearity, and temporal sign-instability.
+      # (Trend reliance is handled separately as a *relative* within-band key, not a demotion.)
       fragility = {
         vifBad <- !is.null(softVifGate) && "maxVIF" %in% colnames(m) &&
           any(!is.na(m$maxVIF) & m$maxVIF > softVifGate)
-        trendBad <- !is.null(trendShareGate) && "trendShare" %in% colnames(m) &&
-          any(!is.na(m$trendShare) & m$trendShare > trendShareGate)
-        as.integer(isTRUE(vifBad)) + as.integer(isTRUE(trendBad))
+        tempBad <- !is.null(temporalSignGate) && "temporalSignStable" %in% colnames(m) &&
+          any(!is.na(m$temporalSignStable) & m$temporalSignStable < temporalSignGate)
+        as.integer(isTRUE(vifBad)) + as.integer(isTRUE(tempBad))
       },
+      # Relative trend-reliance key (lower preferred); NA (no trend term) -> 0 (best, no reliance).
+      trendKey = if ("trendShare" %in% colnames(m)) {
+        v <- suppressWarnings(max(m$trendShare, na.rm = TRUE)); if (is.finite(v)) v else 0
+      } else 0,
       tierBySector = paste(paste0(names(tierVec), ": ", tierVec), collapse = "; "),
       deltaR2BySector = paste(paste0(names(dr2Vec), ": ", round(dr2Vec, 3)), collapse = "; "),
       gatePass = length(failReasons) == 0,
@@ -223,10 +233,14 @@ computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range 
     idleKey <- if (isTRUE(dropIdleControls) && "idleControl" %in% colnames(out)) {
       as.integer(out$idleControl %in% TRUE)
     } else rep(0L, nrow(out))
-    # Fragility key: fewer fragility demotions (high VIF / high trend reliance) preferred.
+    # Fragility key: fewer binary demotions (high VIF / temporal sign-instability) preferred.
     fragKey <- if ("fragility" %in% colnames(out)) {
       ifelse(is.na(out$fragility), 0L, out$fragility)
     } else rep(0L, nrow(out))
+    # Relative trend-reliance key: lower trendShare preferred (a mild within-band nudge).
+    trendKey <- if ("trendKey" %in% colnames(out)) {
+      ifelse(is.na(out$trendKey), 0, out$trendKey)
+    } else rep(0, nrow(out))
     placed <- integer(0)
     remaining <- which(out$gatePass)            # already tier->deltaR2 ordered
     while (length(remaining) > 0) {
@@ -236,8 +250,10 @@ computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range 
         remaining[out$minTier[remaining] == out$minTier[lead] &
                     !is.na(out$meanDeltaR2[remaining]) &
                     out$meanDeltaR2[remaining] >= dl - nearTieEps]
-      # clean-control first, then low-fragility, then parsimony (FE-discounted BIC), then name.
-      band <- band[order(idleKey[band], fragKey[band], bicKey[band], out$model[band])]
+      # clean-control first, then low-fragility (VIF/temporal), then low trend-reliance,
+      # then parsimony (FE-discounted BIC), then name.
+      band <- band[order(idleKey[band], fragKey[band], trendKey[band], bicKey[band],
+                         out$model[band])]
       placed <- c(placed, band)
       remaining <- setdiff(remaining, band)
     }

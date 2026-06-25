@@ -80,6 +80,10 @@ buildPFMModel <- function(fit, training_data, sector, stage, family, useFirth, l
       } else fittedVals
       if (length(respVals) > 0) max(respVals, na.rm = TRUE) else NA_real_
     },
+    # Response form for price reconstruction at deploy time (ADR 0026): "saturating" ->
+    # price = Pmax * logit^{-1}(resp); else expm1(resp). Carried from the stringency fit.
+    priceLink       = fit$priceLink %||% "log1p",
+    priceCeilingMax = fit$priceCeilingMax %||% NA_real_,
     regionFE_levels = feLevels
   )
 

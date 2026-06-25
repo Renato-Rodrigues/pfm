@@ -102,10 +102,11 @@
 #' @param dropIdleControls Logical. Forwarded to \code{\link{computeMaximinScore}}: within a
 #'   near-tie band, prefer specs without an idle (present-but-never-significant) control over
 #'   otherwise-equivalent specs that carry one. Default \code{TRUE}.
-#' @param softVifGate,trendShareGate Numeric or \code{NULL}. Forwarded to
+#' @param softVifGate,temporalSignGate Numeric or \code{NULL}. Forwarded to
 #'   \code{\link{computeMaximinScore}}: within a near-tie band, demote high-collinearity
-#'   (\code{maxVIF > softVifGate}, default 6) and high-trend-reliance
-#'   (\code{trendShare > trendShareGate}, default 0.6) specs behind cleaner equivalents.
+#'   (\code{maxVIF > softVifGate}, default 6) and temporally sign-unstable
+#'   (\code{temporalSignStable < temporalSignGate}, default 0.6) specs behind cleaner equivalents;
+#'   low trend reliance is additionally preferred as a relative within-band ordering.
 #'   \code{NULL} disables either preference.
 #' @param writeSelectedConfig Logical. Write \code{selected-models-channels-<mode>.yml}.
 #'   Default \code{TRUE}.
@@ -159,7 +160,7 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
                                 feParsimonyWeight = 0,
                                 dropIdleControls = TRUE,
                                 softVifGate = 6,
-                                trendShareGate = 0.6,
+                                temporalSignGate = 0.6,
                                 requireBothSectors = TRUE,
                                 falsificationPThreshold = 0.05,
                                 maxFalsificationTries = 25L,
@@ -291,7 +292,7 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
       scenarioData = scenarioData, sectors = sectors, family = family, modelDir = modelDir,
       nearTieEps = nearTieEps, feParsimonyWeight = feParsimonyWeight,
       dropIdleControls = dropIdleControls, softVifGate = softVifGate,
-      trendShareGate = trendShareGate, requireBothSectors = requireBothSectors,
+      temporalSignGate = temporalSignGate, requireBothSectors = requireBothSectors,
       pThreshold = falsificationPThreshold, maxTries = maxFalsificationTries,
       iqVanishTest = iqVanishTest, levelsFE = levelsFE,
       sanityBatchSize = sanityBatchSize, sanityMaxModels = sanityMaxModels,
@@ -329,7 +330,29 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
       mm <- computeMaximinScore(sub[, mmCols, drop = FALSE], nearTieEps = nearTieEps,
                                 feParsimonyWeight = feParsimonyWeight,
                                 dropIdleControls = dropIdleControls,
-                                softVifGate = softVifGate, trendShareGate = trendShareGate)
+                                softVifGate = softVifGate, temporalSignGate = temporalSignGate)
+      # Item 3 (2026-06-24): temporal sign-stability is a SOFT within-band preference. Compute it
+      # for the near-tie band candidates ONLY (early-window refit + theory-term sign compare),
+      # add the column, and re-rank so temporally-unstable specs are demoted. Defensive: skipped
+      # without panelData / when the band is trivial; per-candidate failures leave NA (no demotion).
+      if (!is.null(temporalSignGate) && !is.null(panelData)) {
+        pass0 <- mm[mm$gatePass, , drop = FALSE]
+        if (nrow(pass0) > 1) {
+          lead <- pass0$meanDeltaR2[1]; leadTier <- pass0$minTier[1]
+          bandModels <- pass0$model[pass0$minTier == leadTier & !is.na(pass0$meanDeltaR2) &
+                                      pass0$meanDeltaR2 >= lead - nearTieEps]
+          tss <- tryCatch(.bandTemporalSignStable(bandModels, specByName, panelData, stg, sectors,
+                                                  family, modelDir, say), error = function(e) NULL)
+          if (!is.null(tss) && nrow(tss) && any(!is.na(tss$temporalSignStable))) {
+            sub$temporalSignStable <- tss$temporalSignStable[
+              match(paste(sub$model, sub$sector), paste(tss$model, tss$sector))]
+            mm <- computeMaximinScore(sub[, c(mmCols, "temporalSignStable"), drop = FALSE],
+                                      nearTieEps = nearTieEps, feParsimonyWeight = feParsimonyWeight,
+                                      dropIdleControls = dropIdleControls, softVifGate = softVifGate,
+                                      temporalSignGate = temporalSignGate)
+          }
+        }
+      }
       maximin[[stg]] <- mm
       pass <- mm[mm$gatePass, , drop = FALSE]
       if (nrow(pass) == 0) {
@@ -639,6 +662,39 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
     base$rmse <- pd$rmse %||% NA_real_
   }
   base
+}
+
+# Internal: temporal sign-stability for the near-tie band candidates (Item 3, 2026-06-24). For
+# each (model, sector) it refits on the early window (computeTemporalSplit single split, rolling
+# disabled) and returns the fraction of THEORY-term coefficient signs that match the full fit.
+# Defensive: any failure (e.g. Mundlak/lagged specs computeTemporalSplit can't fit) yields NA, so
+# the spec simply carries no temporal demotion. Band-only, mirroring the .sanitySelect pattern.
+#' @keywords internal
+.bandTemporalSignStable <- function(models, specByName, panelData, stage, sectors, family,
+                                    modelDir, say = function(...) invisible()) {
+  if (!length(models)) return(NULL)
+  say("temporal sign-stability for ", length(models), " band candidate(s) ...")
+  rows <- list()
+  for (mdl in models) {
+    cfg <- specByName[[mdl]]
+    if (is.null(cfg)) next
+    for (sec in sectors) {
+      frac <- tryCatch({
+        ts <- computeTemporalSplit(
+          data = panelData, sector = sec, stage = tolower(stage),
+          actorPowerDrivers = cfg$actorPowerDrivers, actorPowerIndex = cfg$actorPowerIndex,
+          instQualityDrivers = cfg$instQualityDrivers, controlDrivers = cfg$controlDrivers,
+          regionMappingFixedEffects = cfg$regionMappingFixedEffects, family = family,
+          logisticTimeTrend = isTRUE(cfg$logisticTimeTrend), rollingOrigins = integer(0),
+          modelDir = modelDir, verbose = FALSE)
+        cf <- ts$coef
+        if (is.null(cf) || !nrow(cf)) NA_real_ else mean(as.logical(cf$signSame), na.rm = TRUE)
+      }, error = function(e) NA_real_)
+      rows[[length(rows) + 1L]] <- data.frame(model = mdl, sector = sec,
+                                              temporalSignStable = frac, stringsAsFactors = FALSE)
+    }
+  }
+  if (length(rows)) do.call(rbind, rows) else NULL
 }
 
 # Internal: writes selected-models-channels-<mode>.yml (4 model_type entries).

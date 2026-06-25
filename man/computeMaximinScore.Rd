@@ -13,7 +13,7 @@ computeMaximinScore(
   feParsimonyWeight = 0,
   dropIdleControls = TRUE,
   softVifGate = 6,
-  trendShareGate = 0.6
+  temporalSignGate = 0.6
 )
 }
 \arguments{
@@ -78,12 +78,17 @@ lower-collinearity equivalents (ahead of the BIC tie-break). Distinct from the h
 nudging selection toward a low-VIF composite-AP stringency spec over a high-VIF split-AP
 one. \code{NULL} disables. Default \code{6}.}
 
-\item{trendShareGate}{Numeric or \code{NULL}. Soft low-trend-reliance preference
-(2026-06-24): within a near-tie band, specs whose \code{trendShare} (share of the fitted
-linear-predictor variance attributable to the time-trend term) exceeds this in any sector
-are demoted behind less trend-reliant equivalents. Prefers specs whose signal comes from
-the theory drivers rather than a calendar trend (lower extrapolation fragility). Requires a
-\code{trendShare} column; no-ops without it. \code{NULL} disables. Default \code{0.6}.}
+\item{temporalSignGate}{Numeric in \code{[0, 1]} or \code{NULL}. Soft temporal sign-stability
+preference (2026-06-24, ADR-less refinement of the selection machinery): within a near-tie
+band, specs whose \code{temporalSignStable} (fraction of \emph{theory-term} coefficient signs
+that match between the full fit and an out-of-time refit) is below this are demoted behind
+more stable equivalents. A \strong{soft} preference, never a hard gate (with few pre-2017
+events a flip is often a small-sample artefact). Requires a \code{temporalSignStable} column
+(populated for the near-tie band candidates only); no-ops without it. Default \code{0.6}.
+Low \emph{trend reliance} is also preferred within the band as a \emph{relative} ordering
+(lower \code{trendShare} first; no threshold) when a \code{trendShare} column is present —
+a mild interpretability nudge, applied after the binary demotions and before the BIC
+tie-break.}
 }
 \value{
 Data.frame with one row per model, ordered best-first:

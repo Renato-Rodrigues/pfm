@@ -79,6 +79,19 @@
 #'   be negative), and region fixed effects are suppressed (differenced out by
 #'   construction). Incompatible with \code{useMundlak = TRUE} and
 #'   \code{ridgeInteractions = TRUE}.
+#' @param priceLink Character. Response form (ADR 0026): \code{"log1p"} (default — model
+#'   \code{log(1+ECP)}, the current unbounded form) or \code{"saturating"} — model
+#'   \code{logit(ECP / priceCeilingMax)} so the projected price is bounded by
+#'   \code{priceCeilingMax} by construction (a Gaussian-identity GLM either way). The form is
+#'   stored on the fit and in the model store's \code{applyState}, so \code{projectSpecScenario}
+#'   and \code{predictFeasibility} reconstruct the price as \code{Pmax * logit^{-1}(\eta)} for
+#'   \code{"saturating"} vs \code{expm1(\eta)} for \code{"log1p"}. Folded into the cache key.
+#' @param priceCeilingMax Numeric. The asymptotic price ceiling \eqn{P_{\max}} used by the
+#'   \code{"saturating"} link (USD/tCO2). Default \code{1000} (a citable economic backstop).
+#' @param prepared Logical. Refit entry (ADR 0025): when \code{TRUE}, \code{data} is an
+#'   already-prepared data.frame (response already transformed) — prep, transforms, the cache read
+#'   and the save are skipped, and the formula is simply (re)fit. Used by the selection-uncertainty
+#'   bootstrap. Default \code{FALSE}.
 #'
 #' @return A list with elements:
 #'   \describe{
@@ -138,8 +151,14 @@ estimatePriceStringencyModel <- function(
     gdpGovInteraction = FALSE,
     fePenaltyFactor = 0.5,
     panelTransform = "levels",
-    nickellCorrection = FALSE) {
+    nickellCorrection = FALSE,
+    priceLink = "log1p",
+    priceCeilingMax = 1000,
+    prepared = FALSE) {
   panelTransform <- match.arg(panelTransform, c("levels", "hybridFD", "pureFD"))
+  priceLink <- match.arg(priceLink, c("log1p", "saturating"))
+  # Bootstrap/refit entry (ADR 0025): prepared = TRUE -> `data` is an already-prepared df; skip
+  # prep, transforms, the cache read and the save, and just (re)fit the formula.
 
   # --- Resolve the effective GLM family/link BEFORE the cache check, so the
   # model-store key reflects it (see computeModelId `extra`). Option 1 (2026-06-14):
@@ -148,7 +167,7 @@ estimatePriceStringencyModel <- function(
   # (ECP = expm1(eta)) rather than a log link on a logged outcome, which
   # double-exponentiates and explodes under projection. Gamma/gaussian log links
   # remain available only for logTransform = FALSE (modelling raw ECP).
-  usesIdentity <- (panelTransform != "levels") || isTRUE(logTransform)
+  usesIdentity <- (panelTransform != "levels") || isTRUE(logTransform) || priceLink == "saturating"
   if (usesIdentity && family != "gaussian" && isTRUE(verbose)) {
     message("  [stringency] using gaussian(identity) on the log/differenced outcome ",
             "instead of ", family, "(log) to avoid a double-log that explodes under ",
@@ -173,35 +192,48 @@ estimatePriceStringencyModel <- function(
       regionMappingFixedEffects <- NULL
     }
   }
-  # --- 1. Prepare data.frame ---
-  df <- preparePanelData(
-    data = data,
-    sector = sector,
-    actorPowerDrivers = actorPowerDrivers,
-    actorPowerIndex = actorPowerIndex,
-    instQualityDrivers = instQualityDrivers,
-    controlDrivers = controlDrivers,
-    regionMappingFixedEffects = if (isTRUE(useMundlak)) NULL else regionMappingFixedEffects,
-    lag = lag,
-    useMundlak = useMundlak,
-    gdpGovInteraction = gdpGovInteraction
-  )
+  # --- 1. Prepare data.frame (skipped when `prepared`: `data` is already a prepared df with the
+  # response already transformed — the bootstrap/refit entry, ADR 0025) ---
+  if (isTRUE(prepared)) {
+    df <- as.data.frame(data)
+    ignoreCache <- TRUE
+    updateIndex <- FALSE
+  } else {
+    df <- preparePanelData(
+      data = data,
+      sector = sector,
+      actorPowerDrivers = actorPowerDrivers,
+      actorPowerIndex = actorPowerIndex,
+      instQualityDrivers = instQualityDrivers,
+      controlDrivers = controlDrivers,
+      regionMappingFixedEffects = if (isTRUE(useMundlak)) NULL else regionMappingFixedEffects,
+      lag = lag,
+      useMundlak = useMundlak,
+      gdpGovInteraction = gdpGovInteraction
+    )
+  }
   # Capture the frozen driver-scaling reference before the ecp>0 subset drops the
   # attribute (ADR 0009: bundled into the saved Fitted Model).
   .dscale <- attr(df, "driverScaling")
 
-  if (panelTransform == "levels") {
+  if (!isTRUE(prepared) && panelTransform == "levels") {
     # --- 2. Subset to positive prices ---
     df <- df[df$ecp > 0, , drop = FALSE]
 
-    # --- 2b. Optional log-transform ---
-    if (isTRUE(logTransform)) {
+    # --- 2b. Response transform: saturating link, or log(1+ECP), or raw ---
+    if (priceLink == "saturating") {
+      # Saturating form (ADR 0026): model logit(price/Pmax) so the projected price is bounded by
+      # Pmax = priceCeilingMax by construction (no clamp-dependent tails). Gaussian-identity GLM.
+      .eps <- 1e-4
+      df$ecp <- stats::qlogis(pmin(pmax(df$ecp / priceCeilingMax, .eps), 1 - .eps))
+      if (isTRUE(verbose)) message("Saturating link applied: ecp -> logit(price/", priceCeilingMax, ")")
+    } else if (isTRUE(logTransform)) {
       df$ecp <- log(1 + df$ecp)
       if (isTRUE(verbose)) {
         message("Log-transform applied: ecp -> log(1 + ecp)")
       }
     }
-  } else {
+  } else if (!isTRUE(prepared)) {
     # --- 2. Panel Transform (ADR 0005): within-spell differences ---
     # Handles spell subsetting and the (log) differencing of the outcome itself.
     df <- applyPanelTransform(
@@ -221,9 +253,15 @@ estimatePriceStringencyModel <- function(
   }
 
   if (isTRUE(includeLaggedECP)) {
-    # If the dependent variable is log-transformed, we should log-transform the lagged predictor as well
-    if (isTRUE(logTransform)) {
-      df$lagged_ecp <- log(1 + df$lagged_ecp)
+    # Transform the lagged predictor onto the same scale as the response (skipped when prepared:
+    # the supplied df already carries the transformed lagged_ecp).
+    if (!isTRUE(prepared)) {
+      if (priceLink == "saturating") {
+        .eps <- 1e-4
+        df$lagged_ecp <- stats::qlogis(pmin(pmax(df$lagged_ecp / priceCeilingMax, .eps), 1 - .eps))
+      } else if (isTRUE(logTransform)) {
+        df$lagged_ecp <- log(1 + df$lagged_ecp)
+      }
     }
     controlDrivers <- c(controlDrivers, "lagged_ecp")
   }
@@ -247,7 +285,8 @@ estimatePriceStringencyModel <- function(
   # nickellCorrection is an estimation choice not reflected in the formula/data,
   # so fold it into the cache key (alongside family) to avoid reusing an
   # uncorrected fit for a corrected spec.
-  cacheExtra <- paste0(family, if (isTRUE(nickellCorrection)) "+nickellSPJ" else "")
+  cacheExtra <- paste0(family, if (isTRUE(nickellCorrection)) "+nickellSPJ" else "",
+                       if (priceLink == "saturating") paste0("+sat", priceCeilingMax) else "")
   # ignoreCache (forceRefit) skips the cache read and re-estimates, overwriting any stale fit.
   if (!is.null(modelDir) && !isTRUE(ignoreCache)) {
     ids <- computeModelId(fml, df, extra = cacheExtra)
@@ -263,7 +302,9 @@ estimatePriceStringencyModel <- function(
           sector   = sector,
           family   = family,
           formula  = fml,
-          data     = df
+          data     = df,
+          priceLink = priceLink,
+          priceCeilingMax = priceCeilingMax
         )
         # Restore VIF from model store; fall back to computing from the formula
         cached_vif <- cached$diagnostics$vif
@@ -423,11 +464,13 @@ estimatePriceStringencyModel <- function(
     family   = family,
     formula  = fml,
     data     = df,
-    nickellCorrected = nickellApplied
+    nickellCorrected = nickellApplied,
+    priceLink = priceLink,
+    priceCeilingMax = priceCeilingMax
   )
 
   # --- 7. Save PFMModel if modelDir is configured ---
-  if (!is.null(modelDir)) {
+  if (!is.null(modelDir) && !isTRUE(prepared)) {
     pfmModel <- buildPFMModel(
       fit           = result,
       training_data = df,

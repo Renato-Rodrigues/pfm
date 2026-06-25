@@ -28,7 +28,7 @@ runChannelsWorkflow(
   feParsimonyWeight = 0,
   dropIdleControls = TRUE,
   softVifGate = 6,
-  trendShareGate = 0.6,
+  temporalSignGate = 0.6,
   requireBothSectors = TRUE,
   falsificationPThreshold = 0.05,
   maxFalsificationTries = 25L,
@@ -137,10 +137,11 @@ decide the selection on parameter count alone). Set \code{1} for classic BIC.}
 near-tie band, prefer specs without an idle (present-but-never-significant) control over
 otherwise-equivalent specs that carry one. Default \code{TRUE}.}
 
-\item{softVifGate, trendShareGate}{Numeric or \code{NULL}. Forwarded to
+\item{softVifGate, temporalSignGate}{Numeric or \code{NULL}. Forwarded to
 \code{\link{computeMaximinScore}}: within a near-tie band, demote high-collinearity
-(\code{maxVIF > softVifGate}, default 6) and high-trend-reliance
-(\code{trendShare > trendShareGate}, default 0.6) specs behind cleaner equivalents.
+(\code{maxVIF > softVifGate}, default 6) and temporally sign-unstable
+(\code{temporalSignStable < temporalSignGate}, default 0.6) specs behind cleaner equivalents;
+low trend reliance is additionally preferred as a relative within-band ordering.
 \code{NULL} disables either preference.}
 
 \item{requireBothSectors}{Logical. Difference-first only: the Falsification Gate
