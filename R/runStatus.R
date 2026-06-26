@@ -49,7 +49,7 @@ runStatus <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
   # Live progress bars (model fitting / report rendering), parsed from the run log while it is active.
   active <- (status$manifestStatus %in% c("running", "submitted")) ||
     (!is.null(live) && toupper(live$state %||% "") %in% c("RUNNING", "PENDING", "CONFIGURING", "COMPLETING"))
-  status$progress <- if (active) .runProgress(groupDir) else NULL
+  status$progress <- if (active) .runProgress(group, groupDir, jobId) else NULL
   if (isTRUE(verbose)) .printRunStatus(status)
   invisible(status)
 }
@@ -83,8 +83,17 @@ runStatus <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
 # - report rendering: present only once "rendering reports via ..." appears (i.e. render was requested);
 #   total = the report set listed in that marker, done = count of "[pfmreports] rendering <name>" lines.
 #' @keywords internal
-.runProgress <- function(groupDir) {
-  errs <- list.files(groupDir, pattern = "\\.err$", full.names = TRUE)
+.runProgress <- function(group, groupDir, jobId = NULL) {
+  errs <- character(0)
+  if (!is.null(jobId) && length(jobId) == 1 && !is.na(jobId) && nzchar(jobId)) {
+    errs <- list.files(groupDir, pattern = paste0("-", jobId, "\\.err$"), full.names = TRUE)
+  }
+  if (!length(errs)) {
+    errs <- list.files(groupDir, pattern = paste0("^pfm-", group, "-.*\\.err$"), full.names = TRUE)
+  }
+  if (!length(errs)) {
+    errs <- list.files(groupDir, pattern = "\\.err$", full.names = TRUE)
+  }
   if (!length(errs)) return(NULL)
   errFile <- errs[which.max(file.info(errs)$mtime)]
   ln <- tryCatch(readLines(errFile, warn = FALSE), error = function(e) character(0))
