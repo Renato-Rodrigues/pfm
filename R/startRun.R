@@ -55,7 +55,7 @@ startRun <- function(group,
                      account = NULL, mem = NULL, chdir = NULL,
                      outputDir = NULL, render = FALSE,
                      bootstrapResamples = 200L, bootstrapDetail = "channel", bootstrapTopK = 40L,
-                     forceRefit = FALSE, resume = FALSE, verbose = TRUE, ...) {
+                     forceRefit = FALSE, resume = FALSE, renderCores = NULL, verbose = TRUE, ...) {
   mode <- match.arg(mode)
   selectionMethod <- match.arg(selectionMethod)
   cluster <- match.arg(cluster)
@@ -80,6 +80,7 @@ startRun <- function(group,
       nCores = nCores,
       time = time, qos = qos, partition = partition, account = account, mem = mem, chdir = chdir,
       outputDir = outputDir, render = render, forceRefit = forceRefit, resume = resume,
+      renderCores = renderCores,
       bootstrapResamples = bootstrapResamples, bootstrapDetail = bootstrapDetail,
       bootstrapTopK = bootstrapTopK, say = say, dots = list(...)))
   }
@@ -115,7 +116,8 @@ startRun <- function(group,
   if (ok && isTRUE(render)) {
     .renderReports(group = group, resultsDir = resultsDir, modelDir = modelDir,
                    cachefolder = cachefolder, gdxFile = gdxFile,
-                   outputDir = outputDir %||% resultsDir, steps = steps, say = say)
+                   outputDir = outputDir %||% resultsDir, steps = steps,
+                   renderCores = renderCores, say = say)
   }
   say(if (ok) "DONE" else "FAILED", " - ", groupDir)
   invisible(list(group = group, status = if (ok) "completed" else "failed", dir = groupDir))
@@ -146,7 +148,8 @@ startRun <- function(group,
 #' @keywords internal
 .submitSlurm <- function(group, steps, mode, selectionMethod, resultsDir, modelDir, cachefolder,
                          gdxFile, nCores, time, qos, partition, account, mem, chdir, outputDir,
-                         render, forceRefit, resume = FALSE, bootstrapResamples = 200L,
+                         render, forceRefit, resume = FALSE, renderCores = NULL,
+                         bootstrapResamples = 200L,
                          bootstrapDetail = "channel", bootstrapTopK = 40L, say, dots) {
   abspath <- function(p) if (is.null(p)) NULL else normalizePath(p, winslash = "/", mustWork = FALSE)
   resultsDir <- abspath(resultsDir); modelDir <- abspath(modelDir)
@@ -160,10 +163,12 @@ startRun <- function(group,
   call <- sprintf(paste0(
     "pfm::startRun(group=%s, steps=%s, mode=%s, selectionMethod=%s, resultsDir=%s, modelDir=%s, ",
     "cachefolder=%s, gdxFile=%s, nCores=%d, cluster=\"local\", forceRefit=%s, resume=%s, render=%s, outputDir=%s, ",
-    "bootstrapResamples=%d, bootstrapDetail=%s, bootstrapTopK=%d%s)"),
+    "renderCores=%s, bootstrapResamples=%d, bootstrapDetail=%s, bootstrapTopK=%d%s)"),
     .rlit(group), .rlit(steps), .rlit(mode), .rlit(selectionMethod), .rlit(resultsDir),
     .rlit(modelDir), .rlit(cachefolder), .rlit(gdxFile), nCores, .rlit(forceRefit), .rlit(resume), .rlit(render),
-    .rlit(outputDir), as.integer(bootstrapResamples), .rlit(bootstrapDetail), as.integer(bootstrapTopK),
+    .rlit(outputDir),
+    if (is.null(renderCores)) "NULL" else as.integer(renderCores),
+    as.integer(bootstrapResamples), .rlit(bootstrapDetail), as.integer(bootstrapTopK),
     if (length(dots)) paste0(", ", paste(sprintf("%s=%s", names(dots),
       vapply(dots, .rlit, character(1))), collapse = ", ")) else "")
   jobR <- file.path(chdir, paste0("pfm-", group, "-job.R"))
@@ -214,7 +219,7 @@ startRun <- function(group,
 # pfm-reports (it only invokes run.R scripts in the supplied directory).
 #' @keywords internal
 .renderReports <- function(group, resultsDir, modelDir, cachefolder, gdxFile, outputDir,
-                           steps, say) {
+                           steps, say, renderCores = NULL) {
   # Retargeted shell-out (ADR 0021): render via the installed pfmreports package — pfm gains no
   # dependency on it. Skipped (with a note) when pfmreports is not installed.
   haveReports <- nzchar(system2("Rscript",
@@ -228,12 +233,14 @@ startRun <- function(group,
   if (any(c("robustness", "temporal", "difference-first") %in% steps)) reps <- c(reps, "robustness")
   if ("subnational" %in% steps) reps <- c(reps, "subnational")
   lit <- function(x) if (is.null(x)) "NULL" else paste0('"', gsub('"', '\\\\"', x), '"')
+  nCoresArg <- if (is.null(renderCores)) "NULL" else as.integer(renderCores)
   expr <- sprintf(paste0(
     "suppressMessages(library(pfmreports)); ",
     "pfmreports::renderGroup(group=%s, reports=c(%s), resultsDir=%s, modelDir=%s, ",
-    "cachefolder=%s, gdxFile=%s, reportName=%s, outputDir=%s)"),
+    "cachefolder=%s, gdxFile=%s, reportName=%s, outputDir=%s, nCores=%s)"),
     lit(group), paste(vapply(reps, lit, character(1)), collapse = ", "),
-    lit(resultsDir), lit(modelDir), lit(cachefolder), lit(gdxFile), lit(group), lit(outputDir))
+    lit(resultsDir), lit(modelDir), lit(cachefolder), lit(gdxFile), lit(group), lit(outputDir),
+    nCoresArg)
   say("rendering reports via pfmreports::renderGroup (", paste(reps, collapse = ", "), ") ...")
   # Stream the child render output to this run's log (stdout=""/stderr="" instead of capturing) so the
   # per-report "[pfmreports] rendering <name> -> ..." lines land in the .err live. runStatus parses

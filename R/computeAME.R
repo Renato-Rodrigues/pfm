@@ -51,7 +51,12 @@ computeAME <- function(fit,
   vcovMat <- if (is.list(fit) && !is.null(fit$vcov)) fit$vcov else NULL
   if (is.null(m)) return(NULL)
 
-  data_src <- if (!is.null(m$model)) m$model else NULL
+  # logistf objects do NOT carry a $model frame (unlike glm), so fall back to the prepared
+  # data.frame stored on the fit result ($data) — otherwise AMEs silently return NULL for every
+  # Firth adoption fit (the deployed adoption specs, hence an empty AME section). 2026-06-26.
+  data_src <- if (!is.null(m$model)) m$model
+              else if (is.list(fit) && !is.null(fit$data)) fit$data
+              else NULL
   if (is.null(data_src)) return(NULL)
 
   fml <- if (inherits(m, "logistf")) m$formula else stats::formula(m)

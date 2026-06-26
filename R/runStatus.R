@@ -62,6 +62,22 @@ runStatus <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
   paste0("[", strrep("#", n), strrep("-", width - n), "] ", sprintf("%3d%%", round(100 * frac)))
 }
 
+# Internal: human-readable duration, e.g. 31715.6 -> "8h 48m 36s", 90061 -> "1d 1h 1m 1s", 45 -> "45s".
+#' @keywords internal
+.formatDuration <- function(secs) {
+  x <- suppressWarnings(as.numeric(secs))
+  if (length(x) != 1 || !is.finite(x) || x < 0) return("?")
+  d <- x %/% 86400; r <- x %% 86400
+  h <- r %/% 3600;  r <- r %% 3600
+  m <- r %/% 60;    s <- round(r %% 60)
+  parts <- character(0)
+  if (d > 0) parts <- c(parts, paste0(d, "d"))
+  if (h > 0) parts <- c(parts, paste0(h, "h"))
+  if (m > 0) parts <- c(parts, paste0(m, "m"))
+  if (s > 0 || !length(parts)) parts <- c(parts, paste0(s, "s"))
+  paste(parts, collapse = " ")
+}
+
 # Internal: parse live progress from a run's newest .err log.
 # - model fitting: the most recent "[fits] N/M" (sweep) or "resample r/N" (selection bootstrap) line.
 # - report rendering: present only once "rendering reports via ..." appears (i.e. render was requested);
@@ -95,15 +111,31 @@ runStatus <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
     res$model <- list(label = lbl, done = nm[1], total = nm[2], frac = nm[1] / nm[2])
   }
 
-  # --- report rendering bar: only once rendering has started (=> --render was part of the run) -------
+  # --- report rendering: per-report detail, only once rendering has started (=> --render run) -------
   renStart <- grep("rendering reports via", ln)
   if (length(renStart)) {
     sline <- ln[max(renStart)]
     inParen <- regmatches(sline, regexpr("\\(([^)]*)\\)", sline))
-    total <- if (length(inParen)) length(strsplit(gsub("[()]", "", inParen), ",")[[1]]) else NA_integer_
-    done <- length(grep("\\[pfmreports\\][[:space:]]+rendering[[:space:]]", ln))
+    expected <- if (length(inParen)) trimws(strsplit(gsub("[()]", "", inParen), ",")[[1]]) else character(0)
+    grab <- function(re) {
+      hit <- regmatches(ln, regexpr(re, ln, perl = TRUE))
+      unique(hit[nzchar(hit)])
+    }
+    startedNm <- grab("(?<=\\[pfmreports\\] rendering )\\S+")
+    doneLines <- grep("\\[pfmreports\\] done ", ln, value = TRUE)
+    doneNm  <- regmatches(doneLines, regexpr("(?<=\\[pfmreports\\] done )\\S+", doneLines, perl = TRUE))
+    doneDur <- gsub("[()]", "", regmatches(doneLines, regexpr("\\(([^)]*)\\)", doneLines)))
+    reports <- lapply(expected, function(nm) {
+      if (nm %in% doneNm) list(name = nm, state = "done", dur = doneDur[match(nm, doneNm)])
+      else if (nm %in% startedNm) list(name = nm, state = "running", dur = NA_character_)
+      else list(name = nm, state = "pending", dur = NA_character_)
+    })
+    # completed count drives the bar; fall back to "started" count for logs without done-markers.
+    done <- if (length(doneNm)) length(doneNm) else length(startedNm)
+    total <- if (length(expected)) length(expected) else NA_integer_
     res$render <- list(done = done, total = total,
-                       frac = if (!is.na(total) && total > 0) min(1, done / total) else 0)
+                       frac = if (!is.na(total) && total > 0) min(1, done / total) else 0,
+                       reports = reports)
   }
   if (length(res)) res else NULL
 }
@@ -136,7 +168,7 @@ runStatus <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
   line <- function(...) message(...)
   line("PFM run status - group '", s$group, "'")
   line("  manifest status : ", s$manifestStatus,
-       if (!is.null(s$seconds)) paste0("  (", s$seconds, "s)") else "")
+       if (!is.null(s$seconds)) paste0("  (", .formatDuration(s$seconds), ")") else "")
   if (!is.na(s$cluster)) line("  cluster         : ", s$cluster,
        if (!is.na(s$slurmJobId)) paste0("  job ", s$slurmJobId) else "",
        if (!is.null(s$nCores)) paste0("  nCores=", s$nCores) else "")
@@ -149,7 +181,7 @@ runStatus <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
     if (is.list(e)) {
       mtr <- if (length(e$metrics)) paste0(" {", paste(names(e$metrics), unlist(e$metrics), sep = "=",
                                                        collapse = ", "), "}") else ""
-      line("    - ", nm, ": ", e$status %||% "?", "  ", e$seconds %||% "?", "s", mtr)
+      line("    - ", nm, ": ", e$status %||% "?", "  ", .formatDuration(e$seconds), mtr)
     } else {
       line("    - ", nm, ": ", e)
     }
@@ -164,6 +196,16 @@ runStatus <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
       tot <- if (is.na(p$render$total)) "?" else p$render$total
       line("  reports         : ", .progressBar(p$render$frac),
            "  (", p$render$done, "/", tot, " rendered)")
+      rs <- p$render$reports
+      if (length(rs)) {
+        nmOf <- function(st) vapply(Filter(function(r) r$state == st, rs),
+          function(r) if (identical(st, "done") && !is.na(r$dur)) paste0(r$name, " (", r$dur, ")") else r$name,
+          character(1))
+        dn <- nmOf("done"); rn <- nmOf("running"); pn <- nmOf("pending")
+        if (length(dn)) line("      done      : ", paste(dn, collapse = ", "))
+        if (length(rn)) line("      rendering : ", paste(rn, collapse = ", "))
+        if (length(pn)) line("      pending   : ", paste(pn, collapse = ", "))
+      }
     }
   }
   if (length(s$remaining)) line("  remaining       : ", paste(s$remaining, collapse = ", "))

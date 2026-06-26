@@ -28,6 +28,7 @@ startRun(
   bootstrapTopK = 40L,
   forceRefit = FALSE,
   resume = FALSE,
+  renderCores = NULL,
   verbose = TRUE,
   ...
 )
