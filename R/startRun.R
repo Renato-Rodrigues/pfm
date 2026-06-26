@@ -100,11 +100,35 @@ startRun <- function(group,
 
   say(if (inJob) "running on SLURM node" else "running locally", " (nCores = ", nCores, "); steps: ",
       paste(steps, collapse = ", "))
+  runGroup <- function(stepsArg) runModelGroup(group = group, steps = stepsArg,
+    resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile,
+    mode = mode, selectionMethod = selectionMethod, nCores = nCores, forceRefit = forceRefit,
+    resume = resume, bootstrapResamples = bootstrapResamples, bootstrapDetail = bootstrapDetail,
+    bootstrapTopK = bootstrapTopK, verbose = verbose, ...)
+  doRender <- function(reps, stepsArg) .renderReports(group = group, resultsDir = resultsDir,
+    modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile,
+    outputDir = outputDir %||% resultsDir, steps = stepsArg, renderCores = renderCores,
+    reports = reps, say = say)
+
+  # When the run includes the multi-hour selection-bootstrap AND rendering, render every report that
+  # does NOT depend on it FIRST (right after the cheap steps), so they are available within minutes;
+  # only model-selection (the sole consumer of selection-bootstrap.rds) waits for the bootstrap.
+  bootStep <- "selection-bootstrap"
+  phased <- isTRUE(render) && (bootStep %in% steps)
   ok <- tryCatch({
-    runModelGroup(group = group, steps = steps, resultsDir = resultsDir, modelDir = modelDir,
-      cachefolder = cachefolder, gdxFile = gdxFile, mode = mode, selectionMethod = selectionMethod,
-      nCores = nCores, forceRefit = forceRefit, resume = resume, bootstrapResamples = bootstrapResamples,
-      bootstrapDetail = bootstrapDetail, bootstrapTopK = bootstrapTopK, verbose = verbose, ...)
+    if (phased) {
+      preSteps <- setdiff(steps, bootStep)
+      if (length(preSteps)) runGroup(preSteps)
+      say("rendering bootstrap-independent reports before the selection-bootstrap stage ...")
+      doRender(setdiff(c("selection", "results-adoption", "results-stringency",
+                         "publication", "robustness", "subnational"), character(0)), preSteps)
+      say("starting the selection-bootstrap stage (long) ...")
+      runGroup(bootStep)
+      say("rendering the bootstrap-dependent report (model-selection) ...")
+      doRender("model-selection", steps)
+    } else {
+      runGroup(steps)
+    }
     TRUE
   }, error = function(e) { say("RUN FAILED: ", conditionMessage(e)); FALSE })
 
@@ -113,12 +137,7 @@ startRun <- function(group,
     status = if (ok) "completed" else "failed", endedAt = as.character(endedAt),
     seconds = round(as.numeric(difftime(endedAt, t0, units = "secs")), 1)))
 
-  if (ok && isTRUE(render)) {
-    .renderReports(group = group, resultsDir = resultsDir, modelDir = modelDir,
-                   cachefolder = cachefolder, gdxFile = gdxFile,
-                   outputDir = outputDir %||% resultsDir, steps = steps,
-                   renderCores = renderCores, say = say)
-  }
+  if (ok && isTRUE(render) && !phased) doRender(NULL, steps)   # non-phased: render all at the end
   say(if (ok) "DONE" else "FAILED", " - ", groupDir)
   invisible(list(group = group, status = if (ok) "completed" else "failed", dir = groupDir))
 }
@@ -226,7 +245,7 @@ startRun <- function(group,
 # pfm-reports (it only invokes run.R scripts in the supplied directory).
 #' @keywords internal
 .renderReports <- function(group, resultsDir, modelDir, cachefolder, gdxFile, outputDir,
-                           steps, say, renderCores = NULL) {
+                           steps, say, renderCores = NULL, reports = NULL) {
   # Retargeted shell-out (ADR 0021): render via the installed pfmreports package — pfm gains no
   # dependency on it. Skipped (with a note) when pfmreports is not installed.
   haveReports <- nzchar(system2("Rscript",
@@ -239,6 +258,8 @@ startRun <- function(group,
   reps <- c("selection", "model-selection", "results-adoption", "results-stringency", "publication")
   if (any(c("robustness", "temporal", "difference-first") %in% steps)) reps <- c(reps, "robustness")
   if ("subnational" %in% steps) reps <- c(reps, "subnational")
+  if (!is.null(reports)) reps <- intersect(reps, reports)   # render only this subset (phased render)
+  if (!length(reps)) return(invisible(NULL))
   lit <- function(x) if (is.null(x)) "NULL" else paste0('"', gsub('"', '\\\\"', x), '"')
   nCoresArg <- if (is.null(renderCores)) "NULL" else as.integer(renderCores)
   expr <- sprintf(paste0(
