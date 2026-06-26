@@ -13,7 +13,8 @@ computeMaximinScore(
   feParsimonyWeight = 0,
   dropIdleControls = TRUE,
   softVifGate = 6,
-  temporalSignGate = NULL
+  temporalSignGate = NULL,
+  trendDominanceGate = 0.5
 )
 }
 \arguments{

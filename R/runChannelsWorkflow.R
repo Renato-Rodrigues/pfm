@@ -582,7 +582,7 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
     sigControl = 0L, nControl = length(cfg$controlDrivers),
     deltaR2Theory = NA_real_, theoryFrac = NA_real_,
     aic = NA_real_, bic = NA_real_, pseudoR2 = NA_real_, nObs = NA_integer_, nFE = NA_integer_,
-    trendShare = NA_real_,
+    trendShare = NA_real_, nonTheoryShare = NA_real_,
     maxVIF = NA_real_, converged = FALSE, usesLagged = isTRUE(cfg$includeLagged),
     brier = NA_real_, auc = NA_real_, calibrationSlope = NA_real_, rmse = NA_real_,
     stringsAsFactors = FALSE
@@ -625,6 +625,23 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
       lp <- as.numeric(mm0[, sh, drop = FALSE] %*% co[sh])
       vlp <- stats::var(lp, na.rm = TRUE)
       if (is.finite(vlp) && vlp > 0) stats::var(contrib, na.rm = TRUE) / vlp else NA_real_
+    } else NA_real_
+  }, error = function(e) NA_real_)
+  # Non-theory contribution share (ADR 0033, DIAGNOSTIC — reported, not gated): the share of the
+  # fitted linear-predictor variance carried by the NON-theory, NON-FE terms (controls + time trend).
+  # High values flag a spec whose signal is atheoretical (controls/trend), the broader cousin of the
+  # trend-dominance gate. Controls are legitimate confounders, so this is reported, never auto-rejected.
+  base$nonTheoryShare <- tryCatch({
+    co <- stats::coef(m); d <- fit$data %||% m$data %||% m$model
+    mm0 <- stats::model.matrix(stats::as.formula(fit$formula), data = d)
+    sh <- intersect(colnames(mm0), names(co))
+    lp <- as.numeric(mm0[, sh, drop = FALSE] %*% co[sh]); vlp <- stats::var(lp, na.rm = TRUE)
+    thVars <- c(cfg$actorPowerDrivers, cfg$actorPowerIndex, cfg$instQualityDrivers)
+    isTheory <- function(nm) grepl(":|_x_", nm) ||
+      any(vapply(thVars, function(t) nzchar(t) && grepl(t, nm, fixed = TRUE), logical(1)))
+    nt <- sh[sh != "(Intercept)" & !grepl("^regionFE", sh) & !vapply(sh, isTheory, logical(1))]
+    if (length(nt) && is.finite(vlp) && vlp > 0) {
+      cnt <- as.numeric(mm0[, nt, drop = FALSE] %*% co[nt]); stats::var(cnt, na.rm = TRUE) / vlp
     } else NA_real_
   }, error = function(e) NA_real_)
   nObs <- if (isLf) m$n else tryCatch(stats::nobs(m), error = function(e) NA_integer_)

@@ -120,7 +120,7 @@ computeTheoryTier <- function(sigActorPower, sigInstQual, sigInteractions) {
 computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range = NULL,
                                 nearTieEps = 0.05, feParsimonyWeight = 0,
                                 dropIdleControls = TRUE, softVifGate = 6,
-                                temporalSignGate = NULL) {
+                                temporalSignGate = NULL, trendDominanceGate = 0.5) {
   required <- c("model", "sector", "sigActorPower", "sigInstQual",
                 "sigInteractions", "deltaR2Theory", "maxVIF", "converged")
   missingCols <- setdiff(required, colnames(df))
@@ -168,6 +168,18 @@ computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range 
       failReasons <- c(failReasons,
                        paste0("deltaR2(theory) > ", deltaR2Max,
                               " (inflated/degenerate fit): ", paste(inflated, collapse = ", ")))
+    }
+    # Trend-dominance hard gate (ADR 0033): reject specs where the atheoretical time trend carries
+    # more than `trendDominanceGate` of the fitted linear-predictor variance in any sector — the
+    # model is extrapolating a time curve rather than explaining via drivers. Naturally stringency-
+    # only (the adoption trend is disabled, ADR 0010, so trendShare is NA there). Column-/NA-guarded
+    # and disabled at `trendDominanceGate = NULL`.
+    if (!is.null(trendDominanceGate) && "trendShare" %in% colnames(m)) {
+      trendy <- m$sector[!is.na(m$trendShare) & m$trendShare > trendDominanceGate]
+      if (length(trendy) > 0) {
+        failReasons <- c(failReasons, paste0("trend-dominated (trendShare > ", trendDominanceGate,
+                                             "): ", paste(trendy, collapse = ", ")))
+      }
     }
     if (!is.null(pseudoR2Range) && "pseudoR2" %in% colnames(m)) {
       badPR2 <- m$sector[!is.na(m$pseudoR2) &

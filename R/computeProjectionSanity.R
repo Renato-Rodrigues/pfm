@@ -152,6 +152,13 @@ projectSpecScenario <- function(cfg, sector, histData, scenarioData,
   plk <- if (!is.null(stringencyFit$priceLink)) stringencyFit$priceLink else "log1p"
   pmaxV <- if (!is.null(stringencyFit$priceCeilingMax)) stringencyFit$priceCeilingMax else Inf
   respLo <- if (identical(plk, "saturating")) -Inf else 0
+  # Saturating form (ADR 0026/0032): price = Pmax*logit^-1(Xbeta) is bounded by Pmax *by
+  # construction*, so the log-scale extrapLogMargin clamp does NOT apply on its logit response scale
+  # (a +1/+2 log-price margin is far too tight there, which would spuriously pin nearly every
+  # projecting region-year and make the clamp-reliance gate reject the very form meant to be
+  # clamp-free). Disable the clamp for saturating; the Pmax bound is the guard, and a non-severe
+  # "pmax-pinned" indicator (below) keeps ceiling-saturation visible.
+  if (identical(plk, "saturating")) capVal <- Inf
 
   hasLag <- "lagged_ecp" %in% all.vars(stringencyFit$formula)
   respRaw <- rep(NA_real_, nrow(sDf))   # pre-clamp response, for the clamp-reliance signal
@@ -212,14 +219,21 @@ projectSpecScenario <- function(cfg, sector, histData, scenarioData,
 
   # Pre-clamp price + which region-years were pinned at the extrapolation guard. A spec whose
   # projection leans heavily on the clamp is extrapolating beyond its data (clamp-reliance gate).
+  # (For saturating capVal = Inf, so clampPinned is all FALSE — the clamp does not apply.)
   priceUnclamped <- invResp(respRaw)
   clampPinned <- is.finite(respRaw) & is.finite(capVal) & (respRaw > capVal + 1e-9)
+  # Saturating ceiling indicator (ADR 0032): region-years projected AT/near the Pmax ceiling. This is
+  # a legitimate "this region projects to the ceiling price", NOT extrapolation breakage — surfaced as
+  # a NON-severe warning, distinct from clampPinned (which is disabled for the saturating form).
+  pmaxPinned <- if (identical(plk, "saturating") && is.finite(pmaxV)) {
+    is.finite(price) & price >= pmaxV * (1 - 1e-3)
+  } else rep(FALSE, length(price))
 
   out <- data.frame(
     region = aDf$region, year = aDf$year, sector = sector,
     prob = prob, stringencyResponse = resp,
     price = price, expectedPrice = prob * price,
-    priceUnclamped = priceUnclamped, clampPinned = clampPinned,
+    priceUnclamped = priceUnclamped, clampPinned = clampPinned, pmaxPinned = pmaxPinned,
     stringsAsFactors = FALSE
   )
 
@@ -358,6 +372,15 @@ computeProjectionSanity <- function(proj, stage = c("adoption", "stringency", "h
       if (is.finite(pinFrac) && pinFrac > th$clampReliance) {
         addFlag("clamp-reliance", "severe", "(extrapolation)", NA, pinFrac,
                 sprintf("%.0f%% of region-years pinned at the extrapolation clamp", pinFrac * 100))
+      }
+    }
+    # Rule 1c: Pmax-saturation (WARNING, saturating form only) — non-disqualifying. The Pmax bound is
+    # the structural guard (ADR 0032), so ceiling-pinning is reported for visibility, not rejected.
+    if ("pmaxPinned" %in% colnames(proj)) {
+      pmaxFrac <- mean(proj$pmaxPinned, na.rm = TRUE)
+      if (is.finite(pmaxFrac) && pmaxFrac > th$clampReliance) {
+        addFlag("pmax-pinned", "warning", "(saturating ceiling)", NA, pmaxFrac,
+                sprintf("%.0f%% of region-years projected at the Pmax ceiling", pmaxFrac * 100))
       }
     }
     # Rule 5: spikes (warning)
