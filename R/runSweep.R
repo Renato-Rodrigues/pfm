@@ -118,6 +118,10 @@ runSweep <- function(group,
     mode = mode, panelData = panelData, scenarioData = scenarioData, sectors = sectors,
     configDir = groupDir, modelDir = modelDir, nCores = nCores, forceRefit = forceRefit,
     family = family, selectionMethod = selectionMethod,
+    # A fresh sweep (runSweep only runs when NOT resuming) must REGENERATE the auto-generated spec
+    # config from the current channelSpecs() — otherwise code changes to the spec grid (e.g. the
+    # ADR 0028 saturating `| satP` twins) are silently ignored because the stale YAML is reused.
+    overwriteConfig = TRUE,
     reportsDir = NULL, renderReports = FALSE, renderRobustness = FALSE,
     updateFindings = FALSE, saveRds = FALSE, writeSelectedConfig = TRUE,
     verbose = verbose, ...
