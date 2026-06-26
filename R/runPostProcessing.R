@@ -630,6 +630,7 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
       say("resume: skipping '", step, "' (", stepArtifact[[step]], " already present)")
       return(FALSE)
     }
+    .writeRunGroupManifest(groupDir, group = group, mode = mode, step = step, stepStats = FALSE)
     TRUE
   }
   if (doStep("sweep")) {

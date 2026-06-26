@@ -78,6 +78,10 @@ runSelectionBootstrap <- function(group, resultsDir = getOption("pfm.resultsDir"
     set.seed(seed)
     winCh <- character(0); winSpec <- character(0)
     progEvery <- max(1L, nResamples %/% 20L)   # ~5% steps
+    if (isTRUE(verbose)) {
+      say("stage ", stg, ": resample 0/", nResamples, " (0%)")
+      utils::flush.console()
+    }
     for (r in seq_len(nResamples)) {
       if (isTRUE(verbose) && (r %% progEvery == 0 || r == nResamples)) {
         say("stage ", stg, ": resample ", r, "/", nResamples, " (", round(100 * r / nResamples),

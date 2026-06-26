@@ -199,7 +199,11 @@ runSweep <- function(group,
   if (!is.null(step)) {
     steps <- man$steps
     if (is.null(steps)) steps <- list()
-    steps[[step]] <- stepStats %||% as.character(Sys.time())
+    if (identical(stepStats, FALSE)) {
+      steps[[step]] <- NULL
+    } else {
+      steps[[step]] <- stepStats %||% as.character(Sys.time())
+    }
     man$steps <- steps
   }
   # Overall run block (written/updated by startRun): merge the supplied fields.
