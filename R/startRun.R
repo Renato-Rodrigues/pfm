@@ -202,6 +202,13 @@ startRun <- function(group,
   jobId <- sub(".*Submitted batch job ([0-9]+).*", "\\1", paste(out, collapse = " "))
   if (!grepl("^[0-9]+$", jobId)) {
     say("submission may have failed: ", paste(out, collapse = " | "))
+    if (any(grepl("Invalid qos", out, ignore.case = TRUE))) {
+      say("hint: SLURM rejected qos='", qos, "' for partition='", partition, "'. Your account/",
+          "partition may not be associated with that QOS, or it needs a different partition. ",
+          "Check: sacctmgr show assoc user=$USER format=Partition,QOS%80  (and ",
+          "scontrol show partition ", partition, " | grep -i qos). Resubmit with a permitted ",
+          "--qos=/--partition= (e.g. --qos=short).")
+    }
     jobId <- NA_character_
   } else {
     say("submitted batch job ", jobId)

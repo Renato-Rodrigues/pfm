@@ -10,22 +10,25 @@ prioritySizing(
   perCoreGB = 4L,
   fallbackCores = 16L,
   .qosRaw = NULL,
-  .sinfoRaw = NULL
+  .sinfoRaw = NULL,
+  .scontrolRaw = NULL
 )
 }
 \arguments{
 \item{qos}{QOS name. Default \code{"priority"}.}
 
-\item{partition}{Partition to size nodes from. Default \code{"standard"}.}
+\item{partition}{Preferred partition; overridden if it does not permit \code{qos} and another
+partition does. Default \code{"standard"}.}
 
 \item{perCoreGB}{Memory budget per core when the QOS sets no memory cap. Default 4.}
 
 \item{fallbackCores}{Cores to use when nothing can be detected (no SLURM tools). Default 16.}
 
-\item{.qosRaw, .sinfoRaw}{Optional raw command output, for testing.}
+\item{.qosRaw, .sinfoRaw, .scontrolRaw}{Optional raw command output, for testing.}
 }
 \value{
 List: \code{nCores}, \code{mem} (e.g. \code{"256G"}), \code{time} (SLURM walltime),
+\code{partition} (one that permits \code{qos}, when found), \code{partitionOk} (logical),
 \code{detail} (a human-readable summary of what was detected).
 }
 \description{
