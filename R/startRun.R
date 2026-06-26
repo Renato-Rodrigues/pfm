@@ -120,12 +120,12 @@ startRun <- function(group,
       preSteps <- setdiff(steps, bootStep)
       if (length(preSteps)) runGroup(preSteps)
       say("rendering bootstrap-independent reports before the selection-bootstrap stage ...")
-      doRender(setdiff(c("selection", "results-adoption", "results-stringency",
-                         "publication", "robustness", "subnational"), character(0)), preSteps)
+      doRender(c("selection", "model-selection", "results-adoption", "results-stringency",
+                 "publication", "robustness", "subnational"), preSteps)
       say("starting the selection-bootstrap stage (long) ...")
       runGroup(bootStep)
-      say("rendering the bootstrap-dependent report (model-selection) ...")
-      doRender("model-selection", steps)
+      say("rendering the bootstrap-dependent report (selection-stability) ...")
+      doRender("selection-stability", steps)
     } else {
       runGroup(steps)
     }
@@ -258,6 +258,7 @@ startRun <- function(group,
   reps <- c("selection", "model-selection", "results-adoption", "results-stringency", "publication")
   if (any(c("robustness", "temporal", "difference-first") %in% steps)) reps <- c(reps, "robustness")
   if ("subnational" %in% steps) reps <- c(reps, "subnational")
+  if ("selection-bootstrap" %in% steps) reps <- c(reps, "selection-stability")
   if (!is.null(reports)) reps <- intersect(reps, reports)   # render only this subset (phased render)
   if (!length(reps)) return(invisible(NULL))
   lit <- function(x) if (is.null(x)) "NULL" else paste0('"', gsub('"', '\\\\"', x), '"')
