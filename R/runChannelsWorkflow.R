@@ -204,7 +204,8 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
     }
     for (f in c("includeLagged", "includeLaggedECP", "nickellCorrection",
                 "interactRegionFE", "logisticTimeTrend",
-                "useMundlak", "gdpGovInteraction", "ridgeInteractions")) {
+                "useMundlak", "gdpGovInteraction", "ridgeInteractions",
+                "stringencyOnly")) {           # ADR 0028: saturating twin marker
       cfg[[f]] <- isTRUE(cfg[[f]])
     }
     cfg$panelTransform <- if (is.null(cfg$panelTransform)) "levels" else cfg$panelTransform
@@ -576,6 +577,7 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
   base <- data.frame(
     model = cfg$name, sector = sector, stage = stage,
     panelTransform = cfg$panelTransform,
+    priceLink = cfg$priceLink %||% "log1p",   # ADR 0028: "log1p" or "saturating" (satP twin)
     sigActorPower = 0L, sigInstQual = 0L, sigInteractions = 0L,
     sigControl = 0L, nControl = length(cfg$controlDrivers),
     deltaR2Theory = NA_real_, theoryFrac = NA_real_,

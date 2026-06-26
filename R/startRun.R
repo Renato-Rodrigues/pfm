@@ -55,7 +55,7 @@ startRun <- function(group,
                      account = NULL, mem = NULL, chdir = NULL,
                      outputDir = NULL, render = FALSE,
                      bootstrapResamples = 200L, bootstrapDetail = "channel", bootstrapTopK = 40L,
-                     forceRefit = FALSE, verbose = TRUE, ...) {
+                     forceRefit = FALSE, resume = FALSE, verbose = TRUE, ...) {
   mode <- match.arg(mode)
   selectionMethod <- match.arg(selectionMethod)
   cluster <- match.arg(cluster)
@@ -79,7 +79,7 @@ startRun <- function(group,
       resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile,
       nCores = nCores,
       time = time, qos = qos, partition = partition, account = account, mem = mem, chdir = chdir,
-      outputDir = outputDir, render = render, forceRefit = forceRefit,
+      outputDir = outputDir, render = render, forceRefit = forceRefit, resume = resume,
       bootstrapResamples = bootstrapResamples, bootstrapDetail = bootstrapDetail,
       bootstrapTopK = bootstrapTopK, say = say, dots = list(...)))
   }
@@ -102,7 +102,7 @@ startRun <- function(group,
   ok <- tryCatch({
     runModelGroup(group = group, steps = steps, resultsDir = resultsDir, modelDir = modelDir,
       cachefolder = cachefolder, gdxFile = gdxFile, mode = mode, selectionMethod = selectionMethod,
-      nCores = nCores, forceRefit = forceRefit, bootstrapResamples = bootstrapResamples,
+      nCores = nCores, forceRefit = forceRefit, resume = resume, bootstrapResamples = bootstrapResamples,
       bootstrapDetail = bootstrapDetail, bootstrapTopK = bootstrapTopK, verbose = verbose, ...)
     TRUE
   }, error = function(e) { say("RUN FAILED: ", conditionMessage(e)); FALSE })
@@ -146,7 +146,7 @@ startRun <- function(group,
 #' @keywords internal
 .submitSlurm <- function(group, steps, mode, selectionMethod, resultsDir, modelDir, cachefolder,
                          gdxFile, nCores, time, qos, partition, account, mem, chdir, outputDir,
-                         render, forceRefit, bootstrapResamples = 200L,
+                         render, forceRefit, resume = FALSE, bootstrapResamples = 200L,
                          bootstrapDetail = "channel", bootstrapTopK = 40L, say, dots) {
   abspath <- function(p) if (is.null(p)) NULL else normalizePath(p, winslash = "/", mustWork = FALSE)
   resultsDir <- abspath(resultsDir); modelDir <- abspath(modelDir)
@@ -159,10 +159,10 @@ startRun <- function(group,
   # Job R script: re-invoke startRun in local mode on the compute node.
   call <- sprintf(paste0(
     "pfm::startRun(group=%s, steps=%s, mode=%s, selectionMethod=%s, resultsDir=%s, modelDir=%s, ",
-    "cachefolder=%s, gdxFile=%s, nCores=%d, cluster=\"local\", forceRefit=%s, render=%s, outputDir=%s, ",
+    "cachefolder=%s, gdxFile=%s, nCores=%d, cluster=\"local\", forceRefit=%s, resume=%s, render=%s, outputDir=%s, ",
     "bootstrapResamples=%d, bootstrapDetail=%s, bootstrapTopK=%d%s)"),
     .rlit(group), .rlit(steps), .rlit(mode), .rlit(selectionMethod), .rlit(resultsDir),
-    .rlit(modelDir), .rlit(cachefolder), .rlit(gdxFile), nCores, .rlit(forceRefit), .rlit(render),
+    .rlit(modelDir), .rlit(cachefolder), .rlit(gdxFile), nCores, .rlit(forceRefit), .rlit(resume), .rlit(render),
     .rlit(outputDir), as.integer(bootstrapResamples), .rlit(bootstrapDetail), as.integer(bootstrapTopK),
     if (length(dots)) paste0(", ", paste(sprintf("%s=%s", names(dots),
       vapply(dots, .rlit, character(1))), collapse = ", ")) else "")

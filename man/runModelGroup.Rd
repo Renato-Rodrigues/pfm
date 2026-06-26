@@ -15,6 +15,7 @@ runModelGroup(
   selectionMethod = c("levels-first", "difference-first"),
   nCores = 1L,
   forceRefit = FALSE,
+  resume = FALSE,
   bootstrapResamples = 200L,
   bootstrapDetail = "channel",
   bootstrapTopK = 40L,

@@ -27,6 +27,7 @@ startRun(
   bootstrapDetail = "channel",
   bootstrapTopK = 40L,
   forceRefit = FALSE,
+  resume = FALSE,
   verbose = TRUE,
   ...
 )

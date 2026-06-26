@@ -133,7 +133,11 @@ runFitGrid <- function(specs, sectors, stages, panelData, family = "gaussian",
 
   jobs <- list()
   for (i in seq_along(specs)) {
+    # Saturating-price twins are stringency-only (ADR 0028): priceLink does not affect the
+    # adoption fit, so skip the Adoption jobs for a twin (avoids duplicate adoption rows).
+    stringencyOnly <- isTRUE(specs[[i]]$stringencyOnly)
     for (stg in stages) {
+      if (stringencyOnly && identical(stg, "Adoption")) next
       for (sec in sectors) {
         jobs[[length(jobs) + 1L]] <- list(cfg = specs[[i]], sector = sec, stage = stg)
       }

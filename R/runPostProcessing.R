@@ -605,7 +605,7 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                           gdxFile = NULL,
                           mode = c("exhaustive", "guided"),
                           selectionMethod = c("levels-first", "difference-first"),
-                          nCores = 1L, forceRefit = FALSE,
+                          nCores = 1L, forceRefit = FALSE, resume = FALSE,
                           bootstrapResamples = 200L, bootstrapDetail = "channel",
                           bootstrapTopK = 40L, verbose = TRUE, ...) {
   mode <- match.arg(mode)
@@ -616,18 +616,34 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
   if (length(steps) == 0) stop("runModelGroup: no valid steps. Choose from ",
                                paste(allSteps, collapse = ", "), ".", call. = FALSE)
   say <- function(...) if (isTRUE(verbose)) message("[runModelGroup:", group, "] ", ...)
-  if ("sweep" %in% steps) {
+  # resume = TRUE: skip a step whose output artifact already exists (resume a partial run without
+  # re-paying expensive steps, esp. the multi-hour selection-bootstrap). The caller asserts the
+  # existing artifacts are current; use forceRefit / a fresh group to force a clean recompute.
+  groupDir <- file.path(resultsDir, group)
+  stepArtifact <- c(sweep = "sweep.rds", robustness = "robustness.rds",
+                    temporal = "temporal-split.rds", subnational = "subnational.rds",
+                    "difference-first" = "difference-first.rds",
+                    "selection-bootstrap" = "selection-bootstrap.rds")
+  doStep <- function(step) {
+    if (!(step %in% steps)) return(FALSE)
+    if (isTRUE(resume) && file.exists(file.path(groupDir, stepArtifact[[step]]))) {
+      say("resume: skipping '", step, "' (", stepArtifact[[step]], " already present)")
+      return(FALSE)
+    }
+    TRUE
+  }
+  if (doStep("sweep")) {
     say("step: sweep")
     runSweep(group, mode = mode, resultsDir = resultsDir, modelDir = modelDir,
              cachefolder = cachefolder, gdxFile = gdxFile,
              nCores = nCores, forceRefit = forceRefit, selectionMethod = selectionMethod,
              verbose = verbose, ...)
   }
-  if ("robustness" %in% steps) { say("step: robustness"); runRobustness(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, verbose = verbose) }
-  if ("temporal" %in% steps) { say("step: temporal"); runTemporalSplit(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, verbose = verbose) }
-  if ("subnational" %in% steps) { say("step: subnational"); runSubnational(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, verbose = verbose) }
-  if ("difference-first" %in% steps) { say("step: difference-first"); runDifferenceFirst(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile, verbose = verbose) }
-  if ("selection-bootstrap" %in% steps) { say("step: selection-bootstrap"); runSelectionBootstrap(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, nResamples = bootstrapResamples, detail = bootstrapDetail, topK = bootstrapTopK, verbose = verbose) }
+  if (doStep("robustness")) { say("step: robustness"); runRobustness(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, verbose = verbose) }
+  if (doStep("temporal")) { say("step: temporal"); runTemporalSplit(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, verbose = verbose) }
+  if (doStep("subnational")) { say("step: subnational"); runSubnational(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, verbose = verbose) }
+  if (doStep("difference-first")) { say("step: difference-first"); runDifferenceFirst(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile, verbose = verbose) }
+  if (doStep("selection-bootstrap")) { say("step: selection-bootstrap"); runSelectionBootstrap(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, nResamples = bootstrapResamples, detail = bootstrapDetail, topK = bootstrapTopK, verbose = verbose) }
   say("done: ", paste(steps, collapse = ", "))
   invisible(file.path(resultsDir, group))
 }
