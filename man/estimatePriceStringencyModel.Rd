@@ -142,8 +142,8 @@ Standard-errors are kept from the clustered full-fit vcov. Default
 \code{logit(ECP / priceCeilingMax)} so the projected price is bounded by
 \code{priceCeilingMax} by construction (a Gaussian-identity GLM either way). The form is
 stored on the fit and in the model store's \code{applyState}, so \code{projectSpecScenario}
-and \code{predictFeasibility} reconstruct the price as \code{Pmax * logit^{-1}(\eta)} for
-\code{"saturating"} vs \code{expm1(\eta)} for \code{"log1p"}. Folded into the cache key.}
+and \code{predictFeasibility} reconstruct the price as \code{Pmax * plogis(eta)} for
+\code{"saturating"} vs \code{expm1(eta)} for \code{"log1p"}. Folded into the cache key.}
 
 \item{priceCeilingMax}{Numeric. The asymptotic price ceiling \eqn{P_{\max}} used by the
 \code{"saturating"} link (USD/tCO2). Default \code{1000} (a citable economic backstop).}
