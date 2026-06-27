@@ -1,4 +1,27 @@
 # nolint start
+# Internal: content-addressed key for a per-(spec x sector x stage) bootstrap cache file (ADR 0034).
+# Keyed on the FIT-DETERMINING config + sector + stage + panel fingerprint + seed; excludes
+# nResamples (so a smaller cache is found and extended), detail (summary-only) and the pfm version
+# (cleared by hand on code changes).
+#' @keywords internal
+.bootCacheKey <- function(cfg, sector, stage, panelHash, seed) {
+  fitFields <- cfg[intersect(names(cfg), c(
+    "actorPowerDrivers", "actorPowerIndex", "instQualityDrivers", "controlDrivers",
+    "regionMappingFixedEffects", "useMundlak", "panelTransform", "includeLagged",
+    "includeLaggedECP", "nickellCorrection", "logisticTimeTrend", "gdpGovInteraction",
+    "ridgeInteractions", "interactRegionFE", "priceLink", "priceCeilingMax", "stringencyOnly"))]
+  substr(digest::digest(list(fitFields, sector, stage, panelHash, seed), algo = "sha256"), 1, 16)
+}
+
+# Internal: crash-safe save (temp + rename) so an interrupted multi-hour run never leaves a
+# half-written cache file.
+#' @keywords internal
+.bootAtomicSave <- function(obj, path) {
+  tmp <- paste0(path, ".tmp", Sys.getpid())
+  saveRDS(obj, tmp)
+  file.rename(tmp, path)
+}
+
 #' Selection-uncertainty bootstrap (ADR 0025)
 #'
 #' Region-block (cluster) bootstrap of the Maximin selection. For each resample the 54 regions are
@@ -55,6 +78,14 @@ runSelectionBootstrap <- function(group, resultsDir = getOption("pfm.resultsDir"
               "deltaR2Theory", "pseudoR2", "bic", "maxVIF", "converged", "usesLagged",
               "nFE", "nObs", "sigControl", "nControl", "trendShare")
   regions <- magclass::getRegions(panel)
+  panelHash <- substr(digest::digest(panel, algo = "sha256"), 1, 16)
+  cacheDir <- if (!is.null(modelDir)) file.path(modelDir, "boot-cache") else NULL
+  if (!is.null(cacheDir)) dir.create(cacheDir, showWarnings = FALSE, recursive = TRUE)
+  # Deterministic region draws (seed + the panel-pinned region list): draw r is identical every run
+  # (the fits use no RNG), so cached per-spec resample rows stay valid and extend cleanly (ADR 0034).
+  set.seed(seed)
+  draws <- lapply(seq_len(nResamples), function(i) sample(regions, length(regions), replace = TRUE))
+  validCols <- c("resample", mmCols)
 
   out <- list()
   for (stg in intersect(c("Adoption", "Stringency"), unique(sweep$results$stage))) {
@@ -64,43 +95,61 @@ runSelectionBootstrap <- function(group, resultsDir = getOption("pfm.resultsDir"
     if (length(pool) < 2) { say("stage ", stg, ": pool < 2, skipping"); next }
     say("stage ", stg, ": ", length(pool), " candidate(s) x ", nResamples, " resamples ...")
 
-    # Full fit per (model, sector) once (fresh, so $data is the prepared df WITH `region`) ->
-    # reuse $data for the resample refits.
-    fullData <- list()
-    for (mdl in pool) for (sec in sectors) {
+    # Full-fit $data computed lazily and only for specs that still need (re)computation.
+    fullData <- new.env(parent = emptyenv())
+    getFullData <- function(mdl, sec) {
+      k <- paste(mdl, sec)
+      if (!is.null(fullData[[k]])) return(fullData[[k]])
       f <- .fitSpecModel(specByName[[mdl]], sec, stg, panel, family = family,
                          modelDir = modelDir, forceRefit = TRUE, verbose = FALSE)
-      if (!inherits(f, "fitError") && !is.null(f$data) && "region" %in% names(f$data)) {
-        fullData[[paste(mdl, sec)]] <- f$data
-      }
+      d <- if (!inherits(f, "fitError") && !is.null(f$data) && "region" %in% names(f$data)) f$data else NA
+      fullData[[k]] <- d; d
     }
 
-    set.seed(seed)
-    winCh <- character(0); winSpec <- character(0)
-    progEvery <- max(1L, nResamples %/% 20L)   # ~5% steps
-    if (isTRUE(verbose)) {
-      say("stage ", stg, ": resample 0/", nResamples, " (0%)")
-      utils::flush.console()
-    }
-    for (r in seq_len(nResamples)) {
-      if (isTRUE(verbose) && (r %% progEvery == 0 || r == nResamples)) {
-        say("stage ", stg, ": resample ", r, "/", nResamples, " (", round(100 * r / nResamples),
-            "%)")
-        utils::flush.console()
+    # Per (spec, sector): reuse cached resample rows; compute/extend only what's missing (ADR 0034).
+    specRows <- list(); nHit <- 0L; nNew <- 0L; nExt <- 0L
+    for (mdl in pool) for (sec in sectors) {
+      key <- .bootCacheKey(specByName[[mdl]], sec, stg, panelHash, seed)
+      cf <- if (!is.null(cacheDir)) file.path(cacheDir, paste0("boot_", stg, "_", sec, "_", key, ".rds")) else NULL
+      cached <- if (!is.null(cf) && file.exists(cf)) tryCatch(readRDS(cf), error = function(e) NULL) else NULL
+      if (!(is.data.frame(cached) && all(validCols %in% names(cached)))) cached <- NULL  # stale schema -> drop
+      nHave <- if (is.null(cached)) 0L else nrow(cached)
+      if (nHave >= nResamples) {                       # full hit / truncate: no fitting
+        specRows[[paste(mdl, sec)]] <- cached[cached$resample <= nResamples, , drop = FALSE]
+        nHit <- nHit + 1L
+        next
       }
-      draw <- sample(regions, length(regions), replace = TRUE)
-      rows <- list()
-      for (mdl in pool) for (sec in sectors) {
-        d <- fullData[[paste(mdl, sec)]]; if (is.null(d)) next
-        bootDf <- do.call(rbind, lapply(draw, function(rg) d[d$region == rg, , drop = FALSE]))
-        if (is.null(bootDf) || !nrow(bootDf)) next
+      d <- getFullData(mdl, sec)
+      if (!is.data.frame(d)) next                      # full fit failed -> skip this spec
+      newRows <- lapply(seq.int(nHave + 1L, nResamples), function(r) {
+        bootDf <- do.call(rbind, lapply(draws[[r]], function(rg) d[d$region == rg, , drop = FALSE]))
+        if (is.null(bootDf) || !nrow(bootDf)) return(NULL)
         if ("regionFE" %in% names(bootDf)) bootDf$regionFE <- droplevels(factor(bootDf$regionFE))
         rf <- .fitSpecModel(specByName[[mdl]], sec, stg, bootDf, family = family,
                             modelDir = modelDir, verbose = FALSE, prepared = TRUE)
-        if (inherits(rf, "fitError") || is.null(rf$model)) next
-        rows[[length(rows) + 1L]] <- tryCatch(.channelFitMetrics(rf, specByName[[mdl]], sec, stg),
-                                              error = function(e) NULL)
+        if (inherits(rf, "fitError") || is.null(rf$model)) return(NULL)
+        m <- tryCatch(.channelFitMetrics(rf, specByName[[mdl]], sec, stg), error = function(e) NULL)
+        if (!is.null(m)) m$resample <- r
+        m
+      })
+      newDf <- do.call(rbind, Filter(Negate(is.null), newRows))
+      allDf <- if (is.null(cached)) newDf else if (is.null(newDf)) cached else {
+        common <- intersect(names(cached), names(newDf))   # tolerate an evolved diagnostic schema
+        rbind(cached[, common, drop = FALSE], newDf[, common, drop = FALSE])
       }
+      if (is.null(allDf) || !nrow(allDf)) next
+      if (!is.null(cf)) tryCatch(.bootAtomicSave(allDf, cf), error = function(e) NULL)
+      specRows[[paste(mdl, sec)]] <- allDf[allDf$resample <= nResamples, , drop = FALSE]
+      if (nHave > 0L) nExt <- nExt + 1L else nNew <- nNew + 1L
+    }
+    say("stage ", stg, ": cache ", nHit, " hit / ", nNew, " new / ", nExt, " extended (of ",
+        length(pool) * length(sectors), " spec-sectors)")
+
+    # Rank per resample from the assembled rows -> winning channel set.
+    winCh <- character(0); winSpec <- character(0)
+    for (r in seq_len(nResamples)) {
+      rows <- lapply(specRows, function(df) { rr <- df[df$resample == r, , drop = FALSE]
+        if (nrow(rr)) rr else NULL })
       rows <- Filter(Negate(is.null), rows)
       if (!length(rows)) next
       tab <- do.call(rbind, rows)
