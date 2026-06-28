@@ -108,7 +108,17 @@ runSelectionBootstrap <- function(group, resultsDir = getOption("pfm.resultsDir"
 
     # Per (spec, sector): reuse cached resample rows; compute/extend only what's missing (ADR 0034).
     specRows <- list(); nHit <- 0L; nNew <- 0L; nExt <- 0L
+    done <- 0L; total <- length(pool) * length(sectors)
+    progEvery <- max(1L, total %/% 20L)
+    if (isTRUE(verbose)) { say("stage ", stg, ": spec-sector 0/", total, " (0%)"); utils::flush.console() }
     for (mdl in pool) for (sec in sectors) {
+      done <- done + 1L
+      # Progress line parsed by pfm::runStatus for the live model-bootstrap bar (the refactor replaced
+      # the old per-resample counter with this per-spec one; ADR 0034).
+      if (isTRUE(verbose) && (done %% progEvery == 0 || done == total)) {
+        say("stage ", stg, ": spec-sector ", done, "/", total, " (", round(100 * done / total), "%)")
+        utils::flush.console()
+      }
       key <- .bootCacheKey(specByName[[mdl]], sec, stg, panelHash, seed)
       cf <- if (!is.null(cacheDir)) file.path(cacheDir, paste0("boot_", stg, "_", sec, "_", key, ".rds")) else NULL
       cached <- if (!is.null(cf) && file.exists(cf)) tryCatch(readRDS(cf), error = function(e) NULL) else NULL

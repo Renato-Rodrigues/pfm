@@ -101,8 +101,10 @@ runStatus <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
   res <- list()
 
   # --- model fitting bar: take whichever fit-progress line appears latest in the log ----------------
+  # sweep emits "[fits] N/M"; the selection bootstrap emits "resample r/N" (legacy) or, since the
+  # per-spec cache refactor, "spec-sector i/N" (ADR 0034) — match either for the bootstrap bar.
   fitIdx  <- grep("\\[fits\\][[:space:]]+[0-9]+/[0-9]+", ln)
-  bootIdx <- grep("resample[[:space:]]+[0-9]+/[0-9]+", ln)
+  bootIdx <- grep("(resample|spec-sector)[[:space:]]+[0-9]+/[0-9]+", ln)
   frac2 <- function(line) {
     mm <- regmatches(line, regexpr("[0-9]+/[0-9]+", line))
     if (!length(mm)) return(NULL)
