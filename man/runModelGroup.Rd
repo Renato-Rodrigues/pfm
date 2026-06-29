@@ -27,9 +27,11 @@ runModelGroup(
 \item{group}{Character. Run-Group name.}
 
 \item{steps}{Character vector subset of \code{c("sweep","robustness","temporal",
-"subnational","difference-first")}. Default is the first four (the standard pipeline);
-\code{"difference-first"} is recognised but off by default (the ADR 0014 alternative
-selection comparison, a post-hoc consumer of the sweep).}
+"subnational","difference-first","projection","selection-bootstrap")}. Default is the
+first four (the standard pipeline); \code{"difference-first"} (ADR 0014 alternative
+selection) and \code{"projection"} (persist the deployed scenario projection as
+\code{projection.rds}, ADR 0009; requires \code{gdxFile}) are recognised but off by
+default. The publication workflow (\code{--paper}) enables them.}
 
 \item{resultsDir, modelDir}{Configurable Results Root / Fit Cache (the ADR 0009 model store).}
 
