@@ -576,6 +576,82 @@ runDifferenceFirst <- function(group, resultsDir = getOption("pfm.resultsDir", "
   invisible(dif)
 }
 
+#' Persist the deployed scenario projection as a Run-Group artifact
+#'
+#' @description
+#' Writes \code{<group>/projection.rds}: the deployed-spec scenario feasibility
+#' projection (region x year x sector: \code{prob}, \code{stringencyResponse},
+#' \code{price}, \code{expectedPrice}), so that pure consumers (e.g. the paper's
+#' \code{make-figures.R} projected-adoption map) can read it without re-fitting.
+#' Mirrors the projection the \code{results-adoption} report computes live: for
+#' each sector it takes the deployed \emph{Adoption: <sector>} config from
+#' \code{selected-models.yml} and applies \code{\link{projectSpecScenario}} to the
+#' scenario panel. A \code{gdxFile} (REMIND scenario) is REQUIRED — without it
+#' there is no scenario panel to project onto and the step is skipped with a note.
+#'
+#' @inheritParams runDifferenceFirst
+#' @return The written projection data.frame (invisibly), or \code{NULL} if skipped.
+#' @seealso \code{\link{projectSpecScenario}}, \code{\link{predictFeasibility}}, ADR 0009
+#' @export
+runProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
+                          modelDir = getOption("pfm.modelDir", "output"), cachefolder = NULL,
+                          gdxFile = NULL, panelData = NULL, scenarioData = NULL,
+                          y = 2000:2022, outputRegionMappingFile = "regionmapping_54.csv",
+                          verbose = TRUE) {
+  groupDir <- .resolveGroupDir(group, resultsDir, modelDir, cachefolder)
+  say <- function(...) if (isTRUE(verbose)) message("[PROJ:", group, "] ", ...)
+  t0 <- Sys.time()
+  if (!requireNamespace("yaml", quietly = TRUE)) stop("The 'yaml' package is required.")
+  sectors <- c("Bulk", "Diffuse")
+  if (is.null(scenarioData)) {
+    if (is.null(gdxFile) || !file.exists(gdxFile)) {
+      say("no scenario gdx (gdxFile) available -> skipping projection.rds (a REMIND scenario gdx is ",
+          "required to project onto). Set gdxFile / pfm-reports config 'gdxPath'.")
+      .recordStep(groupDir, group, "projection", t0, status = "skipped",
+                  metrics = list(reason = "no scenario gdx"))
+      return(invisible(NULL))
+    }
+    scenarioData <- panelDataScenario(gdxFile = gdxFile, aggregate = TRUE,
+                                      outputRegionMappingFile = outputRegionMappingFile)
+  }
+  panel <- if (is.null(panelData)) .buildHistPanel(y, outputRegionMappingFile) else panelData
+
+  norm <- function(s) {
+    for (f in c("actorPowerDrivers", "actorPowerIndex", "instQualityDrivers", "controlDrivers"))
+      if (!is.null(s[[f]])) s[[f]] <- unlist(s[[f]])
+    s$panelTransform <- s$panelTransform %||% "levels"
+    s
+  }
+  sel <- yaml::read_yaml(file.path(groupDir, "selected-models.yml"))
+  cfg <- list()
+  for (sec in sectors) {
+    hit <- Filter(function(x) identical(x$model_type, paste0("Adoption: ", sec)), sel)
+    cfg[[sec]] <- if (length(hit) > 0) norm(hit[[1]]) else NULL
+  }
+  if (all(vapply(cfg, is.null, logical(1))))
+    stop("No 'Adoption: <Sector>' entries in selected-models.yml", call. = FALSE)
+  for (sec in sectors) if (is.null(cfg[[sec]])) cfg[[sec]] <- cfg[[setdiff(sectors, sec)]]
+
+  say("projecting deployed adoption spec onto scenario panel ...")
+  proj <- do.call(rbind, lapply(sectors, function(sec) {
+    tryCatch(projectSpecScenario(cfg[[sec]], sec, histData = panel, scenarioData = scenarioData,
+                                 modelDir = modelDir, verbose = FALSE),
+             error = function(e) { say("  ", sec, " projection failed: ", conditionMessage(e)); NULL })
+  }))
+  if (is.null(proj) || !nrow(proj)) {
+    say("projection produced no rows -> not writing projection.rds")
+    .recordStep(groupDir, group, "projection", t0, status = "failed",
+                metrics = list(reason = "empty projection"))
+    return(invisible(NULL))
+  }
+  saveRDS(proj, file.path(groupDir, "projection.rds"))
+  .recordStep(groupDir, group, "projection", t0, mode = NULL, metrics = list(
+    rows = nrow(proj), sectors = paste(sort(unique(proj$sector)), collapse = "/"),
+    years = paste(range(proj$year), collapse = "-")))
+  say("Saved ", file.path(groupDir, "projection.rds"), " (", nrow(proj), " rows)")
+  invisible(proj)
+}
+
 #' Run a full model group: sweep + post-processing steps (ADR 0018)
 #'
 #' Orchestrates the compute pipeline for one Run-Group: runs the requested \code{steps} in
@@ -584,9 +660,11 @@ runDifferenceFirst <- function(group, resultsDir = getOption("pfm.resultsDir", "
 #'
 #' @param group Character. Run-Group name.
 #' @param steps Character vector subset of \code{c("sweep","robustness","temporal",
-#'   "subnational","difference-first")}. Default is the first four (the standard pipeline);
-#'   \code{"difference-first"} is recognised but off by default (the ADR 0014 alternative
-#'   selection comparison, a post-hoc consumer of the sweep).
+#'   "subnational","difference-first","projection","selection-bootstrap")}. Default is the
+#'   first four (the standard pipeline); \code{"difference-first"} (ADR 0014 alternative
+#'   selection) and \code{"projection"} (persist the deployed scenario projection as
+#'   \code{projection.rds}, ADR 0009; requires \code{gdxFile}) are recognised but off by
+#'   default. The publication workflow (\code{--paper}) enables them.
 #' @param resultsDir,modelDir Configurable Results Root / Fit Cache (the ADR 0009 model store).
 #' @param cachefolder Character or NULL. The \strong{madrat} data-cache folder (distinct from
 #'   \code{modelDir}); set on madrat for every step when non-NULL.
@@ -611,7 +689,7 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
   mode <- match.arg(mode)
   selectionMethod <- match.arg(selectionMethod)
   allSteps <- c("sweep", "robustness", "temporal", "subnational", "difference-first",
-                "selection-bootstrap")
+                "projection", "selection-bootstrap")
   steps <- intersect(allSteps, steps)
   if (length(steps) == 0) stop("runModelGroup: no valid steps. Choose from ",
                                paste(allSteps, collapse = ", "), ".", call. = FALSE)
@@ -623,6 +701,7 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
   stepArtifact <- c(sweep = "sweep.rds", robustness = "robustness.rds",
                     temporal = "temporal-split.rds", subnational = "subnational.rds",
                     "difference-first" = "difference-first.rds",
+                    "projection" = "projection.rds",
                     "selection-bootstrap" = "selection-bootstrap.rds")
   doStep <- function(step) {
     if (!(step %in% steps)) return(FALSE)
@@ -644,6 +723,7 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
   if (doStep("temporal")) { say("step: temporal"); runTemporalSplit(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, verbose = verbose) }
   if (doStep("subnational")) { say("step: subnational"); runSubnational(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, verbose = verbose) }
   if (doStep("difference-first")) { say("step: difference-first"); runDifferenceFirst(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile, verbose = verbose) }
+  if (doStep("projection")) { say("step: projection"); runProjection(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile, verbose = verbose) }
   if (doStep("selection-bootstrap")) { say("step: selection-bootstrap"); runSelectionBootstrap(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, nResamples = bootstrapResamples, detail = bootstrapDetail, topK = bootstrapTopK, verbose = verbose) }
   say("done: ", paste(steps, collapse = ", "))
   invisible(file.path(resultsDir, group))
