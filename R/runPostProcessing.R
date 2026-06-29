@@ -603,18 +603,50 @@ runProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "outpu
   t0 <- Sys.time()
   if (!requireNamespace("yaml", quietly = TRUE)) stop("The 'yaml' package is required.")
   sectors <- c("Bulk", "Diffuse")
+  # Panel resolution priority (robust): explicit arg -> cached panel under <groupDir>/data/ (written by
+  # the run; the demonstrably-working path) -> build from gdx / madrat (the fragile last resort). Never
+  # throw on a build failure: log a clear reason and record a skipped/failed step so the artifact's
+  # absence is explained and the surrounding pipeline (e.g. selection-bootstrap) is not aborted.
+  loadCachedPanel <- function(fname) {
+    p <- file.path(groupDir, "data", fname)
+    if (!file.exists(p)) return(NULL)
+    obj <- tryCatch(readRDS(p), error = function(e) NULL)
+    if (is.list(obj) && !is.null(obj$data)) obj$data else obj
+  }
   if (is.null(scenarioData)) {
-    if (is.null(gdxFile) || !file.exists(gdxFile)) {
-      say("no scenario gdx (gdxFile) available -> skipping projection.rds (a REMIND scenario gdx is ",
-          "required to project onto). Set gdxFile / pfm-reports config 'gdxPath'.")
+    scenarioData <- loadCachedPanel("panelDataScenario.rds")
+    if (!is.null(scenarioData)) say("using cached scenario panel: ", file.path(groupDir, "data", "panelDataScenario.rds"))
+  }
+  if (is.null(scenarioData)) {
+    if (is.null(gdxFile) || !nzchar(gdxFile) || !file.exists(gdxFile)) {
+      say("no cached scenario panel (", file.path(groupDir, "data", "panelDataScenario.rds"),
+          ") and no usable gdx (gdxFile = ", gdxFile %||% "NULL", ") -> skipping projection.rds.")
       .recordStep(groupDir, group, "projection", t0, status = "skipped",
-                  metrics = list(reason = "no scenario gdx"))
+                  metrics = list(reason = "no scenario panel cache or gdx"))
       return(invisible(NULL))
     }
-    scenarioData <- panelDataScenario(gdxFile = gdxFile, aggregate = TRUE,
-                                      outputRegionMappingFile = outputRegionMappingFile)
+    say("building scenario panel from gdx: ", gdxFile)
+    scenarioData <- tryCatch(
+      panelDataScenario(gdxFile = gdxFile, aggregate = TRUE, outputRegionMappingFile = outputRegionMappingFile),
+      error = function(e) { say("scenario panel build FAILED: ", conditionMessage(e)); NULL })
+    if (is.null(scenarioData)) {
+      .recordStep(groupDir, group, "projection", t0, status = "failed",
+                  metrics = list(reason = "scenario panel build failed"))
+      return(invisible(NULL))
+    }
   }
-  panel <- if (is.null(panelData)) .buildHistPanel(y, outputRegionMappingFile) else panelData
+  panel <- panelData
+  if (is.null(panel)) {
+    panel <- loadCachedPanel("panelDataHistorical.rds")
+    if (!is.null(panel)) say("using cached historical panel: ", file.path(groupDir, "data", "panelDataHistorical.rds"))
+  }
+  if (is.null(panel)) panel <- tryCatch(.buildHistPanel(y, outputRegionMappingFile),
+                                        error = function(e) { say("historical panel build FAILED: ", conditionMessage(e)); NULL })
+  if (is.null(panel)) {
+    .recordStep(groupDir, group, "projection", t0, status = "failed",
+                metrics = list(reason = "historical panel build failed"))
+    return(invisible(NULL))
+  }
 
   norm <- function(s) {
     for (f in c("actorPowerDrivers", "actorPowerIndex", "instQualityDrivers", "controlDrivers"))
