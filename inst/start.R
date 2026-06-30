@@ -29,7 +29,14 @@ def    <- function(key, fb) { v <- cfg[[key]]; if (is.null(v) || !nzchar(as.char
 absify <- function(p) if (is.null(p) || grepl("^([A-Za-z]:|/|\\\\)", p)) p else file.path(getwd(), p)
 
 nCoresArg <- getArg("nCores", NULL)
-gdx <- absify(def("gdxPath", "data/fulldata.gdx"))
+
+# Policy Scenario Registry (ADR 0035): parse config.yml's `scenarios:` block into normalised
+# descriptors. The gating scenario's gdx drives selection's sanity gate (passed as gdxFile);
+# the full list is forwarded to the projection step's fan-out. Falls back to a single `gdxPath`.
+scenReg  <- pfm::parseScenarioRegistry(cfg, baseDir = getwd())
+scenList <- if (length(scenReg$scenarios)) scenReg$scenarios else NULL
+gdx <- pfm::scenarioGatingGdx(scenReg)
+if (is.null(gdx)) gdx <- absify(def("gdxPath", "data/fulldata.gdx"))
 if (!is.null(gdx) && !file.exists(gdx)) gdx <- NULL
 render   <- hasFlag("render")
 selectFE <- getArg("selectFE", NULL)
@@ -42,6 +49,7 @@ callArgs <- list(
   resultsDir      = absify(def("resultsDir", "results")),
   cacheDir        = absify(def("modelDir", "cache")),
   gdxFile         = gdx,
+  scenarios       = scenList,
   nCores          = if (is.null(nCoresArg)) NULL else as.integer(nCoresArg),
   cluster         = getArg("cluster", "auto"),
   qos             = getArg("qos", "short"),

@@ -579,23 +579,35 @@ runDifferenceFirst <- function(group, resultsDir = getOption("pfm.resultsDir", "
 #' Persist the deployed scenario projection as a Run-Group artifact
 #'
 #' @description
-#' Writes \code{<group>/projection.rds}: the deployed-spec scenario feasibility
-#' projection (region x year x sector: \code{prob}, \code{stringencyResponse},
-#' \code{price}, \code{expectedPrice}), so that pure consumers (e.g. the paper's
-#' \code{make-figures.R} projected-adoption map) can read it without re-fitting.
-#' Mirrors the projection the \code{results-adoption} report computes live: for
-#' each sector it takes the deployed \emph{Adoption: <sector>} config from
-#' \code{selected-models.yml} and applies \code{\link{projectSpecScenario}} to the
-#' scenario panel. A \code{gdxFile} (REMIND scenario) is REQUIRED — without it
-#' there is no scenario panel to project onto and the step is skipped with a note.
+#' Fans the one deployed model out over the Policy Scenario Registry (ADR 0035):
+#' for each scenario it builds the scenario panel from that scenario's gdx (with
+#' the gdx's own region mapping), applies the deployed \emph{Adoption: <sector>}
+#' config from \code{selected-models.yml} via \code{\link{projectSpecScenario}},
+#' and writes one labelled artifact \code{<group>/projections/<id>.rds} (rows
+#' tagged with \code{scenario}/\code{scenarioName}). The \strong{gating} scenario
+#' is additionally written to the legacy \code{<group>/projection.rds} path so
+#' single-projection consumers (e.g. the paper's \code{make-figures.R}
+#' projected-adoption map) keep working unchanged. The historical panel and the
+#' deployed configs are scenario-independent and built once.
+#'
+#' When \code{scenarios} is \code{NULL} the behaviour collapses to the legacy
+#' single-scenario path (a pre-built \code{scenarioData}, a cached scenario panel,
+#' or a single \code{gdxFile}); without any usable source the step is skipped.
 #'
 #' @inheritParams runDifferenceFirst
-#' @return The written projection data.frame (invisibly), or \code{NULL} if skipped.
-#' @seealso \code{\link{projectSpecScenario}}, \code{\link{predictFeasibility}}, ADR 0009
+#' @param scenarios Optional list of normalised scenario descriptors (from
+#'   \code{\link{parseScenarioRegistry}}: each with \code{id}, \code{name},
+#'   \code{gdx}, \code{gdxRegionMapping}, \code{gating}). \code{NULL} (default)
+#'   uses the legacy single-scenario path.
+#' @return Invisibly, a named list of per-scenario projection data.frames (keyed by
+#'   scenario id), or \code{NULL} if nothing was produced.
+#' @seealso \code{\link{projectSpecScenario}}, \code{\link{predictFeasibility}},
+#'   \code{\link{parseScenarioRegistry}}, ADR 0009, ADR 0035
 #' @export
 runProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
                           modelDir = getOption("pfm.modelDir", "output"), cachefolder = NULL,
-                          gdxFile = NULL, panelData = NULL, scenarioData = NULL,
+                          gdxFile = NULL, scenarios = NULL,
+                          panelData = NULL, scenarioData = NULL,
                           y = 2000:2022, outputRegionMappingFile = "regionmapping_54.csv",
                           verbose = TRUE) {
   groupDir <- .resolveGroupDir(group, resultsDir, modelDir, cachefolder)
@@ -613,28 +625,9 @@ runProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "outpu
     obj <- tryCatch(readRDS(p), error = function(e) NULL)
     if (is.list(obj) && !is.null(obj$data)) obj$data else obj
   }
-  if (is.null(scenarioData)) {
-    scenarioData <- loadCachedPanel("panelDataScenario.rds")
-    if (!is.null(scenarioData)) say("using cached scenario panel: ", file.path(groupDir, "data", "panelDataScenario.rds"))
-  }
-  if (is.null(scenarioData)) {
-    if (is.null(gdxFile) || !nzchar(gdxFile) || !file.exists(gdxFile)) {
-      say("no cached scenario panel (", file.path(groupDir, "data", "panelDataScenario.rds"),
-          ") and no usable gdx (gdxFile = ", gdxFile %||% "NULL", ") -> skipping projection.rds.")
-      .recordStep(groupDir, group, "projection", t0, status = "skipped",
-                  metrics = list(reason = "no scenario panel cache or gdx"))
-      return(invisible(NULL))
-    }
-    say("building scenario panel from gdx: ", gdxFile)
-    scenarioData <- tryCatch(
-      panelDataScenario(gdxFile = gdxFile, aggregate = TRUE, outputRegionMappingFile = outputRegionMappingFile),
-      error = function(e) { say("scenario panel build FAILED: ", conditionMessage(e)); NULL })
-    if (is.null(scenarioData)) {
-      .recordStep(groupDir, group, "projection", t0, status = "failed",
-                  metrics = list(reason = "scenario panel build failed"))
-      return(invisible(NULL))
-    }
-  }
+  # ── Shared, scenario-independent inputs: the historical panel + the deployed adoption
+  # configs from selected-models.yml. Built once and reused for every scenario (ADR 0035:
+  # one shared fit, fan out at projection). ──
   panel <- panelData
   if (is.null(panel)) {
     panel <- loadCachedPanel("panelDataHistorical.rds")
@@ -664,24 +657,67 @@ runProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "outpu
     stop("No 'Adoption: <Sector>' entries in selected-models.yml", call. = FALSE)
   for (sec in sectors) if (is.null(cfg[[sec]])) cfg[[sec]] <- cfg[[setdiff(sectors, sec)]]
 
-  say("projecting deployed adoption spec onto scenario panel ...")
-  proj <- do.call(rbind, lapply(sectors, function(sec) {
-    tryCatch(projectSpecScenario(cfg[[sec]], sec, histData = panel, scenarioData = scenarioData,
-                                 modelDir = modelDir, verbose = FALSE),
-             error = function(e) { say("  ", sec, " projection failed: ", conditionMessage(e)); NULL })
-  }))
-  if (is.null(proj) || !nrow(proj)) {
-    say("projection produced no rows -> not writing projection.rds")
-    .recordStep(groupDir, group, "projection", t0, status = "failed",
-                metrics = list(reason = "empty projection"))
+  # ── Resolve the Policy Scenario set (ADR 0035). An explicit `scenarios` list (normalised
+  # descriptors from parseScenarioRegistry) fans out; otherwise synthesise a single legacy
+  # scenario from a pre-built panel / cached panel / single gdx so old behaviour is preserved. ──
+  scen <- scenarios
+  if (is.null(scen) || !length(scen)) {
+    scen <- list(scenario = list(id = "scenario", name = "Scenario", gdx = gdxFile,
+      gdxRegionMapping = "regionmappingH12.csv", gating = TRUE,
+      prebuilt = scenarioData %||% loadCachedPanel("panelDataScenario.rds")))
+  }
+  gatingId <- { g <- names(Filter(function(s) isTRUE(s$gating), scen)); if (length(g)) g[[1]] else names(scen)[[1]] }
+
+  buildScenarioPanel <- function(s) {
+    if (!is.null(s$prebuilt)) return(s$prebuilt)
+    if (is.null(s$gdx) || !nzchar(s$gdx) || !file.exists(s$gdx)) {
+      say("scenario '", s$id, "': no usable gdx (", s$gdx %||% "NULL", ") -> skipped."); return(NULL)
+    }
+    say("scenario '", s$id, "': building scenario panel from gdx: ", s$gdx)
+    tryCatch(panelDataScenario(gdxFile = s$gdx, aggregate = TRUE,
+               gdxRegionMappingFile = s$gdxRegionMapping %||% "regionmappingH12.csv",
+               outputRegionMappingFile = outputRegionMappingFile),
+             error = function(e) { say("  scenario panel build FAILED: ", conditionMessage(e)); NULL })
+  }
+
+  # ── Project the deployed model onto each scenario; one labelled artifact each, plus the
+  # gating scenario to the legacy projection.rds path so single-projection consumers keep working. ──
+  projDir <- file.path(groupDir, "projections")
+  dir.create(projDir, showWarnings = FALSE, recursive = TRUE)
+  results <- list(); perScen <- list(); anySource <- FALSE
+  for (id in names(scen)) {
+    s <- scen[[id]]
+    if (!is.null(s$prebuilt) || (!is.null(s$gdx) && nzchar(s$gdx) && file.exists(s$gdx))) anySource <- TRUE
+    sdata <- buildScenarioPanel(s)
+    if (is.null(sdata)) { perScen[[id]] <- "no-panel"; next }
+    proj <- do.call(rbind, lapply(sectors, function(sec)
+      tryCatch(projectSpecScenario(cfg[[sec]], sec, histData = panel, scenarioData = sdata,
+                                   modelDir = modelDir, verbose = FALSE),
+               error = function(e) { say("  ", id, "/", sec, " projection failed: ", conditionMessage(e)); NULL })))
+    if (is.null(proj) || !nrow(proj)) { say("scenario '", id, "': empty projection -> not written"); perScen[[id]] <- "empty"; next }
+    proj$scenario <- id                       # tag rows for side-by-side consumers (ADR 0035)
+    proj$scenarioName <- s$name %||% id
+    saveRDS(proj, file.path(projDir, paste0(gsub("[^A-Za-z0-9._-]", "_", id), ".rds")))
+    if (identical(id, gatingId)) saveRDS(proj, file.path(groupDir, "projection.rds"))  # legacy path
+    results[[id]] <- proj; perScen[[id]] <- nrow(proj)
+    say("scenario '", id, "': saved ", nrow(proj), " rows",
+        if (identical(id, gatingId)) " (+ legacy projection.rds)" else "")
+  }
+
+  if (!length(results)) {
+    .recordStep(groupDir, group, "projection", t0, status = if (anySource) "failed" else "skipped",
+                metrics = list(reason = if (anySource) "no scenario produced a projection" else "no usable scenario gdx/panel"))
     return(invisible(NULL))
   }
-  saveRDS(proj, file.path(groupDir, "projection.rds"))
+  combined <- do.call(rbind, results)
   .recordStep(groupDir, group, "projection", t0, mode = NULL, metrics = list(
-    rows = nrow(proj), sectors = paste(sort(unique(proj$sector)), collapse = "/"),
-    years = paste(range(proj$year), collapse = "-")))
-  say("Saved ", file.path(groupDir, "projection.rds"), " (", nrow(proj), " rows)")
-  invisible(proj)
+    scenarios = paste(names(results), collapse = "/"), gatingScenario = gatingId,
+    rows = nrow(combined),
+    perScenarioRows = paste(sprintf("%s=%s", names(perScen), unlist(perScen)), collapse = ", "),
+    sectors = paste(sort(unique(combined$sector)), collapse = "/"),
+    years = paste(range(combined$year), collapse = "-")))
+  say("Saved ", length(results), " scenario projection(s) under ", projDir)
+  invisible(results)
 }
 
 #' Run a full model group: sweep + post-processing steps (ADR 0018)
@@ -700,8 +736,10 @@ runProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "outpu
 #' @param resultsDir,modelDir Configurable Results Root / Fit Cache (the ADR 0009 model store).
 #' @param cachefolder Character or NULL. The \strong{madrat} data-cache folder (distinct from
 #'   \code{modelDir}); set on madrat for every step when non-NULL.
-#' @param gdxFile Character or NULL. Scenario gdx (forwarded to the sweep and to
-#'   difference-first's FE-by-sanity choice).
+#' @param gdxFile Character or NULL. Gating-scenario gdx (forwarded to the sweep's
+#'   Projection-Sanity gate and to difference-first's FE-by-sanity choice).
+#' @param scenarios Optional list of Policy Scenario descriptors (ADR 0035) forwarded
+#'   to the \code{projection} step's fan-out; \code{NULL} = legacy single scenario.
 #' @param mode,selectionMethod,nCores,forceRefit Forwarded to \code{\link{runSweep}}.
 #' @param verbose Logical. Default \code{TRUE}.
 #' @param ... Forwarded to \code{\link{runSweep}}.
@@ -712,7 +750,7 @@ runProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "outpu
 runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "subnational"),
                           resultsDir = getOption("pfm.resultsDir", "output"),
                           modelDir = getOption("pfm.modelDir", "output"), cachefolder = NULL,
-                          gdxFile = NULL,
+                          gdxFile = NULL, scenarios = NULL,
                           mode = c("exhaustive", "guided"),
                           selectionMethod = c("levels-first", "difference-first"),
                           nCores = 1L, forceRefit = FALSE, resume = FALSE,
@@ -755,7 +793,7 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
   if (doStep("temporal")) { say("step: temporal"); runTemporalSplit(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, verbose = verbose) }
   if (doStep("subnational")) { say("step: subnational"); runSubnational(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, verbose = verbose) }
   if (doStep("difference-first")) { say("step: difference-first"); runDifferenceFirst(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile, verbose = verbose) }
-  if (doStep("projection")) { say("step: projection"); runProjection(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile, verbose = verbose) }
+  if (doStep("projection")) { say("step: projection"); runProjection(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile, scenarios = scenarios, verbose = verbose) }
   if (doStep("selection-bootstrap")) { say("step: selection-bootstrap"); runSelectionBootstrap(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, nResamples = bootstrapResamples, detail = bootstrapDetail, topK = bootstrapTopK, verbose = verbose) }
   say("done: ", paste(steps, collapse = ", "))
   invisible(file.path(resultsDir, group))

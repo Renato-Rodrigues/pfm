@@ -21,7 +21,12 @@
 #'   defaults from options).
 #' @param cachefolder Character or NULL. The \strong{madrat} data-cache folder (distinct from
 #'   \code{modelDir}); when set, madrat reads inputs from there on every node.
-#' @param gdxFile Character or NULL. Scenario gdx (forwarded to the sweep).
+#' @param gdxFile Character or NULL. Gating-scenario gdx (forwarded to the sweep's
+#'   selection sanity gate). Set it to the gating scenario's gdx
+#'   (\code{\link{scenarioGatingGdx}}) when projecting multiple scenarios.
+#' @param scenarios Optional list of Policy Scenario descriptors (ADR 0035), e.g.
+#'   the \code{$scenarios} of \code{\link{parseScenarioRegistry}}. Forwarded to the
+#'   \code{projection} step's fan-out; \code{NULL} = legacy single scenario.
 #' @param nCores Integer or NULL. Cores for the parallel sweep; NULL (default) uses
 #'   \code{SLURM_CPUS_PER_TASK} when set, else \code{parallel::detectCores() - 1}.
 #' @param cluster \code{"auto"} (default), \code{"slurm"}, or \code{"local"}.
@@ -49,6 +54,7 @@ startRun <- function(group,
                      modelDir = getOption("pfm.modelDir", "output"),
                      cachefolder = getOption("pfm.cachefolder", "data/cache"),
                      gdxFile = getOption("pfm.gdxFile", "data/fulldata.gdx"),
+                     scenarios = NULL,
                      nCores = NULL,
                      cluster = c("auto", "slurm", "local"),
                      time = "24:00:00", qos = "short", partition = "standard",
@@ -77,7 +83,7 @@ startRun <- function(group,
   if (doSubmit) {
     return(.submitSlurm(group = group, steps = steps, mode = mode, selectionMethod = selectionMethod,
       resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile,
-      nCores = nCores,
+      scenarios = scenarios, nCores = nCores,
       time = time, qos = qos, partition = partition, account = account, mem = mem, chdir = chdir,
       outputDir = outputDir, render = render, forceRefit = forceRefit, resume = resume,
       renderCores = renderCores,
@@ -102,6 +108,7 @@ startRun <- function(group,
       paste(steps, collapse = ", "))
   runGroup <- function(stepsArg) runModelGroup(group = group, steps = stepsArg,
     resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile,
+    scenarios = scenarios,
     mode = mode, selectionMethod = selectionMethod, nCores = nCores, forceRefit = forceRefit,
     resume = resume, bootstrapResamples = bootstrapResamples, bootstrapDetail = bootstrapDetail,
     bootstrapTopK = bootstrapTopK, verbose = verbose, ...)
@@ -166,7 +173,7 @@ startRun <- function(group,
 # list(submitted=TRUE, jobId=, script=).
 #' @keywords internal
 .submitSlurm <- function(group, steps, mode, selectionMethod, resultsDir, modelDir, cachefolder,
-                         gdxFile, nCores, time, qos, partition, account, mem, chdir, outputDir,
+                         gdxFile, scenarios = NULL, nCores, time, qos, partition, account, mem, chdir, outputDir,
                          render, forceRefit, resume = FALSE, renderCores = NULL,
                          bootstrapResamples = 200L,
                          bootstrapDetail = "channel", bootstrapTopK = 40L, say, dots) {
@@ -178,7 +185,13 @@ startRun <- function(group,
   dir.create(chdir, showWarnings = FALSE, recursive = TRUE)         # must exist before sbatch
   dir.create(file.path(resultsDir, group), showWarnings = FALSE, recursive = TRUE)
 
-  # Job R script: re-invoke startRun in local mode on the compute node.
+  # Job R script: re-invoke startRun in local mode on the compute node. The Policy Scenario
+  # registry (ADR 0035) is a nested named list, so it is serialised with deparse() rather than
+  # .rlit (which only handles atomic vectors); deparse backtick-quotes the hyphenated ids.
+  scenLit <- if (is.null(scenarios)) "" else
+    paste0(", scenarios=", paste(deparse(scenarios), collapse = " "))
+  dotsLit <- if (length(dots)) paste0(", ", paste(sprintf("%s=%s", names(dots),
+    vapply(dots, .rlit, character(1))), collapse = ", ")) else ""
   call <- sprintf(paste0(
     "pfm::startRun(group=%s, steps=%s, mode=%s, selectionMethod=%s, resultsDir=%s, modelDir=%s, ",
     "cachefolder=%s, gdxFile=%s, nCores=%d, cluster=\"local\", forceRefit=%s, resume=%s, render=%s, outputDir=%s, ",
@@ -188,8 +201,7 @@ startRun <- function(group,
     .rlit(outputDir),
     if (is.null(renderCores)) "NULL" else as.integer(renderCores),
     as.integer(bootstrapResamples), .rlit(bootstrapDetail), as.integer(bootstrapTopK),
-    if (length(dots)) paste0(", ", paste(sprintf("%s=%s", names(dots),
-      vapply(dots, .rlit, character(1))), collapse = ", ")) else "")
+    paste0(scenLit, dotsLit))
   jobR <- file.path(chdir, paste0("pfm-", group, "-job.R"))
   writeLines(c("suppressMessages(library(pfm))", call), jobR)
 
