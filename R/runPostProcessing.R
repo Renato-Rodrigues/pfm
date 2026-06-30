@@ -785,10 +785,27 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                     "difference-first" = "difference-first.rds",
                     "projection" = "projection.rds",
                     "selection-bootstrap" = "selection-bootstrap.rds")
+  # A step counts as "already done" (resume-skippable) only when ALL its expected artifacts exist.
+  # For the projection step (ADR 0035) that means one projections/<id>.rds per configured scenario
+  # PLUS the legacy projection.rds — so a stale single-scenario projection.rds no longer masks
+  # missing per-scenario projections and silently skips the fan-out. Other steps key off one file.
+  stepComplete <- function(step) {
+    if (identical(step, "projection")) {
+      legacy <- file.exists(file.path(groupDir, "projection.rds"))
+      ids <- if (!is.null(scenarios) && length(scenarios))
+        vapply(scenarios, function(s) s$id %||% "", character(1)) else character(0)
+      if (!length(ids)) return(legacy)   # legacy single-scenario: the one file suffices
+      perScen <- file.path(groupDir, "projections",
+                           paste0(gsub("[^A-Za-z0-9._-]", "_", ids), ".rds"))
+      legacy && all(file.exists(perScen))
+    } else {
+      file.exists(file.path(groupDir, stepArtifact[[step]]))
+    }
+  }
   doStep <- function(step) {
     if (!(step %in% steps)) return(FALSE)
-    if (isTRUE(resume) && file.exists(file.path(groupDir, stepArtifact[[step]]))) {
-      say("resume: skipping '", step, "' (", stepArtifact[[step]], " already present)")
+    if (isTRUE(resume) && stepComplete(step)) {
+      say("resume: skipping '", step, "' (artifact(s) already present)")
       return(FALSE)
     }
     .writeRunGroupManifest(groupDir, group = group, mode = mode, step = step, stepStats = FALSE)
