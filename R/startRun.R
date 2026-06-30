@@ -13,8 +13,11 @@
 #'
 #' @param group Character. Run-Group name. Required.
 #' @param steps Character subset of \code{c("sweep","robustness","temporal","subnational",
-#'   "difference-first")}. Default is the first four; \code{"difference-first"} is the ADR 0014
-#'   alternative-selection comparison (off by default).
+#'   "difference-first","projection","selection-bootstrap")}. Default is the first four;
+#'   \code{"difference-first"} is the ADR 0014 alternative-selection comparison,
+#'   \code{"projection"} writes the per-scenario feasibility projections (ADR 0035; needs a
+#'   scenario gdx) and \code{"selection-bootstrap"} the selection-uncertainty bootstrap — all
+#'   off by default and enabled by the \code{--paper} publication workflow.
 #' @param mode \code{"exhaustive"} (default) or \code{"guided"}.
 #' @param selectionMethod \code{"levels-first"} (default) or \code{"difference-first"}.
 #' @param resultsDir,modelDir Configurable Results Root / Fit Cache (the ADR 0009 model store;
@@ -65,13 +68,40 @@ startRun <- function(group,
   mode <- match.arg(mode)
   selectionMethod <- match.arg(selectionMethod)
   cluster <- match.arg(cluster)
-  steps <- intersect(c("sweep", "robustness", "temporal", "subnational", "difference-first",
-                       "selection-bootstrap"), steps)
+  requestedSteps <- steps
+  validSteps <- c("sweep", "robustness", "temporal", "subnational", "difference-first",
+                  "projection", "selection-bootstrap")
+  steps <- intersect(validSteps, steps)
+  droppedSteps <- setdiff(requestedSteps, validSteps)
   if (length(steps) == 0) stop("startRun: no valid steps.", call. = FALSE)
   if (missing(group) || is.null(group) || !nzchar(group)) stop("startRun: 'group' is required.", call. = FALSE)
   if (is.null(resultsDir)) stop("startRun: supply 'resultsDir' or set options(pfm.resultsDir = '...').", call. = FALSE)
   if (is.null(nCores)) nCores <- .pfmDetectCores()
   say <- function(...) if (isTRUE(verbose)) message("[startRun:", group, "] ", ...)
+
+  # ── Diagnostics (ADR 0035): make step-filtering + scenario wiring visible in the log, so a
+  # silently-dropped step (e.g. an installed build whose whitelist predates the 'projection' step)
+  # or an unresolved scenario registry is obvious rather than mysterious. ──
+  say("pfm version ", utils::packageVersion("pfm"),
+      " | 'projection' is a recognised step: ", "projection" %in% validSteps)
+  say("steps requested: ", paste(requestedSteps, collapse = ", "))
+  say("steps to run:    ", paste(steps, collapse = ", "))
+  if (length(droppedSteps)) say("WARNING: requested step(s) NOT recognised by this build and DROPPED: ",
+      paste(droppedSteps, collapse = ", "),
+      " -- reinstall pfm from current source if you expected them (e.g. 'projection').")
+  if ("projection" %in% requestedSteps && !("projection" %in% steps))
+    say("WARNING: 'projection' was requested but will NOT run -> no scenario projections will be written.")
+  if (is.null(scenarios) || !length(scenarios)) {
+    say("scenarios: none supplied (legacy single-scenario projection from gdxFile = ", gdxFile %||% "NULL", ")")
+  } else {
+    gating <- names(Filter(function(s) isTRUE(s$gating), scenarios))
+    say("scenarios (", length(scenarios), "): ", paste(names(scenarios), collapse = ", "),
+        " | gating: ", if (length(gating)) gating[[1]] else "NONE",
+        " | sweep sanity-gate gdx: ", gdxFile %||% "NULL")
+    for (s in scenarios) say("  - scenario '", s$id, "' gdx=", s$gdx %||% "NULL",
+        " exists=", if (!is.null(s$gdx)) file.exists(s$gdx) else FALSE,
+        " mapping=", s$gdxRegionMapping %||% "(default)")
+  }
 
   inJob <- nzchar(Sys.getenv("SLURM_JOB_ID"))
   haveSbatch <- nzchar(Sys.which("sbatch"))

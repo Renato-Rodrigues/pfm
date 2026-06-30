@@ -615,6 +615,18 @@ runProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "outpu
   t0 <- Sys.time()
   if (!requireNamespace("yaml", quietly = TRUE)) stop("The 'yaml' package is required.")
   sectors <- c("Bulk", "Diffuse")
+  # Entry diagnostics (ADR 0035): make the scenario set that reached the fan-out explicit.
+  if (is.null(scenarios) || !length(scenarios)) {
+    say("starting projection (legacy single-scenario): gdxFile = ", gdxFile %||% "NULL",
+        ", scenarioData supplied = ", !is.null(scenarioData))
+  } else {
+    say("starting projection fan-out over ", length(scenarios), " scenario(s): ",
+        paste(vapply(scenarios, function(s) s$id %||% "?", character(1)), collapse = ", "))
+    for (s in scenarios) say("  - '", s$id, "' gdx=", s$gdx %||% "NULL",
+        " exists=", if (!is.null(s$gdx)) file.exists(s$gdx) else FALSE)
+  }
+  say("artifacts will be written under: ", file.path(groupDir, "projections"),
+      " (+ legacy ", file.path(groupDir, "projection.rds"), ")")
   # Panel resolution priority (robust): explicit arg -> cached panel under <groupDir>/data/ (written by
   # the run; the demonstrably-working path) -> build from gdx / madrat (the fragile last resort). Never
   # throw on a build failure: log a clear reason and record a skipped/failed step so the artifact's
