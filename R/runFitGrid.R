@@ -31,7 +31,25 @@
 .fitSpecModel <- function(cfg, sector, stage, panelData, family = "gaussian",
                           modelDir = NULL, forceRefit = FALSE, verbose = FALSE, prepared = FALSE) {
   tryCatch({
-    if (stage == "Adoption") {
+    if (stage == "PolicyStringency") {
+      # PSM (ADR 0036): single-stage bounded index, satP selection engine only.
+      estimatePolicyStringencyModel(
+        data = panelData, sector = sector, estimator = "satP",
+        indexMax = cfg$indexMax %||% 10,
+        actorPowerDrivers = cfg$actorPowerDrivers,
+        actorPowerIndex = cfg$actorPowerIndex,
+        instQualityDrivers = cfg$instQualityDrivers,
+        controlDrivers = cfg$controlDrivers,
+        includeLaggedPS = isTRUE(cfg$includeLaggedPS),
+        interactRegionFE = cfg$interactRegionFE,
+        regionMappingFixedEffects = cfg$regionMappingFixedEffects,
+        useMundlak = cfg$useMundlak,
+        gdpGovInteraction = cfg$gdpGovInteraction,
+        logisticTimeTrend = cfg$logisticTimeTrend,
+        modelDir = modelDir, updateIndex = FALSE, ignoreCache = forceRefit,
+        verbose = verbose, prepared = prepared
+      )
+    } else if (stage == "Adoption") {
       estimateAdoptionModel(
         data = panelData, sector = sector,
         actorPowerDrivers = cfg$actorPowerDrivers,

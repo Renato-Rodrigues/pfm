@@ -2,7 +2,8 @@
 #' Prepare panel data.frame from magpie object
 #'
 #' Converts a magpie object from panelDataHistorical into a flat
-#' data.frame suitable for regression, including the dependent variable (ECP),
+#' data.frame suitable for regression, including the dependent variable
+#' (\code{outcomeVar}, default the Effective Carbon Price),
 #' all requested predictors, a linear time trend, region fixed-effect labels,
 #' and pre-computed interaction columns (each actorPowerIndex × each inst. quality driver).
 #'
@@ -33,6 +34,13 @@
 #'   logistic time trend (bounded in \code{[0, 1]}, no rescale). Defaults \code{2030} and
 #'   \code{0.08}: flat toe before 2000, meaningful rise through history, saturating
 #'   near 1 by ~2060. Keep identical across fit and projection.
+#' @param outcomeVar Character. Base name of the dependent variable; the
+#'   sector-qualified column \code{"<outcomeVar>|<sector>"} is read from the data.
+#'   Default \code{"Effective Carbon Price"} (the carbon-price hurdle model);
+#'   the Policy Stringency Model passes \code{"Policy Stringency"} (ADR 0036).
+#'   Whatever the outcome, its panel column is named \code{ecp} (and its lag
+#'   \code{lagged_ecp}) for historical reasons, so all downstream estimation
+#'   machinery works unchanged.
 #' @param trendFreezeYear Integer or \code{NULL}. If set, the logistic time trend
 #'   is held flat at its value in this year for all later years (ADR 0010): the
 #'   trend regressor uses \code{min(year, trendFreezeYear)}. Used only when
@@ -63,7 +71,8 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
                              gdpGovInteraction = FALSE,
                              driverScaling = NULL,
                              trendMidpoint = 2030, trendSteepness = 0.08,
-                             trendFreezeYear = NULL) {
+                             trendFreezeYear = NULL,
+                             outcomeVar = "Effective Carbon Price") {
   # If data is already a data.frame, assume it is already prepared and return it.
   if (is.data.frame(data)) {
     return(data)
@@ -96,8 +105,8 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
   regions <- magclass::getRegions(data) # nolint: undesirable_function_linter.
   years <- magclass::getYears(data, as.integer = TRUE)
 
-  # Dependent variable name
-  ecpName <- paste0("Effective Carbon Price|", sector)
+  # Dependent variable name (the panel column is named `ecp` whatever the outcome)
+  ecpName <- paste0(outcomeVar, "|", sector)
 
   # Actor Power Index name (sector-qualified in the data)
   apiName <- if (!is.null(actorPowerIndex)) {

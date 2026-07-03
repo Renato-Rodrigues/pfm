@@ -13,6 +13,7 @@ startRun(
   modelDir = getOption("pfm.modelDir", "output"),
   cachefolder = getOption("pfm.cachefolder", "data/cache"),
   gdxFile = getOption("pfm.gdxFile", "data/fulldata.gdx"),
+  scenarios = NULL,
   nCores = NULL,
   cluster = c("auto", "slurm", "local"),
   time = "24:00:00",
@@ -37,8 +38,11 @@ startRun(
 \item{group}{Character. Run-Group name. Required.}
 
 \item{steps}{Character subset of \code{c("sweep","robustness","temporal","subnational",
-"difference-first")}. Default is the first four; \code{"difference-first"} is the ADR 0014
-alternative-selection comparison (off by default).}
+"difference-first","projection","selection-bootstrap")}. Default is the first four;
+\code{"difference-first"} is the ADR 0014 alternative-selection comparison,
+\code{"projection"} writes the per-scenario feasibility projections (ADR 0035; needs a
+scenario gdx) and \code{"selection-bootstrap"} the selection-uncertainty bootstrap — all
+off by default and enabled by the \code{--paper} publication workflow.}
 
 \item{mode}{\code{"exhaustive"} (default) or \code{"guided"}.}
 
@@ -50,7 +54,13 @@ defaults from options).}
 \item{cachefolder}{Character or NULL. The \strong{madrat} data-cache folder (distinct from
 \code{modelDir}); when set, madrat reads inputs from there on every node.}
 
-\item{gdxFile}{Character or NULL. Scenario gdx (forwarded to the sweep).}
+\item{gdxFile}{Character or NULL. Gating-scenario gdx (forwarded to the sweep's
+selection sanity gate). Set it to the gating scenario's gdx
+(\code{\link{scenarioGatingGdx}}) when projecting multiple scenarios.}
+
+\item{scenarios}{Optional list of Policy Scenario descriptors (ADR 0035), e.g.
+the \code{$scenarios} of \code{\link{parseScenarioRegistry}}. Forwarded to the
+\code{projection} step's fan-out; \code{NULL} = legacy single scenario.}
 
 \item{nCores}{Integer or NULL. Cores for the parallel sweep; NULL (default) uses
 \code{SLURM_CPUS_PER_TASK} when set, else \code{parallel::detectCores() - 1}.}

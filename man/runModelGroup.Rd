@@ -11,6 +11,7 @@ runModelGroup(
   modelDir = getOption("pfm.modelDir", "output"),
   cachefolder = NULL,
   gdxFile = NULL,
+  scenarios = NULL,
   mode = c("exhaustive", "guided"),
   selectionMethod = c("levels-first", "difference-first"),
   nCores = 1L,
@@ -38,8 +39,11 @@ default. The publication workflow (\code{--paper}) enables them.}
 \item{cachefolder}{Character or NULL. The \strong{madrat} data-cache folder (distinct from
 \code{modelDir}); set on madrat for every step when non-NULL.}
 
-\item{gdxFile}{Character or NULL. Scenario gdx (forwarded to the sweep and to
-difference-first's FE-by-sanity choice).}
+\item{gdxFile}{Character or NULL. Gating-scenario gdx (forwarded to the sweep's
+Projection-Sanity gate and to difference-first's FE-by-sanity choice).}
+
+\item{scenarios}{Optional list of Policy Scenario descriptors (ADR 0035) forwarded
+to the \code{projection} step's fan-out; \code{NULL} = legacy single scenario.}
 
 \item{mode, selectionMethod, nCores, forceRefit}{Forwarded to \code{\link{runSweep}}.}
 

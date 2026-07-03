@@ -13,7 +13,8 @@ panelDataHistorical(
     list(vre = 1, elec = 0.6), incumbents_power = list(coal = 1, oilgas = 1, fossilInd =
     0.5)), diffuse = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
     list(vre = 0.5, elec = 1, biofuel = 0.4), incumbents_power = list(coal = 0.2, oilgas
-    = 0.2, fossilInd = 1)))
+    = 0.2, fossilInd = 1))),
+  includePolicyStringency = FALSE
 )
 }
 \arguments{
@@ -24,6 +25,13 @@ panelDataHistorical(
 \item{outputRegionMappingFile}{mapping file for output regions}
 
 \item{coeff}{list of coefficients for actor power index calculation}
+
+\item{includePolicyStringency}{logical; if TRUE, adds the CAPMF-based Policy
+Stringency Model outcomes ("Policy Stringency|Bulk", "Policy Stringency|Diffuse"
+and, when available, "Policy Stringency|Composite"; ADR 0036). Default FALSE so
+the carbon-price panel (and its end-year rule) is unchanged unless the PSM
+explicitly asks for it. Years the CAPMF source does not reach are NA-filled;
+preparePanelData later drops rows with a missing outcome.}
 }
 \value{
 Returns the combined magpie object for historical data

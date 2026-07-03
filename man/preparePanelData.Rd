@@ -18,7 +18,8 @@ preparePanelData(
   driverScaling = NULL,
   trendMidpoint = 2030,
   trendSteepness = 0.08,
-  trendFreezeYear = NULL
+  trendFreezeYear = NULL,
+  outcomeVar = "Effective Carbon Price"
 )
 }
 \arguments{
@@ -67,6 +68,14 @@ preparing a \emph{scenario} panel (set to the last historical year, e.g. 2022)
 so the trend is not extrapolated out of sample and stops dominating
 projections. \code{NULL} (default, used for the historical fit) applies no
 freeze, leaving the in-sample design unchanged.}
+
+\item{outcomeVar}{Character. Base name of the dependent variable; the
+sector-qualified column \code{"<outcomeVar>|<sector>"} is read from the data.
+Default \code{"Effective Carbon Price"} (the carbon-price hurdle model);
+the Policy Stringency Model passes \code{"Policy Stringency"} (ADR 0036).
+Whatever the outcome, its panel column is named \code{ecp} (and its lag
+\code{lagged_ecp}) for historical reasons, so all downstream estimation
+machinery works unchanged.}
 }
 \value{
 data.frame with columns: region, year, timeTrend, regionFE (unless
@@ -78,7 +87,8 @@ attribute (the per-variable mean/sd used).
 }
 \description{
 Converts a magpie object from panelDataHistorical into a flat
-data.frame suitable for regression, including the dependent variable (ECP),
+data.frame suitable for regression, including the dependent variable
+(\code{outcomeVar}, default the Effective Carbon Price),
 all requested predictors, a linear time trend, region fixed-effect labels,
 and pre-computed interaction columns (each actorPowerIndex × each inst. quality driver).
 }

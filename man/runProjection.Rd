@@ -10,6 +10,7 @@ runProjection(
   modelDir = getOption("pfm.modelDir", "output"),
   cachefolder = NULL,
   gdxFile = NULL,
+  scenarios = NULL,
   panelData = NULL,
   scenarioData = NULL,
   y = 2000:2022,
@@ -22,6 +23,11 @@ runProjection(
 
 \item{gdxFile}{Character or NULL. Scenario gdx (enables the levels FE-by-sanity choice).}
 
+\item{scenarios}{Optional list of normalised scenario descriptors (from
+\code{\link{parseScenarioRegistry}}: each with \code{id}, \code{name},
+\code{gdx}, \code{gdxRegionMapping}, \code{gating}). \code{NULL} (default)
+uses the legacy single-scenario path.}
+
 \item{panelData, scenarioData}{Optional pre-built panels.}
 
 \item{y, outputRegionMappingFile}{Panel build parameters.}
@@ -29,19 +35,26 @@ runProjection(
 \item{verbose}{Logical. Default \code{TRUE}.}
 }
 \value{
-The written projection data.frame (invisibly), or \code{NULL} if skipped.
+Invisibly, a named list of per-scenario projection data.frames (keyed by
+scenario id), or \code{NULL} if nothing was produced.
 }
 \description{
-Writes \code{<group>/projection.rds}: the deployed-spec scenario feasibility
-projection (region x year x sector: \code{prob}, \code{stringencyResponse},
-\code{price}, \code{expectedPrice}), so that pure consumers (e.g. the paper's
-\code{make-figures.R} projected-adoption map) can read it without re-fitting.
-Mirrors the projection the \code{results-adoption} report computes live: for
-each sector it takes the deployed \emph{Adoption: \if{html}{\out{<sector>}}} config from
-\code{selected-models.yml} and applies \code{\link{projectSpecScenario}} to the
-scenario panel. A \code{gdxFile} (REMIND scenario) is REQUIRED — without it
-there is no scenario panel to project onto and the step is skipped with a note.
+Fans the one deployed model out over the Policy Scenario Registry (ADR 0035):
+for each scenario it builds the scenario panel from that scenario's gdx (with
+the gdx's own region mapping), applies the deployed \emph{Adoption: \if{html}{\out{<sector>}}}
+config from \code{selected-models.yml} via \code{\link{projectSpecScenario}},
+and writes one labelled artifact \code{<group>/projections/<id>.rds} (rows
+tagged with \code{scenario}/\code{scenarioName}). The \strong{gating} scenario
+is additionally written to the legacy \code{<group>/projection.rds} path so
+single-projection consumers (e.g. the paper's \code{make-figures.R}
+projected-adoption map) keep working unchanged. The historical panel and the
+deployed configs are scenario-independent and built once.
+
+When \code{scenarios} is \code{NULL} the behaviour collapses to the legacy
+single-scenario path (a pre-built \code{scenarioData}, a cached scenario panel,
+or a single \code{gdxFile}); without any usable source the step is skipped.
 }
 \seealso{
-\code{\link{projectSpecScenario}}, \code{\link{predictFeasibility}}, ADR 0009
+\code{\link{projectSpecScenario}}, \code{\link{predictFeasibility}},
+\code{\link{parseScenarioRegistry}}, ADR 0009, ADR 0035
 }

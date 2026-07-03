@@ -673,7 +673,9 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
     fit,
     actorPowerDrivers = cfg$actorPowerDrivers, actorPowerIndex = cfg$actorPowerIndex,
     instQualityDrivers = cfg$instQualityDrivers,
-    stage = tolower(stage)
+    # PolicyStringency (ADR 0036) is a gaussian GLM like the price-stringency
+    # stage, so its deviance-based baseline refit uses the stringency branch.
+    stage = if (tolower(stage) == "adoption") "adoption" else "stringency"
   )
   pd <- fit$predictiveDiagnostics
   if (!is.null(pd)) {

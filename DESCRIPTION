@@ -41,7 +41,8 @@ Suggests:
     glmnet,
     yaml,
     future,
-    future.apply
+    future.apply,
+    betareg
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 Config/roxygen2/version: 8.0.0

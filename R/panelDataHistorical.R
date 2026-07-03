@@ -6,11 +6,17 @@
 #' @param outputRegionMappingFile mapping file for output regions
 #' @param y years to be calculated
 #' @param coeff list of coefficients for actor power index calculation
+#' @param includePolicyStringency logical; if TRUE, adds the CAPMF-based Policy
+#'   Stringency Model outcomes ("Policy Stringency|Bulk", "Policy Stringency|Diffuse"
+#'   and, when available, "Policy Stringency|Composite"; ADR 0036). Default FALSE so
+#'   the carbon-price panel (and its end-year rule) is unchanged unless the PSM
+#'   explicitly asks for it. Years the CAPMF source does not reach are NA-filled;
+#'   preparePanelData later drops rows with a missing outcome.
 #'
 #' @return Returns the combined magpie object for historical data
 #' @author Renato Rodrigues
 #'
-#' @importFrom magclass mbind setNames add_dimension getYears time_interpolate
+#' @importFrom magclass mbind setNames add_dimension getYears time_interpolate new.magpie getItems getNames
 #' @importFrom madrat calcOutput toolGetMapping
 #' @export
 #'
@@ -29,7 +35,8 @@ panelDataHistorical <- function(aggregate = TRUE,
                                     innovators_power = list(vre = 0.5, elec = 1, biofuel = 0.4),
                                     incumbents_power = list(coal = 0.2, oilgas = 0.2, fossilInd = 1)
                                   )
-                                )) {
+                                ),
+                                includePolicyStringency = FALSE) {
   out <- NULL
 
   # Carbon Price
@@ -42,6 +49,22 @@ panelDataHistorical <- function(aggregate = TRUE,
     setNames(cp[, y, "bulk"], "Effective Carbon Price|Bulk"),
     setNames(cp[, y, "diffuse"], "Effective Carbon Price|Diffuse")
   )
+
+  # Policy Stringency (PSM outcomes, ADR 0036)
+  if (isTRUE(includePolicyStringency)) {
+    ps <- calcOutput("PolicyStringency",
+      aggregate = aggregate, regionmapping = outputRegionMappingFile
+    )
+    psVars <- c(bulk = "Policy Stringency|Bulk", diffuse = "Policy Stringency|Diffuse",
+                composite = "Policy Stringency|Composite")
+    psVars <- psVars[names(psVars) %in% getNames(ps)]
+    psY <- intersect(y, getYears(ps, as.integer = TRUE))
+    psFull <- new.magpie(getItems(ps, dim = 1), y, unname(psVars), fill = NA)
+    for (nm in names(psVars)) {
+      psFull[, psY, psVars[[nm]]] <- ps[, psY, nm]
+    }
+    out <- mbind(out, psFull)
+  }
 
   # Actor Power Index
   histData <- iamHistoricalData(aggregate = aggregate, outputRegionMappingFile = outputRegionMappingFile)

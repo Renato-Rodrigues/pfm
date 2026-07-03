@@ -13,7 +13,8 @@ buildPFMModel(
   useFirth,
   label = "",
   driverScaling = NULL,
-  prepSpec = NULL
+  prepSpec = NULL,
+  idExtra = NULL
 )
 }
 \arguments{
