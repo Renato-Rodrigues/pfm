@@ -38,11 +38,16 @@ startRun(
 \item{group}{Character. Run-Group name. Required.}
 
 \item{steps}{Character subset of \code{c("sweep","robustness","temporal","subnational",
-"difference-first","projection","selection-bootstrap")}. Default is the first four;
+"difference-first","projection","selection-bootstrap","psm-sweep","psm-projection",
+"psm-agreement")}. Default is the first four;
 \code{"difference-first"} is the ADR 0014 alternative-selection comparison,
 \code{"projection"} writes the per-scenario feasibility projections (ADR 0035; needs a
 scenario gdx) and \code{"selection-bootstrap"} the selection-uncertainty bootstrap — all
-off by default and enabled by the \code{--paper} publication workflow.}
+off by default and enabled by the \code{--paper} publication workflow. The three
+\code{psm-*} steps are the Policy Stringency Model pipeline (ADR 0036:
+\code{\link{runPSMSweep}} → \code{\link{runPSMProjection}} →
+\code{\link{runPSMEstimatorAgreement}}); run them in their OWN Run-Group
+(e.g. \code{group = "psm-exhaustive"}), never mixed into a price-model group.}
 
 \item{mode}{\code{"exhaustive"} (default) or \code{"guided"}.}
 

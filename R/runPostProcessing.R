@@ -771,7 +771,10 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
   mode <- match.arg(mode)
   selectionMethod <- match.arg(selectionMethod)
   allSteps <- c("sweep", "robustness", "temporal", "subnational", "difference-first",
-                "projection", "selection-bootstrap")
+                "projection", "selection-bootstrap",
+                # Policy Stringency Model pipeline (ADR 0036) — run in its OWN Run-Group
+                # (e.g. group = "psm-exhaustive"), never mixed into a price-model group.
+                "psm-sweep", "psm-projection", "psm-agreement")
   steps <- intersect(allSteps, steps)
   if (length(steps) == 0) stop("runModelGroup: no valid steps. Choose from ",
                                paste(allSteps, collapse = ", "), ".", call. = FALSE)
@@ -784,13 +787,16 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                     temporal = "temporal-split.rds", subnational = "subnational.rds",
                     "difference-first" = "difference-first.rds",
                     "projection" = "projection.rds",
-                    "selection-bootstrap" = "selection-bootstrap.rds")
+                    "selection-bootstrap" = "selection-bootstrap.rds",
+                    "psm-sweep" = "selected-models-psm.yml",
+                    "psm-projection" = "projection.rds",
+                    "psm-agreement" = "estimator-agreement.rds")
   # A step counts as "already done" (resume-skippable) only when ALL its expected artifacts exist.
   # For the projection step (ADR 0035) that means one projections/<id>.rds per configured scenario
   # PLUS the legacy projection.rds — so a stale single-scenario projection.rds no longer masks
   # missing per-scenario projections and silently skips the fan-out. Other steps key off one file.
   stepComplete <- function(step) {
-    if (identical(step, "projection")) {
+    if (step %in% c("projection", "psm-projection")) {
       legacy <- file.exists(file.path(groupDir, "projection.rds"))
       ids <- if (!is.null(scenarios) && length(scenarios))
         vapply(scenarios, function(s) s$id %||% "", character(1)) else character(0)
@@ -824,6 +830,19 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
   if (doStep("difference-first")) { say("step: difference-first"); runDifferenceFirst(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile, verbose = verbose) }
   if (doStep("projection")) { say("step: projection"); runProjection(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile, scenarios = scenarios, verbose = verbose) }
   if (doStep("selection-bootstrap")) { say("step: selection-bootstrap"); runSelectionBootstrap(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, nResamples = bootstrapResamples, detail = bootstrapDetail, topK = bootstrapTopK, verbose = verbose) }
+  # ── Policy Stringency Model steps (ADR 0036). Dots are forwarded to runPSMSweep filtered to
+  # its own formals (runSweep-specific knobs like selectionMethod would otherwise error). ──
+  if (doStep("psm-sweep")) {
+    say("step: psm-sweep")
+    dots <- list(...)
+    psmArgs <- c(list(group = group, mode = mode, resultsDir = resultsDir, modelDir = modelDir,
+                      cachefolder = cachefolder, gdxFile = gdxFile, nCores = nCores,
+                      forceRefit = forceRefit, verbose = verbose),
+                 dots[names(dots) %in% names(formals(runPSMSweep))])
+    do.call(runPSMSweep, psmArgs)
+  }
+  if (doStep("psm-projection")) { say("step: psm-projection"); runPSMProjection(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile, scenarios = scenarios, verbose = verbose) }
+  if (doStep("psm-agreement")) { say("step: psm-agreement"); runPSMEstimatorAgreement(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, verbose = verbose) }
   say("done: ", paste(steps, collapse = ", "))
   invisible(file.path(resultsDir, group))
 }

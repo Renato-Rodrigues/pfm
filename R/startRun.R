@@ -13,11 +13,16 @@
 #'
 #' @param group Character. Run-Group name. Required.
 #' @param steps Character subset of \code{c("sweep","robustness","temporal","subnational",
-#'   "difference-first","projection","selection-bootstrap")}. Default is the first four;
+#'   "difference-first","projection","selection-bootstrap","psm-sweep","psm-projection",
+#'   "psm-agreement")}. Default is the first four;
 #'   \code{"difference-first"} is the ADR 0014 alternative-selection comparison,
 #'   \code{"projection"} writes the per-scenario feasibility projections (ADR 0035; needs a
 #'   scenario gdx) and \code{"selection-bootstrap"} the selection-uncertainty bootstrap — all
-#'   off by default and enabled by the \code{--paper} publication workflow.
+#'   off by default and enabled by the \code{--paper} publication workflow. The three
+#'   \code{psm-*} steps are the Policy Stringency Model pipeline (ADR 0036:
+#'   \code{\link{runPSMSweep}} → \code{\link{runPSMProjection}} →
+#'   \code{\link{runPSMEstimatorAgreement}}); run them in their OWN Run-Group
+#'   (e.g. \code{group = "psm-exhaustive"}), never mixed into a price-model group.
 #' @param mode \code{"exhaustive"} (default) or \code{"guided"}.
 #' @param selectionMethod \code{"levels-first"} (default) or \code{"difference-first"}.
 #' @param resultsDir,modelDir Configurable Results Root / Fit Cache (the ADR 0009 model store;
@@ -70,7 +75,8 @@ startRun <- function(group,
   cluster <- match.arg(cluster)
   requestedSteps <- steps
   validSteps <- c("sweep", "robustness", "temporal", "subnational", "difference-first",
-                  "projection", "selection-bootstrap")
+                  "projection", "selection-bootstrap",
+                  "psm-sweep", "psm-projection", "psm-agreement")   # ADR 0036 PSM pipeline
   steps <- intersect(validSteps, steps)
   droppedSteps <- setdiff(requestedSteps, validSteps)
   if (length(steps) == 0) stop("startRun: no valid steps.", call. = FALSE)
@@ -297,10 +303,15 @@ startRun <- function(group,
     say("render = TRUE but the 'pfmreports' package is not installed; skipping report rendering.")
     return(invisible(NULL))
   }
-  reps <- c("selection", "model-selection", "results-adoption", "results-stringency", "publication")
+  # A PSM-only run (ADR 0036) renders only the PSM report; the price-model report set would
+  # read the PSM group's differently-shaped artifacts and render empty/misleading sections.
+  psmSteps <- c("psm-sweep", "psm-projection", "psm-agreement")
+  reps <- if (all(steps %in% psmSteps)) character(0) else
+    c("selection", "model-selection", "results-adoption", "results-stringency", "publication")
   if (any(c("robustness", "temporal", "difference-first") %in% steps)) reps <- c(reps, "robustness")
   if ("subnational" %in% steps) reps <- c(reps, "subnational")
   if ("selection-bootstrap" %in% steps) reps <- c(reps, "selection-stability")
+  if (any(psmSteps %in% steps)) reps <- c(reps, "psm-results")
   if (!is.null(reports)) reps <- intersect(reps, reports)   # render only this subset (phased render)
   if (!length(reps)) return(invisible(NULL))
   lit <- function(x) if (is.null(x)) "NULL" else paste0('"', gsub('"', '\\\\"', x), '"')
