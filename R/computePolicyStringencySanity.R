@@ -272,7 +272,12 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
     if (!is.null(histLast) && nrow(histLast) > 0) {
       lastVal <- stats::setNames(histLast$index, histLast$region)
       for (r in unique(proj$region)) {
-        hv <- lastVal[[as.character(r)]]
+        rc <- as.character(r)
+        # lastVal is an ATOMIC named vector: `[[` on a missing name errors
+        # ("subscript out of bounds"), unlike a list which returns NULL. A projected
+        # region absent from the historical panel (e.g. an out-of-coverage region such
+        # as USA/Brazil, which the PSM still projects) simply has no seam to check.
+        hv <- if (rc %in% names(lastVal)) lastVal[[rc]] else NULL
         if (is.null(hv) || !is.finite(hv)) next
         sub <- proj[proj$region == r & is.finite(proj$index), , drop = FALSE]
         if (nrow(sub) == 0) next

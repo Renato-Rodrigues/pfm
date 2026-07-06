@@ -63,6 +63,19 @@ test_that("seam jumps and single-year spikes are warnings", {
   expect_equal(sn$summary$nSevere, 0)
 })
 
+test_that("seam rule tolerates a projected region absent from histIndex (out-of-coverage)", {
+  # The PSM projects all regions incl. out-of-coverage ones (USA/Brazil), which have
+  # no historical CAPMF value. lastVal is an atomic named vector, so an unguarded
+  # `[[` on the missing region name threw "subscript out of bounds" (cluster crash,
+  # 2026-07-06). The seam rule must simply skip such regions.
+  proj <- rbind(sanityProj(rep(8, 6), regions = "R1"),
+                sanityProj(rep(6, 6), regions = "USA"))  # USA = out of coverage
+  hist <- data.frame(region = "R1", year = 2015:2019, index = 3, stringsAsFactors = FALSE)
+  expect_no_error(sn <- computePolicyStringencySanity(proj, histIndex = hist))
+  expect_true("seam_jump" %in% sn$flags$rule)               # R1: 3 -> 8 seam still fires
+  expect_false("USA" %in% sn$flags$region[sn$flags$rule == "seam_jump"])  # USA skipped
+})
+
 test_that("high NA share is a coverage warning", {
   proj <- sanityProj(c(5, NA, NA, NA, 5, 5))
   sn <- computePolicyStringencySanity(proj)
