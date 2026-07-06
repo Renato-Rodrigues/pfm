@@ -34,6 +34,18 @@
 #'   deliverable (model-name \code{fe:} tags), as in the price-model selection.
 #' @param nearTieEps,feParsimonyWeight,dropIdleControls,softVifGate Maximin knobs,
 #'   forwarded to \code{\link{computeMaximinScore}}.
+#' @param trendDominanceGate Numeric in \code{[0, 1]} or \code{NULL}. Hard
+#'   trend-dominance gate forwarded to \code{\link{computeMaximinScore}} (ADR 0033).
+#'   \strong{Defaults to \code{NULL} (disabled) for the PSM}, unlike the price model's
+#'   \code{0.5}: the CAPMF policy-stringency index accumulates over time, so the linear
+#'   \code{timeTrend} is a legitimate common-shock control rather than atheoretical
+#'   extrapolation, and a hard 50-percent-trend rejection would reject every spec. The
+#'   \emph{soft} within-tie low-trend preference in \code{computeMaximinScore} is
+#'   retained, and \code{trendShare} is surfaced in the report, so a trend-heavy winner
+#'   stays visible. Set a numeric value to re-impose the hard gate.
+#' @param deltaR2Max Numeric. Fit-reliability gate forwarded to
+#'   \code{\link{computeMaximinScore}} (default \code{1} — a mathematical validity
+#'   bound on the incremental McFadden pseudo-R2; a spec exceeding it is degenerate).
 #' @param sanityBatchSize,sanityMaxModels,sanityThresholds Sanity-walk knobs;
 #'   thresholds are the \code{\link{computePolicyStringencySanity}} overrides.
 #' @param overwriteConfig Logical. Regenerate the auto-generated spec YAML.
@@ -67,6 +79,8 @@ runPSMSweep <- function(group,
                         feParsimonyWeight = 0,
                         dropIdleControls = TRUE,
                         softVifGate = 6,
+                        trendDominanceGate = NULL,
+                        deltaR2Max = 1,
                         sanityBatchSize = 5,
                         sanityMaxModels = 20,
                         sanityThresholds = list(),
@@ -169,11 +183,20 @@ runPSMSweep <- function(group,
   mm <- computeMaximinScore(sub[, mmCols, drop = FALSE], nearTieEps = nearTieEps,
                             feParsimonyWeight = feParsimonyWeight,
                             dropIdleControls = dropIdleControls,
-                            softVifGate = softVifGate)
+                            softVifGate = softVifGate,
+                            trendDominanceGate = trendDominanceGate,
+                            deltaR2Max = deltaR2Max)
   maximin[["PolicyStringency"]] <- mm
   pass <- mm[mm$gatePass, , drop = FALSE]
   if (nrow(pass) == 0) {
-    say("WARNING: no gate-passing PSM spec.")
+    # Self-diagnosing: tally WHY every spec failed the hard gate (reason labels,
+    # sector suffix stripped) so the SLURM log states the cause without sweep.rds.
+    reasons <- mm$gateFailReason[nzchar(mm$gateFailReason)]
+    labels <- trimws(sub(":.*$", "", unlist(strsplit(reasons, "; "))))
+    tally <- sort(table(labels), decreasing = TRUE)
+    say("WARNING: no gate-passing PSM spec. Gate-failure tally: ",
+        if (length(tally)) paste(sprintf("%s (x%d)", names(tally), as.integer(tally)),
+                                 collapse = "; ") else "(no reasons recorded)")
   } else if (is.null(scenarioData)) {
     selected[["PolicyStringency"]] <- pass$model[1]
     say("Selected PSM spec (maximin only - no scenario, sanity gate skipped): ",
