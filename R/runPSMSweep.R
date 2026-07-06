@@ -34,15 +34,17 @@
 #'   deliverable (model-name \code{fe:} tags), as in the price-model selection.
 #' @param nearTieEps,feParsimonyWeight,dropIdleControls,softVifGate Maximin knobs,
 #'   forwarded to \code{\link{computeMaximinScore}}.
-#' @param trendDominanceGate Numeric in \code{[0, 1]} or \code{NULL}. Hard
-#'   trend-dominance gate forwarded to \code{\link{computeMaximinScore}} (ADR 0033).
-#'   \strong{Defaults to \code{NULL} (disabled) for the PSM}, unlike the price model's
-#'   \code{0.5}: the CAPMF policy-stringency index accumulates over time, so the linear
+#' @param trendDominanceGate Numeric or \code{NULL}. Hard trend-dominance gate
+#'   forwarded to \code{\link{computeMaximinScore}} (ADR 0033). \strong{Defaults to
+#'   \code{0.9} for the PSM}, relaxed from the price model's \code{0.5}: the CAPMF
+#'   policy-stringency index accumulates almost monotonically over time, so the linear
 #'   \code{timeTrend} is a legitimate common-shock control rather than atheoretical
-#'   extrapolation, and a hard 50-percent-trend rejection would reject every spec. The
-#'   \emph{soft} within-tie low-trend preference in \code{computeMaximinScore} is
-#'   retained, and \code{trendShare} is surfaced in the report, so a trend-heavy winner
-#'   stays visible. Set a numeric value to re-impose the hard gate.
+#'   extrapolation. The first real-data sweep (2026-07-06) had a median \code{trendShare}
+#'   of 0.64, so a \code{0.5} gate rejected the trended-but-driver-informed majority; the
+#'   \code{0.9} ceiling still culls near-pure-trend degenerates (trendShare > 0.9). The
+#'   \emph{soft} within-tie low-trend preference is retained and \code{trendShare} is
+#'   surfaced in the report, so a trend-heavy winner stays visible. \code{NULL} disables
+#'   the hard gate entirely.
 #' @param deltaR2Max Numeric. Fit-reliability gate forwarded to
 #'   \code{\link{computeMaximinScore}} (default \code{1} — a mathematical validity
 #'   bound on the incremental McFadden pseudo-R2; a spec exceeding it is degenerate).
@@ -79,7 +81,7 @@ runPSMSweep <- function(group,
                         feParsimonyWeight = 0,
                         dropIdleControls = TRUE,
                         softVifGate = 6,
-                        trendDominanceGate = NULL,
+                        trendDominanceGate = 0.9,
                         deltaR2Max = 1,
                         sanityBatchSize = 5,
                         sanityMaxModels = 20,
