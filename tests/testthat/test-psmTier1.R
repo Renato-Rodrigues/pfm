@@ -45,6 +45,54 @@ test_that("runPSMFrontier writes the frontier artifact for the deployed spec", {
   expect_true("frontier" %in% names(mf$steps))
 })
 
+test_that("frontier robustness rungs run and report slack-rank stability", {
+  skip_if_not_installed("frontier")
+  skip_if_not_installed("plm")
+  fit <- psmFit(makePSMagpie(), estimator = "frontier")
+  rob <- computeFrontierRobustness(fit)
+  expect_true(all(c("truncnorm", "panel", "decay") %in% names(rob)))
+  for (rg in names(rob)) {
+    e <- rob[[rg]]
+    # a rung may legitimately fail to converge on the synthetic DGP (symmetric
+    # noise, no true frontier); it must then carry an informative $error
+    expect_true(!is.null(e$error) ||
+                  (is.finite(e$gamma) && e$gamma >= 0 && e$gamma <= 1))
+    if (is.null(e$error)) {
+      expect_true(is.na(e$slackRankCor) ||
+                    (e$slackRankCor >= -1 && e$slackRankCor <= 1))
+    }
+  }
+  if (is.null(rob$decay$error)) expect_true(is.numeric(rob$decay$eta))
+})
+
+test_that("temporal validation adds the ECM and events forms (the rate pivot)", {
+  resultsDir <- withr::local_tempdir()
+  modelDir <- withr::local_tempdir()
+  psmTestSweep("psm-tv2", resultsDir, modelDir)
+  res <- suppressMessages(suppressWarnings(runPSMTemporalValidation(
+    group = "psm-tv2", resultsDir = resultsDir, modelDir = modelDir,
+    panelData = makePSMSweepMagpie(), trainEnd = 2015, verbose = FALSE
+  )))
+  expect_true(length(res$bySector) >= 1)
+  for (sec in names(res$bySector)) {
+    e <- res$bySector[[sec]]$ecm
+    expect_false(is.null(e))
+    m <- e$metrics
+    expect_true(is.finite(m$rmse))
+    expect_true(is.finite(m$skillVsPersistence))
+    expect_true(is.finite(m$adjustmentSpeed))
+    expect_true(all(e$rows$year > 2015))
+    ev <- res$bySector[[sec]]$events
+    expect_false(is.null(ev))
+    me <- ev$metrics
+    expect_gte(me$auc, 0)
+    expect_lte(me$auc, 1)
+    expect_true(is.finite(me$skillVsBaseRate))
+    expect_gt(me$n, 0)
+    expect_true(all(ev$rows$p >= 0 & ev$rows$p <= 1))
+  }
+})
+
 # ── #3: shift-share IV ───────────────────────────────────────────────────────────
 
 test_that("satP-iv instruments Incumbent Power with the shift-share and recovers the sign", {

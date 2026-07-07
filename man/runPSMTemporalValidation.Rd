@@ -12,6 +12,8 @@ runPSMTemporalValidation(
   panelData = NULL,
   y = 2000:2022,
   trainEnd = 2015,
+  extraForms = c("ecm", "events"),
+  eventJump = 0.25,
   outputRegionMappingFile = "regionmapping_54.csv",
   indexMax = 10,
   verbose = TRUE
@@ -28,6 +30,19 @@ runPSMTemporalValidation(
 
 \item{trainEnd}{Numeric. Last training year; later years are held out.
 Default \code{2015} (7 held-out years).}
+
+\item{extraForms}{Character vector. Additional feasibility-as-speed readings
+validated alongside the static level forecast (2026-07-07, appraisal-v3
+pivot): \code{"ecm"} — the error-correction form, forecast by integrating
+the level recursion from the observed \code{trainEnd} level (nests
+persistence, so beating it is a fair fight); \code{"events"} — a
+discrete-time ratchet-event hazard on panel-derived jump events
+(index increase of at least \code{eventJump} within a sector-region-year),
+scored on held-out events by AUC and by Brier skill against a per-region
+base-rate baseline. Set \code{character(0)} to skip.}
+
+\item{eventJump}{Numeric. Index-points threshold defining a region-level
+ratchet event for the \code{"events"} form. Default \code{0.25}.}
 
 \item{outputRegionMappingFile, indexMax, verbose}{As in
 \code{\link{runPSMProjection}}.}

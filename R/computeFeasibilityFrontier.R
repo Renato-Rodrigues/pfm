@@ -77,4 +77,98 @@ computeFeasibilityFrontier <- function(fit) {
     row.names = NULL
   )
 }
+
+#' SFA robustness rungs for the feasibility frontier
+#'
+#' @description
+#' The gamma-at-the-boundary problem of the pooled half-normal frontier (first
+#' real-data run: gamma = 1.0 — slack absorbs all noise and the within-FE-group
+#' country heterogeneity) is interrogated with the standard SFA sensitivity
+#' battery, run on the SAME estimation data and formula as the headline fit:
+#' \describe{
+#'   \item{truncnorm}{Truncated-normal inefficiency distribution (the
+#'     distributional-assumption rung offered by the \pkg{frontier} package).}
+#'   \item{panel}{Panel frontier with time-invariant region inefficiency
+#'     (Battese–Coelli 1992 via \code{plm::pdata.frame}; region-FE dummies
+#'     dropped — the panel u_i takes their place). This is the opposite
+#'     attribution pole from the pooled fit: ALL persistent region deviation is
+#'     slack. Together the two bracket the heterogeneity-vs-slack ambiguity.}
+#'   \item{decay}{Battese–Coelli time-varying efficiency
+#'     (\code{timeEffect = TRUE}): u_it = u_i exp(-eta (t - T)). The decay
+#'     parameter \code{eta} is a direct estimate of the slack-closure rate —
+#'     the ratcheting-speed quantity of the feasibility-as-speed reading.}
+#' }
+#' The statistic that decides whether the ambition-gap exhibit survives is
+#' \code{slackRankCor}: the Spearman correlation between each rung's region-mean
+#' slack ranking and the headline ranking.
+#'
+#' @param fit A fit result from
+#'   \code{\link{estimatePolicyStringencyModel}}\code{(estimator = "frontier")}.
+#' @param rungs Character vector; subset of \code{c("truncnorm","panel","decay")}.
+#'
+#' @return Named list per rung: \code{gamma}, \code{logLik}, \code{converged},
+#'   \code{slackRankCor} (vs the headline pooled slack, region means),
+#'   \code{eta} (decay rung only: the slack-closure rate, positive = gaps
+#'   closing over time), or \code{$error} when a rung failed.
+#'
+#' @author Renato Rodrigues
+#' @export
+computeFrontierRobustness <- function(fit, rungs = c("truncnorm", "panel", "decay")) {
+  rungs <- match.arg(rungs, c("truncnorm", "panel", "decay"), several.ok = TRUE)
+  df <- fit$data
+  base <- computeFeasibilityFrontier(fit)
+  baseSlack <- tapply(base$slackIndex, base$region, mean, na.rm = TRUE)
+
+  fml <- stats::as.formula(fit$formula)
+  fmlNoFE <- if ("regionFE" %in% all.vars(fml)) stats::update(fml, . ~ . - regionFE) else fml
+  panelDf <- function() {
+    d <- df
+    d$region <- as.character(d$region)
+    plm::pdata.frame(d, index = c("region", "year"))
+  }
+
+  slackOf <- function(sfaFit, d) {
+    # frontier::efficiencies gives E[exp(-u)]-type measures; for ranking use
+    # -log(efficiency) as the slack proxy on the response scale (monotone in u).
+    eff <- tryCatch(frontier::efficiencies(sfaFit, asInData = TRUE), error = function(e) NULL)
+    if (is.null(eff)) return(NULL)
+    u <- -log(pmax(as.numeric(eff), 1e-9))
+    tapply(u, as.character(d$region), mean, na.rm = TRUE)
+  }
+  rankCor <- function(slack) {
+    if (is.null(slack)) return(NA_real_)
+    common <- intersect(names(slack), names(baseSlack))
+    if (length(common) < 5) return(NA_real_)
+    suppressWarnings(stats::cor(slack[common], baseSlack[common], method = "spearman"))
+  }
+  gammaOf <- function(f) tryCatch(as.numeric(stats::coef(f)[["gamma"]]), error = function(e) NA_real_)
+
+  out <- list()
+  if ("truncnorm" %in% rungs) {
+    out$truncnorm <- tryCatch({
+      f <- frontier::sfa(fml, data = df, truncNorm = TRUE)
+      list(gamma = gammaOf(f), logLik = as.numeric(stats::logLik(f)),
+           converged = all(is.finite(stats::coef(f))), slackRankCor = rankCor(slackOf(f, df)))
+    }, error = function(e) list(error = conditionMessage(e)))
+  }
+  if ("panel" %in% rungs) {
+    out$panel <- tryCatch({
+      pd <- panelDf()
+      f <- frontier::sfa(fmlNoFE, data = pd)
+      list(gamma = gammaOf(f), logLik = as.numeric(stats::logLik(f)),
+           converged = all(is.finite(stats::coef(f))), slackRankCor = rankCor(slackOf(f, pd)))
+    }, error = function(e) list(error = conditionMessage(e)))
+  }
+  if ("decay" %in% rungs) {
+    out$decay <- tryCatch({
+      pd <- panelDf()
+      f <- frontier::sfa(fmlNoFE, data = pd, timeEffect = TRUE)
+      eta <- tryCatch(as.numeric(stats::coef(f)[["time"]]), error = function(e) NA_real_)
+      list(gamma = gammaOf(f), logLik = as.numeric(stats::logLik(f)),
+           converged = all(is.finite(stats::coef(f))), eta = eta,
+           slackRankCor = rankCor(slackOf(f, pd)))
+    }, error = function(e) list(error = conditionMessage(e)))
+  }
+  out
+}
 # nolint end

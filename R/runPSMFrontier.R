@@ -101,15 +101,36 @@ runPSMFrontier <- function(group,
     names(ct) <- c("estimate", "stdError", "zValue", "pValue")
     ct$term <- rownames(fit$coeftest)
     rownames(ct) <- NULL
+    rob <- tryCatch(computeFrontierRobustness(fit), error = function(e) NULL)
     out$bySector[[sec]] <- list(
       gamma = fit$frontierGamma,
       lr = fit$frontierLR,
       n = nrow(fit$data),
       converged = isTRUE(fit$converged),
       coefTable = ct,
-      scores = fit$frontier
+      scores = fit$frontier,
+      robustness = rob
     )
     stepMetrics[[paste0("gamma", sec)]] <- round(fit$frontierGamma, 3)
+    if (!is.null(rob)) {
+      for (rg in names(rob)) {
+        rc <- rob[[rg]]$slackRankCor
+        if (!is.null(rc) && is.finite(rc)) {
+          stepMetrics[[paste0(rg, "RankCor", sec)]] <- round(rc, 2)
+        }
+      }
+      if (!is.null(rob$decay$eta) && is.finite(rob$decay$eta)) {
+        stepMetrics[[paste0("decayEta", sec)]] <- round(rob$decay$eta, 4)
+      }
+      say("  ", sec, " robustness: ",
+          paste(vapply(names(rob), function(rg) {
+            if (!is.null(rob[[rg]]$error)) paste0(rg, "=FAILED")
+            else sprintf("%s(gamma=%.2f, rankCor=%.2f%s)", rg,
+                         rob[[rg]]$gamma %||% NA,
+                         rob[[rg]]$slackRankCor %||% NA,
+                         if (rg == "decay") sprintf(", eta=%.3f", rob[[rg]]$eta %||% NA) else "")
+          }, character(1)), collapse = " | "))
+    }
     say("  ", sec, ": gamma = ", round(fit$frontierGamma, 3),
         " | LR vs no-frontier = ", round(fit$frontierLR, 1),
         " | median slack = ",
