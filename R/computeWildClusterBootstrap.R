@@ -26,6 +26,11 @@ computeWildClusterBootstrap <- function(fit, B = 999, seed = 42) {
   fml <- stats::as.formula(fit$formula)
   vars <- intersect(all.vars(fml), colnames(df))
   df <- df[stats::complete.cases(df[, vars, drop = FALSE]), , drop = FALSE]
+  # empty regionFE levels (out-of-coverage H12 regions) create all-zero dummy
+  # columns -> singular crossprod (same failure mode as the frontier rung)
+  if ("regionFE" %in% colnames(df) && is.factor(df$regionFE)) {
+    df$regionFE <- droplevels(df$regionFE)
+  }
   mm <- stats::model.matrix(fml, data = df)
   yv <- df$ecp[match(rownames(mm), rownames(df))]
   g <- as.character(df$region[match(rownames(mm), rownames(df))])
