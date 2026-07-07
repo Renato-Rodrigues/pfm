@@ -364,6 +364,12 @@ estimatePolicyStringencyModel <- function(
     # complete cases explicitly.
     keepVars <- intersect(all.vars(fml), colnames(df))
     df <- df[stats::complete.cases(df[, keepVars, drop = FALSE]), , drop = FALSE]
+    # regionFE keeps mapping levels with no estimation rows (out-of-coverage H12
+    # regions); glm silently NA-drops their dummies but frontier::sfa refuses
+    # ("OLS coefficient NA") — first real-data run, 2026-07-07.
+    if ("regionFE" %in% colnames(df) && is.factor(df$regionFE)) {
+      df$regionFE <- droplevels(df$regionFE)
+    }
     fit <- tryCatch(
       frontier::sfa(fml, data = df),
       error = function(e) stop("estimatePolicyStringencyModel: frontier::sfa failed: ",
