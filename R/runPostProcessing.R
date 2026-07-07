@@ -774,7 +774,8 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                 "projection", "selection-bootstrap",
                 # Policy Stringency Model pipeline (ADR 0036) — run in its OWN Run-Group
                 # (e.g. group = "psm-exhaustive"), never mixed into a price-model group.
-                "psm-sweep", "psm-projection", "psm-agreement")
+                "psm-sweep", "psm-projection", "psm-agreement", "psm-temporal",
+                "psm-frontier")
   steps <- intersect(allSteps, steps)
   if (length(steps) == 0) stop("runModelGroup: no valid steps. Choose from ",
                                paste(allSteps, collapse = ", "), ".", call. = FALSE)
@@ -790,7 +791,9 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                     "selection-bootstrap" = "selection-bootstrap.rds",
                     "psm-sweep" = "selected-models-psm.yml",
                     "psm-projection" = "projection.rds",
-                    "psm-agreement" = "estimator-agreement.rds")
+                    "psm-agreement" = "estimator-agreement.rds",
+                    "psm-temporal" = "temporal-validation.rds",
+                    "psm-frontier" = "frontier.rds")
   # A step counts as "already done" (resume-skippable) only when ALL its expected artifacts exist.
   # For the projection step (ADR 0035) that means one projections/<id>.rds per configured scenario
   # PLUS the legacy projection.rds — so a stale single-scenario projection.rds no longer masks
@@ -843,6 +846,22 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
   }
   if (doStep("psm-projection")) { say("step: psm-projection"); runPSMProjection(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile, scenarios = scenarios, verbose = verbose) }
   if (doStep("psm-agreement")) { say("step: psm-agreement"); runPSMEstimatorAgreement(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, verbose = verbose) }
+  if (doStep("psm-temporal")) {
+    say("step: psm-temporal")
+    dots <- list(...)
+    tvArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
+                     cachefolder = cachefolder, verbose = verbose),
+                dots[names(dots) %in% names(formals(runPSMTemporalValidation))])
+    do.call(runPSMTemporalValidation, tvArgs)
+  }
+  if (doStep("psm-frontier")) {
+    say("step: psm-frontier")
+    dots <- list(...)
+    frArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
+                     cachefolder = cachefolder, verbose = verbose),
+                dots[names(dots) %in% names(formals(runPSMFrontier))])
+    do.call(runPSMFrontier, frArgs)
+  }
   say("done: ", paste(steps, collapse = ", "))
   invisible(file.path(resultsDir, group))
 }

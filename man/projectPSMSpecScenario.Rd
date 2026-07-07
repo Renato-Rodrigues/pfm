@@ -12,6 +12,7 @@ projectPSMSpecScenario(
   modelDir = getOption("pfm.modelDir", "output"),
   indexMax = 10,
   minProjYear = NULL,
+  driverGuard = c("winsorize", "none"),
   verbose = FALSE
 )
 }
@@ -34,14 +35,21 @@ outcome.}
 \item{minProjYear}{Numeric or NULL. Horizon cutoff (\code{NULL} = last
 historical year of the fit).}
 
+\item{driverGuard}{Character. \code{"winsorize"} (default) clamps standardized
+base drivers at their estimation-sample support and recomputes interactions
+before projecting (see \code{\link{predictPolicyStringency}}); \code{"none"}
+disables the clamp (the \code{driverOutOfSupport} audit is still emitted).}
+
 \item{verbose}{Logical.}
 }
 \value{
 Data.frame \code{region, year, sector, eta, index, indexLo, indexHi,
-  outOfCoverage} — the same columns as \code{\link{predictPolicyStringency}}
-(delta-method 95 percent interval on the non-dynamic path, NA under the lag
-recursion; \code{outOfCoverage} flags regions absent from the estimation
-sample), or \code{NULL} when the spec is not projectable.
+  outOfCoverage, driverOutOfSupport} — the same columns as
+\code{\link{predictPolicyStringency}} (delta-method 95 percent interval on
+the non-dynamic path, NA under the lag recursion; out-of-coverage rows get
+the between-FE spread added to their interval; \code{outOfCoverage} flags
+regions absent from the estimation sample), or \code{NULL} when the spec is
+not projectable.
 }
 \description{
 The Policy Stringency Model counterpart of \code{\link{projectSpecScenario}}:

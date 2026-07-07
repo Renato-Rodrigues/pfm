@@ -30,7 +30,8 @@ estimatePolicyStringencyModel(
   label = "",
   verbose = TRUE,
   maxit = 3000,
-  prepared = FALSE
+  prepared = FALSE,
+  form = "static"
 )
 }
 \arguments{
@@ -73,6 +74,10 @@ agreement exhibit and are never cached.}
 \item{prepared}{Logical. When \code{TRUE}, \code{data} is an already-prepared
 data.frame with the response \emph{already transformed} for this estimator
 (bootstrap/refit entry, ADR 0025); prep, transforms, cache and save are skipped.}
+
+\item{form}{Character. \code{"static"} (default) or \code{"ecm"} — the
+error-correction dynamics form (satP engine only; see Description). Appended
+last for backward compatibility.}
 }
 \value{
 A list with elements \code{model}, \code{coeftest} (cluster-robust),
@@ -110,9 +115,26 @@ AIC/BIC} — never used for selection.}
 share — the full-likelihood cross-check. Optional dependency.}
 \item{levels}{Gaussian-identity GLM on the raw index — the literature-benchmark
 rung; unbounded, never projected.}
+\item{satP-re}{Partial-pooling cross-check (R4, 2026-07-06): the satP response
+with random region intercepts (\code{lme4::lmer}, ML) replacing the region-FE
+dummies — the shrinkage answer to the reference-FE-inheritance problem for
+regions with thin support. Model-based (non-clustered) fixed-effect SEs: the
+random intercept absorbs the within-region correlation the sandwich would
+target; stated, not hidden. Suite exhibit only — never cached, never projected,
+no AMEs. Optional dependency \code{lme4}.}
 }
 Estimators are compared ONLY on signs/AMEs and scale-free out-of-sample metrics
 (see \code{\link{computeEstimatorAgreement}}), never on information criteria.
+
+\strong{Dynamics (R5, 2026-07-06).} \code{form = "ecm"} (satP engine only)
+estimates the error-correction form \eqn{\Delta y*_t = c + \phi y*_{t-1} +
+\beta' x_{t-1}} on the transformed response — the feasibility-as-speed reading:
+\code{adjustmentSpeed} (\eqn{-\phi}) is how fast a polity closes the gap to its
+politically determined equilibrium stringency, and \code{longRun} reports the
+equilibrium effects \eqn{-\beta/\phi}. Projection integrates the recursion
+\eqn{y*_t = (1+\phi) y*_{t-1} + c + \beta'x} (see
+\code{\link{predictPolicyStringency}}). Link-scale AMEs are suppressed for this
+form (the short-run \eqn{\Delta}-scale AME is not comparable to the suite).
 }
 \author{
 Renato Rodrigues

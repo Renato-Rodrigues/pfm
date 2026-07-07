@@ -59,7 +59,11 @@ buildPFMModel <- function(fit, training_data, sector, stage, family, useFirth, l
     gdpQ          = .pfm_env$gdppc_q_fit,
     scPCA         = .pfm_env$sc_pca_rotation,
     family        = family,
-    prepSpec      = prepSpec
+    prepSpec      = prepSpec,
+    # Per-driver training support (standardized scale) for the projection-time
+    # driver guard (R3, 2026-07-06): base driver columns only (interactions are
+    # recomputed from guarded factors at projection time).
+    driverRanges  = .driverSupportRanges(training_data)
   )
 
   # --- ADR 0009: minimal state the lag recursion / clamp need without the panel ---

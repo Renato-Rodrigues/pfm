@@ -132,9 +132,10 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
   availableVars <- magclass::getNames(data)
   hasEcp <- ecpName %in% availableVars
 
-  # Verify all requested predictor variables exist (excluding internally computed lags)
+  # Verify all requested predictor variables exist (excluding internally computed
+  # lags and the internally derived EU Membership dummy)
   missing <- setdiff(allVarsNeeded, availableVars)
-  missing <- setdiff(missing, c("lagged_ecp", "lagged_adoption"))
+  missing <- setdiff(missing, c("lagged_ecp", "lagged_adoption", "EU Membership"))
   if (length(missing) > 0) {
     stop(
       "The following variables are missing from the data: ",
@@ -210,7 +211,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
       # All other drivers
       cleanDrivers <- setdiff(
         c(actorPowerDrivers, instQualityDrivers, controlDrivers),
-        c("lagged_ecp", "lagged_adoption")
+        c("lagged_ecp", "lagged_adoption", "EU Membership")
       )
       # Do not process variables again if they were already processed via actorPowerIndex
       cleanDrivers <- setdiff(cleanDrivers, actorPowerIndex)
@@ -236,6 +237,29 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
     })
     names(cols) <- col_names
     df <- as.data.frame(cols, stringsAsFactors = FALSE)
+  }
+
+  # --- EU Membership (R7, 2026-07-06): time-varying accession dummy -----------
+  # A policy-diffusion regressor replacing part of what the atheoretical trend
+  # absorbs (the EU acquis mechanically ratchets member stringency). Derived from
+  # region + year, so it is projection-safe by construction (frozen at its last
+  # value under any scenario). Only UNAMBIGUOUS R54 codes carry a default
+  # accession year; multi-country aggregates (NES_EU, ECS, ECE_other, NEN_other,
+  # ...) are deliberately uncoded (0) until their composition is verified — a
+  # documented caveat, not a hidden assumption. GBR exits in 2020 (Brexit).
+  # Lagged like every other driver (membership at year - lag).
+  if ("EU Membership" %in% controlDrivers) {
+    euAccession <- c(
+      DEU = 1958, FRA = 1958, ITA = 1958, NLD = 1958, BELUX = 1958,
+      IRL = 1973, DNK = 1973, GBR = 1973,
+      GRC = 1981, ESP = 1986, PRT = 1986,
+      AUT = 1995, SWE = 1995, FIN = 1995, POL = 2004
+    )
+    accYr <- euAccession[df$region]
+    memberYr <- df$year - lag
+    eu <- as.numeric(!is.na(accYr) & memberYr >= accYr)
+    eu[df$region == "GBR" & memberYr >= 2020] <- 0
+    df[[make.names("EU Membership")]] <- eu
   }
 
   # --- Mundlak correction: within-region means of theory & control variables ---

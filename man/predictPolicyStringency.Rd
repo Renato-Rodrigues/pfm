@@ -8,6 +8,7 @@ predictPolicyStringency(
   model,
   scenarioData,
   minProjYear = NULL,
+  driverGuard = c("winsorize", "none"),
   verbose = FALSE
 )
 }
@@ -22,11 +23,25 @@ defensively here, as in \code{predictFeasibility}).}
 greater are returned. \code{NULL} derives it from
 \code{model$training_years[2]}.}
 
+\item{driverGuard}{Character. \code{"winsorize"} (default) clamps each
+standardized base driver to its training-support range (stored on the model
+as \code{transforms$driverRanges}) and recomputes the interaction columns
+from the guarded factors before building \code{eta} — a disclosed
+regressor-support restriction (the response stays bounded-by-construction;
+nothing clamps the outcome). The per-row share of drivers that were outside
+support is returned as \code{driverOutOfSupport} (the extrapolation audit).
+\code{"none"} disables the guard (pre-guard behaviour; the audit column is
+still computed when ranges are available). Models persisted before the
+guard existed carry no ranges: the guard is skipped with a message.}
+
 \item{verbose}{Logical.}
 }
 \value{
 Data.frame \code{region, year, sector, eta, index, indexLo, indexHi,
-  outOfCoverage} with \code{index} in \code{[0, indexMax]} (natural CAPMF units).
+  outOfCoverage, driverOutOfSupport} with \code{index} in \code{[0, indexMax]}
+(natural CAPMF units). For out-of-coverage rows the interval additionally
+carries the between-region-FE spread (they inherit the reference-group
+fixed effect, so the FE assignment uncertainty is part of their interval).
 }
 \description{
 Produces scenario projections of the Policy Stringency Model

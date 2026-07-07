@@ -7,7 +7,7 @@
 computeEstimatorAgreement(
   data,
   sector = "Bulk",
-  estimators = c("satP", "fractional", "beta", "levels"),
+  estimators = c("satP", "fractional", "beta", "levels", "satP-re"),
   indexMax = 10,
   verbose = TRUE,
   ...

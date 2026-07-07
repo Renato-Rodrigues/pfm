@@ -131,3 +131,57 @@ psmFitAndLoad <- function(m, dir, ...) {
   stopifnot(length(files) == 1)
   loadPFMModel(sub("\\.rds$", "", files[[1]]), dir)
 }
+
+# Shift-share IV fixture: Incumbent Power declines from a heterogeneous base
+# level as global VRE diffuses (strong first stage for z = inc0 x looVRE), and
+# the outcome falls with incumbent power (true beta < 0).
+makePSMIVMagpie <- function() {
+  set.seed(61)
+  regions <- paste0("R", 1:24)
+  years <- 2000:2019
+  nR <- length(regions)
+  nY <- length(years)
+  vars <- c("Policy Stringency|Bulk", "Incumbent Power|Bulk",
+            "Rule of Law (VDem)", "VRE share")
+  m <- magclass::new.magpie(regions, years, vars, fill = NA)
+  inc0 <- runif(nR, 0.2, 0.95)
+  vre <- outer(runif(nR, 0, 0.05), rep(1, nY)) +
+    outer(rep(1, nR), seq(0, 0.5, length.out = nY)) +
+    matrix(rnorm(nR * nY, sd = 0.02), nR, nY)
+  vreGlobal <- colMeans(vre)
+  inc <- outer(inc0, 1 - 0.8 * vreGlobal) + matrix(rnorm(nR * nY, sd = 0.03), nR, nY)
+  iq <- matrix(runif(nR * nY), nR, nY)
+  y <- matrix(NA_real_, nR, nY)
+  for (t in 2:nY) {
+    eta <- 0.5 - 2.0 * inc[, t - 1] + 1.0 * iq[, t - 1] + rnorm(nR, sd = 0.15)
+    y[, t] <- 10 * plogis(eta)
+  }
+  m[, , "Incumbent Power|Bulk"] <- as.vector(inc)
+  m[, , "Rule of Law (VDem)"] <- as.vector(iq)
+  m[, , "VRE share"] <- as.vector(vre)
+  m[, , "Policy Stringency|Bulk"] <- as.vector(y)
+  m
+}
+
+# Event-history fixture: binary ratchet events from lag-1 drivers with known
+# positive effects. The outcome is stored UNqualified ("Ratchet Event") to
+# exercise estimatePolicyRatchetModel's sector-alias path.
+makePSMEventMagpie <- function() {
+  set.seed(71)
+  regions <- paste0("R", 1:12)
+  years <- 2000:2019
+  nR <- length(regions)
+  nY <- length(years)
+  vars <- c("Ratchet Event", "Actor Power Index|Bulk", "Rule of Law (VDem)")
+  m <- magclass::new.magpie(regions, years, vars, fill = NA)
+  ap <- matrix(runif(nR * nY, -0.8, 0.1), nR, nY)
+  iq <- matrix(runif(nR * nY), nR, nY)
+  ev <- matrix(NA_real_, nR, nY)
+  for (t in 2:nY) {
+    ev[, t] <- rbinom(nR, 1, plogis(-1.2 + 2.0 * ap[, t - 1] + 1.5 * iq[, t - 1]))
+  }
+  m[, , "Actor Power Index|Bulk"] <- as.vector(ap)
+  m[, , "Rule of Law (VDem)"] <- as.vector(iq)
+  m[, , "Ratchet Event"] <- as.vector(ev)
+  m
+}

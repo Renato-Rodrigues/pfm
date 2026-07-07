@@ -22,20 +22,28 @@
 #' @param indexMax Numeric. Index ceiling. Default \code{10}.
 #' @param minProjYear Numeric or NULL. Horizon cutoff (\code{NULL} = last
 #'   historical year of the fit).
+#' @param driverGuard Character. \code{"winsorize"} (default) clamps standardized
+#'   base drivers at their estimation-sample support and recomputes interactions
+#'   before projecting (see \code{\link{predictPolicyStringency}}); \code{"none"}
+#'   disables the clamp (the \code{driverOutOfSupport} audit is still emitted).
 #' @param verbose Logical.
 #'
 #' @return Data.frame \code{region, year, sector, eta, index, indexLo, indexHi,
-#'   outOfCoverage} — the same columns as \code{\link{predictPolicyStringency}}
-#'   (delta-method 95 percent interval on the non-dynamic path, NA under the lag
-#'   recursion; \code{outOfCoverage} flags regions absent from the estimation
-#'   sample), or \code{NULL} when the spec is not projectable.
+#'   outOfCoverage, driverOutOfSupport} — the same columns as
+#'   \code{\link{predictPolicyStringency}} (delta-method 95 percent interval on
+#'   the non-dynamic path, NA under the lag recursion; out-of-coverage rows get
+#'   the between-FE spread added to their interval; \code{outOfCoverage} flags
+#'   regions absent from the estimation sample), or \code{NULL} when the spec is
+#'   not projectable.
 #'
-#' @importFrom stats plogis coef terms delete.response model.frame model.matrix na.pass qnorm
+#' @importFrom stats plogis coef terms delete.response model.frame model.matrix na.pass qnorm sd
 #' @export
 #' @author Renato Rodrigues
 projectPSMSpecScenario <- function(cfg, sector, histData, scenarioData,
                                    modelDir = getOption("pfm.modelDir", "output"),
-                                   indexMax = 10, minProjYear = NULL, verbose = FALSE) {
+                                   indexMax = 10, minProjYear = NULL,
+                                   driverGuard = c("winsorize", "none"),
+                                   verbose = FALSE) {
   if (!identical(cfg$panelTransform %||% "levels", "levels")) {
     if (isTRUE(verbose)) {
       message("projectPSMSpecScenario: panelTransform '", cfg$panelTransform,
@@ -77,6 +85,21 @@ projectPSMSpecScenario <- function(cfg, sector, histData, scenarioData,
     sDf$regionFE <- factor(fe, levels = lv)
   }
 
+  # Driver-support guard + extrapolation audit (R3): winsorize standardized base
+  # drivers at the estimation-sample support and recompute interactions, so the
+  # sanity gate scores projections on the same design support the coefficients
+  # were estimated on. The in-session fit always carries its estimation rows.
+  driverGuard <- match.arg(driverGuard)
+  ranges <- .driverSupportRanges(fit$data)
+  guarded <- .psmDriverGuard(sDf, ranges)
+  driverOutOfSupport <- guarded$outOfSupport
+  if (identical(driverGuard, "winsorize")) {
+    sDf <- guarded$df
+  }
+
+  trainedRegions <- unique(as.character(fit$data$region))
+  ocRows <- !(as.character(sDf$region) %in% trainedRegions)
+
   designEta <- function(df, withDesign = FALSE) {
     tt <- stats::delete.response(stats::terms(fit$formula))
     mm <- stats::model.matrix(tt, stats::model.frame(tt, data = df, na.action = stats::na.pass))
@@ -95,6 +118,10 @@ projectPSMSpecScenario <- function(cfg, sector, histData, scenarioData,
     if (!is.null(vc) && all(d$shared %in% rownames(vc))) {
       vcS <- vc[d$shared, d$shared, drop = FALSE]
       seEta <- sqrt(pmax(rowSums((d$mm %*% vcS) * d$mm), 0))
+      # Out-of-coverage rows inherit the reference-group FE: widen their interval
+      # by the between-FE spread (R4a).
+      feSpread <- .regionFESpread(stats::coef(fit$model))
+      seEta[ocRows] <- sqrt(seEta[ocRows]^2 + feSpread^2)
       zc <- stats::qnorm(0.975)
       etaLo <- eta - zc * seEta
       etaHi <- eta + zc * seEta
@@ -128,13 +155,13 @@ projectPSMSpecScenario <- function(cfg, sector, histData, scenarioData,
     }
   }
 
-  trainedRegions <- unique(as.character(fit$data$region))
   out <- data.frame(
     region = sDf$region, year = sDf$year, sector = sector,
     eta = eta, index = indexMax * stats::plogis(eta),
     indexLo = if (!is.null(etaLo)) indexMax * stats::plogis(etaLo) else NA_real_,
     indexHi = if (!is.null(etaHi)) indexMax * stats::plogis(etaHi) else NA_real_,
-    outOfCoverage = !(as.character(sDf$region) %in% trainedRegions),
+    outOfCoverage = ocRows,
+    driverOutOfSupport = driverOutOfSupport,
     stringsAsFactors = FALSE
   )
   cut <- minProjYear %||% (if (is.finite(lastHistYear)) lastHistYear else -Inf)

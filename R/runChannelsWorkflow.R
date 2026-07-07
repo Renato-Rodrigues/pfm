@@ -602,8 +602,23 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
                                             logical(1))), logical(1)))
   }
   base$sigInteractions <- sigInt
-  base$sigInstQual <- countMatches(sigBase, cfg$instQualityDrivers)
-  base$sigActorPower <- countMatches(sigBase, c(cfg$actorPowerDrivers, cfg$actorPowerIndex))
+  if (identical(stage, "PolicyStringency")) {
+    # PSM tier attribution (R1, 2026-07-06): significant interaction terms count
+    # toward BOTH parent theory groups, not only the sigInteractions bucket. The
+    # mains-only rule structurally favours composite-AP specs (concentrating the
+    # actor-power signal in one coefficient buys main-effect significance), while
+    # split-AP specs carry the same signal in interactions and were demoted to Blue
+    # despite larger deltaR2(theory). Price-model stages keep the historical
+    # mains-only semantics — their published tiers must not silently change.
+    sigIntVars <- sigVars[grepl(":|_x_", sigVars)]
+    base$sigInstQual <- countMatches(sigBase, cfg$instQualityDrivers) +
+      countMatches(sigIntVars, cfg$instQualityDrivers)
+    base$sigActorPower <- countMatches(sigBase, c(cfg$actorPowerDrivers, cfg$actorPowerIndex)) +
+      countMatches(sigIntVars, c(cfg$actorPowerDrivers, cfg$actorPowerIndex))
+  } else {
+    base$sigInstQual <- countMatches(sigBase, cfg$instQualityDrivers)
+    base$sigActorPower <- countMatches(sigBase, c(cfg$actorPowerDrivers, cfg$actorPowerIndex))
+  }
   # Control-term significance (for the drop-idle-control tie-break, 2026-06-24): a control
   # is "idle" when present (nControl > 0) but never significant across sectors.
   base$sigControl <- countMatches(sigBase, cfg$controlDrivers)

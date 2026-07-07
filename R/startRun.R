@@ -76,7 +76,8 @@ startRun <- function(group,
   requestedSteps <- steps
   validSteps <- c("sweep", "robustness", "temporal", "subnational", "difference-first",
                   "projection", "selection-bootstrap",
-                  "psm-sweep", "psm-projection", "psm-agreement")   # ADR 0036 PSM pipeline
+                  "psm-sweep", "psm-projection", "psm-agreement",
+                  "psm-temporal", "psm-frontier")   # ADR 0036 PSM pipeline
   steps <- intersect(validSteps, steps)
   droppedSteps <- setdiff(requestedSteps, validSteps)
   if (length(steps) == 0) stop("startRun: no valid steps.", call. = FALSE)
@@ -305,7 +306,8 @@ startRun <- function(group,
   }
   # A PSM-only run (ADR 0036) renders only the PSM report; the price-model report set would
   # read the PSM group's differently-shaped artifacts and render empty/misleading sections.
-  psmSteps <- c("psm-sweep", "psm-projection", "psm-agreement")
+  psmSteps <- c("psm-sweep", "psm-projection", "psm-agreement", "psm-temporal",
+                "psm-frontier")
   reps <- if (all(steps %in% psmSteps)) character(0) else
     c("selection", "model-selection", "results-adoption", "results-stringency", "publication")
   if (any(c("robustness", "temporal", "difference-first") %in% steps)) reps <- c(reps, "robustness")

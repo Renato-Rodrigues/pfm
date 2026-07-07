@@ -242,6 +242,61 @@ channelSpecs <- function(mode = c("guided", "exhaustive")) {
     COMP, COMP, c(WGE, ROL, VER), transform = "pureFD"
   )
 
+  # ── Capture-channel specs (R9, 2026-07-06) — appended AFTER the main cross so
+  # existing X-numbers (and any comparison with earlier sweeps) stay stable.
+  # Tests the mechanism behind the positive Incumbent x GovEff interaction of the
+  # first PSM run: incumbent influence should operate through CORRUPTIBILITY, so
+  # Control of Corruption is offered as an IQ channel (alone and paired). Panel
+  # already carries the variable — no new data.
+  COR <- "Control of Corruption (WGI)"
+  captureCombos <- list(
+    list(nm = "Cor",       iq = COR),
+    list(nm = "WGIge.Cor", iq = c(WGE, COR)),
+    list(nm = "RoL.Cor",   iq = c(ROL, COR))
+  )
+  for (ap in names(apForms)) {
+    for (cc in captureCombos) {
+      for (cs in c("ctlNone", "GDPq")) {
+        for (fl in names(feLevels)) {
+          idx <- idx + 1L
+          specs[[idx]] <- spec(
+            sprintf("X-%04d cap:%s %s lev ctl:%s fe:%s", idx, cc$nm, ap, cs, fl),
+            paste0("Capture channel (R9): IQ=", cc$nm, ", AP=", ap, ", controls=", cs,
+                   ", FE=", fl, ", levels."),
+            apForms[[ap]]$drivers, apForms[[ap]]$index, cc$iq, transform = "levels",
+            overrides = list(controlDrivers = controlSets[[cs]],
+                             regionMappingFixedEffects = feLevels[[fl]]$fe,
+                             useMundlak = feLevels[[fl]]$mundlak)
+          )
+        }
+      }
+    }
+  }
+
+  # ── Diffusion-mechanism specs (R7, 2026-07-06) — EU-acquis accession dummy as
+  # an additional control next to the trend: whether it takes over trend share is
+  # directly readable from the trendShare metric. Derived in preparePanelData
+  # (region + year), projection-safe; aggregates uncoded pending composition
+  # verification (see preparePanelData).
+  EUM <- "EU Membership"
+  for (ap in names(apForms)) {
+    for (cs in list(c(EUM), c(GDPQ, EUM))) {
+      for (fl in names(feLevels)) {
+        idx <- idx + 1L
+        csNm <- if (length(cs) == 1) "EU" else "GDPq.EU"
+        specs[[idx]] <- spec(
+          sprintf("X-%04d dif:EU %s lev ctl:%s fe:%s", idx, ap, csNm, fl),
+          paste0("Diffusion mechanism (R7): EU-acquis dummy, AP=", ap,
+                 ", controls=", csNm, ", FE=", fl, ", levels."),
+          apForms[[ap]]$drivers, apForms[[ap]]$index, c(WGE, VER), transform = "levels",
+          overrides = list(controlDrivers = cs,
+                           regionMappingFixedEffects = feLevels[[fl]]$fe,
+                           useMundlak = feLevels[[fl]]$mundlak)
+        )
+      }
+    }
+  }
+
   # ── Lagged stringency-price variants (2026-06-14) ──────────────────────────
   # Carbon prices are sticky; a lagged price both fits that and damps projection
   # swings. A lagged dependent + region FE incurs dynamic-panel (Nickell) bias, so

@@ -222,7 +222,8 @@ runPSMEstimatorAgreement <- function(group, resultsDir = getOption("pfm.resultsD
                                      y = 2000:2022,
                                      outputRegionMappingFile = "regionmapping_54.csv",
                                      indexMax = 10,
-                                     estimators = c("satP", "fractional", "beta", "levels"),
+                                     estimators = c("satP", "fractional", "beta",
+                                                    "levels", "satP-re"),
                                      verbose = TRUE) {
   groupDir <- .resolveGroupDir(group, resultsDir, modelDir, cachefolder)
   say <- function(...) if (isTRUE(verbose)) message("[PSM-AGREE:", group, "] ", ...)
@@ -295,10 +296,23 @@ runPSMEstimatorAgreement <- function(group, resultsDir = getOption("pfm.resultsD
                 metrics = list(reason = "no sector produced an agreement table"))
     return(invisible(NULL))
   }
+  # A silently skipped suite member is a hole in the estimator-invariance exhibit
+  # (the first cluster run shipped without the beta rung because betareg was not
+  # installed — R11, 2026-07-06). Make it loud: a warning that reaches the SLURM
+  # log AND the step metrics.
+  skippedAll <- unique(unlist(lapply(out$bySector, function(e) names(e$skipped))))
+  if (length(skippedAll) > 0) {
+    warning("runPSMEstimatorAgreement: estimator(s) SKIPPED: ",
+            paste(skippedAll, collapse = ", "),
+            " - the estimator-invariance exhibit is incomplete. ",
+            "Install the missing optional package(s) (betareg / lme4) and re-run.",
+            call. = FALSE)
+  }
   saveRDS(out, file.path(groupDir, "estimator-agreement.rds"))
   .recordStep(groupDir, group, "estimator-agreement", t0, metrics = list(
     spec = out$spec, sectors = paste(fitted, collapse = "/"),
-    estimators = paste(names(out$bySector[[fitted[[1]]]]$fits), collapse = "/")
+    estimators = paste(names(out$bySector[[fitted[[1]]]]$fits), collapse = "/"),
+    skipped = if (length(skippedAll)) paste(skippedAll, collapse = "/") else "none"
   ))
   say("Saved ", file.path(groupDir, "estimator-agreement.rds"))
   invisible(out)

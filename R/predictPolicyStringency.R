@@ -29,17 +29,33 @@
 #' @param minProjYear Numeric or NULL. Horizon cutoff; only years strictly
 #'   greater are returned. \code{NULL} derives it from
 #'   \code{model$training_years[2]}.
+#' @param driverGuard Character. \code{"winsorize"} (default) clamps each
+#'   standardized base driver to its training-support range (stored on the model
+#'   as \code{transforms$driverRanges}) and recomputes the interaction columns
+#'   from the guarded factors before building \code{eta} — a disclosed
+#'   regressor-support restriction (the response stays bounded-by-construction;
+#'   nothing clamps the outcome). The per-row share of drivers that were outside
+#'   support is returned as \code{driverOutOfSupport} (the extrapolation audit).
+#'   \code{"none"} disables the guard (pre-guard behaviour; the audit column is
+#'   still computed when ranges are available). Models persisted before the
+#'   guard existed carry no ranges: the guard is skipped with a message.
 #' @param verbose Logical.
 #'
 #' @return Data.frame \code{region, year, sector, eta, index, indexLo, indexHi,
-#'   outOfCoverage} with \code{index} in \code{[0, indexMax]} (natural CAPMF units).
+#'   outOfCoverage, driverOutOfSupport} with \code{index} in \code{[0, indexMax]}
+#'   (natural CAPMF units). For out-of-coverage rows the interval additionally
+#'   carries the between-region-FE spread (they inherit the reference-group
+#'   fixed effect, so the FE assignment uncertainty is part of their interval).
 #'
 #' @author Renato Rodrigues
 #'
-#' @importFrom stats plogis coef terms delete.response model.frame model.matrix na.pass qnorm
+#' @importFrom stats plogis coef terms delete.response model.frame model.matrix na.pass qnorm sd
 #'
 #' @export
-predictPolicyStringency <- function(model, scenarioData, minProjYear = NULL, verbose = FALSE) {
+predictPolicyStringency <- function(model, scenarioData, minProjYear = NULL,
+                                    driverGuard = c("winsorize", "none"),
+                                    verbose = FALSE) {
+  driverGuard <- match.arg(driverGuard)
   stopifnot(inherits(model, "PFMModel"))
   if (!identical(model$stage, "policyStringency")) {
     stop("predictPolicyStringency: model must be a stage='policyStringency' PFMModel ",
@@ -79,6 +95,21 @@ predictPolicyStringency <- function(model, scenarioData, minProjYear = NULL, ver
   )
   sDf <- .alignRegionFEStored(sDf, model)
 
+  # Driver-support guard + extrapolation audit (R3). Ranges are stored on models
+  # built after 2026-07-06; older slim fits fall back to unguarded projection.
+  ranges <- model$transforms$driverRanges
+  driverOutOfSupport <- rep(NA_real_, nrow(sDf))
+  if (!is.null(ranges) && length(ranges) > 0) {
+    guarded <- .psmDriverGuard(sDf, ranges)
+    driverOutOfSupport <- guarded$outOfSupport
+    if (identical(driverGuard, "winsorize")) {
+      sDf <- guarded$df
+    }
+  } else if (identical(driverGuard, "winsorize")) {
+    message("predictPolicyStringency: model ", model$id, " carries no driverRanges ",
+            "(pre-guard fit); projecting unguarded.")
+  }
+
   designEta <- function(df) {
     tt <- stats::delete.response(stats::terms(model$formula))
     mm <- stats::model.matrix(tt, stats::model.frame(tt, data = df, na.action = stats::na.pass))
@@ -91,7 +122,15 @@ predictPolicyStringency <- function(model, scenarioData, minProjYear = NULL, ver
     )
   }
 
+  trainedRegions <- names(model$applyState$seed_prices %||% character(0))
+  outOfCoverage <- if (length(trainedRegions) > 0) {
+    !(as.character(sDf$region) %in% trainedRegions)
+  } else {
+    rep(NA, nrow(sDf))
+  }
+
   hasLag <- "lagged_ecp" %in% all.vars(model$formula)
+  isECM <- identical(sp$form %||% "static", "ecm")
   etaLo <- etaHi <- NULL
   if (!hasLag) {
     d <- designEta(sDf)
@@ -100,6 +139,11 @@ predictPolicyStringency <- function(model, scenarioData, minProjYear = NULL, ver
     if (!is.null(vc) && all(d$shared %in% rownames(vc))) {
       vcS <- vc[d$shared, d$shared, drop = FALSE]
       seEta <- sqrt(pmax(rowSums((d$mm %*% vcS) * d$mm), 0))
+      # Out-of-coverage rows inherit the reference-group FE; their interval must
+      # carry the between-FE spread on top of coefficient uncertainty (R4a).
+      feSpread <- .regionFESpread(stats::coef(model$model))
+      oc <- outOfCoverage %in% TRUE
+      seEta[oc] <- sqrt(seEta[oc]^2 + feSpread^2)
       zc <- stats::qnorm(0.975)
       etaLo <- eta - zc * seEta
       etaHi <- eta + zc * seEta
@@ -108,8 +152,12 @@ predictPolicyStringency <- function(model, scenarioData, minProjYear = NULL, ver
     # Dynamic (lagged) projection: eta_t = etaFixed_t + bLag * lag_t, seeded from the
     # stored per-region last historical TRANSFORMED response (applyState$seed_prices —
     # the response scale is logit(y/indexMax), so the carried value stays on eta scale).
+    # ECM form (R5): the fit is Delta-y* = c + phi * y*_{t-1} + beta x, so the level
+    # recursion is y*_t = etaFixed_t + (1 + phi) * y*_{t-1} — same machinery with the
+    # lag coefficient shifted by one.
     bLag <- tryCatch(stats::coef(model$model)[["lagged_ecp"]], error = function(e) NA_real_)
     if (is.null(bLag) || !is.finite(bLag)) bLag <- 0
+    effLag <- if (isECM) 1 + bLag else bLag
     sDf0 <- sDf
     sDf0$lagged_ecp <- 0
     etaFixed <- designEta(sDf0)$eta
@@ -121,7 +169,7 @@ predictPolicyStringency <- function(model, scenarioData, minProjYear = NULL, ver
       lagv <- if (!is.null(seed) && as.character(r) %in% names(seed) &&
                     is.finite(seed[[as.character(r)]])) seed[[as.character(r)]] else 0
       for (i in idx) {
-        e <- etaFixed[i] + bLag * lagv
+        e <- etaFixed[i] + effLag * lagv
         if (!is.finite(e)) {
           eta[i] <- NA_real_
           next
@@ -131,15 +179,9 @@ predictPolicyStringency <- function(model, scenarioData, minProjYear = NULL, ver
       }
     }
     if (isTRUE(verbose)) {
-      message("  [psm] dynamic projection (lagged response); CI not propagated (NA).")
+      message("  [psm] dynamic projection (", if (isECM) "error-correction" else "lagged",
+              " response); CI not propagated (NA).")
     }
-  }
-
-  trainedRegions <- names(model$applyState$seed_prices %||% character(0))
-  outOfCoverage <- if (length(trainedRegions) > 0) {
-    !(as.character(sDf$region) %in% trainedRegions)
-  } else {
-    rep(NA, nrow(sDf))
   }
 
   out <- data.frame(
@@ -151,6 +193,7 @@ predictPolicyStringency <- function(model, scenarioData, minProjYear = NULL, ver
     indexLo = if (!is.null(etaLo)) indexMax * stats::plogis(etaLo) else NA_real_,
     indexHi = if (!is.null(etaHi)) indexMax * stats::plogis(etaHi) else NA_real_,
     outOfCoverage = outOfCoverage,
+    driverOutOfSupport = driverOutOfSupport,
     stringsAsFactors = FALSE
   )
 

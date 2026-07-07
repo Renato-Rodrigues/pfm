@@ -47,11 +47,12 @@
 #' @export
 computeEstimatorAgreement <- function(data,
                                       sector = "Bulk",
-                                      estimators = c("satP", "fractional", "beta", "levels"),
+                                      estimators = c("satP", "fractional", "beta",
+                                                     "levels", "satP-re"),
                                       indexMax = 10,
                                       verbose = TRUE,
                                       ...) {
-  estimators <- match.arg(estimators, c("satP", "fractional", "beta", "levels"),
+  estimators <- match.arg(estimators, c("satP", "fractional", "beta", "levels", "satP-re"),
                           several.ok = TRUE)
   fits <- list()
   skipped <- character(0)
@@ -128,7 +129,11 @@ computeEstimatorAgreement <- function(data,
     data.frame(
       estimator = e,
       family = f$family,
-      n = nrow(f$data),
+      # nobs(model), NOT nrow(f$data): the prepared panel keeps first-lag-year rows
+      # whose lagged drivers are NA and the fitter drops them internally, so nrow()
+      # over-reports (575 vs 550 in the first real run — R12, 2026-07-06). nobs()
+      # matches the sweep's nObs exactly.
+      n = tryCatch(as.integer(stats::nobs(f$model)), error = function(err) nrow(f$data)),
       converged = isTRUE(f$converged),
       # Reported for transparency only — NEVER comparable across estimators
       # (different response scales; the fractional logit has no likelihood).
@@ -161,7 +166,13 @@ computeEstimatorAgreement <- function(data,
     table = table,
     fitStats = fitStats,
     agreement = agreement,
-    skipped = skipped
+    skipped = skipped,
+    # Marginal effect of each AP term over the observed moderator support (R2) —
+    # the exhibit that shows where the interaction claims are identified and
+    # where a scenario extrapolates them. satP engine fit only.
+    meSupport = if ("satP" %in% names(fits)) {
+      tryCatch(computeMarginalEffectSupport(fits[["satP"]]), error = function(err) NULL)
+    } else NULL
   )
 }
 # nolint end
