@@ -289,6 +289,22 @@ runPSMEstimatorAgreement <- function(group, resultsDir = getOption("pfm.resultsD
         NULL
       }
     )
+    # Few-clusters inference upgrade (2026-07-07): wild-cluster bootstrap-t on the
+    # satP engine fit — the p-values the paper must quote for the headline terms.
+    if (!is.null(out$bySector[[sec]]$fits$satP)) {
+      out$bySector[[sec]]$wildBootstrap <- tryCatch(
+        computeWildClusterBootstrap(out$bySector[[sec]]$fits$satP),
+        error = function(e) {
+          say("  ", sec, " wild bootstrap failed: ", conditionMessage(e))
+          NULL
+        }
+      )
+      wb <- out$bySector[[sec]]$wildBootstrap
+      if (!is.null(wb)) {
+        say("  ", sec, " wild-cluster p<0.05 terms: ",
+            paste(wb$term[wb$pWild < 0.05], collapse = ", "))
+      }
+    }
   }
   fitted <- names(Filter(Negate(is.null), out$bySector))
   if (!length(fitted)) {

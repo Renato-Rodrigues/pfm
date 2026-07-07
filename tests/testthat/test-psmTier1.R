@@ -137,6 +137,44 @@ test_that("satP-iv guards its preconditions", {
   )
 })
 
+test_that("wild-cluster bootstrap returns few-clusters-honest p-values", {
+  fit <- psmFit(makePSMagpie())
+  wb <- computeWildClusterBootstrap(fit, B = 199, seed = 7)
+  expect_s3_class(wb, "data.frame")
+  expect_true(all(psmTheoryTerms %in% wb$term))
+  expect_true(all(wb$pWild >= 0 & wb$pWild <= 1))
+  expect_false(any(grepl("Intercept|^regionFE", wb$term)))
+  # strong DGP effects should survive even the conservative wild bootstrap
+  expect_lt(wb$pWild[wb$term == "Actor.Power.Index"], 0.05)
+})
+
+test_that("runPSMIV writes the two-variant IV artifact from the deployed spec", {
+  skip_if_not_installed("AER")
+  resultsDir <- withr::local_tempdir()
+  modelDir <- withr::local_tempdir()
+  # a sweep whose selected spec's IQ channel exists in the IV fixture
+  m <- makePSMIVMagpie()
+  suppressMessages(suppressWarnings(runPSMSweep(
+    group = "psm-iv", mode = "guided", resultsDir = resultsDir, modelDir = modelDir,
+    panelData = magclass::mbind(m, magclass::setNames(m[, , "Policy Stringency|Bulk"],
+                                                      "Policy Stringency|Diffuse")),
+    specs = list(list(name = "ivspec", actorPowerDrivers = "Incumbent Power",
+                      actorPowerIndex = "Incumbent Power",
+                      instQualityDrivers = "Rule of Law (VDem)",
+                      controlDrivers = NULL, regionMappingFixedEffects = NULL)),
+    sectors = "Bulk", selectFE = NULL, verbose = FALSE
+  )))
+  res <- suppressMessages(suppressWarnings(runPSMIV(
+    group = "psm-iv", resultsDir = resultsDir, modelDir = modelDir,
+    panelData = m, verbose = FALSE
+  )))
+  expect_true(file.exists(file.path(resultsDir, "psm-iv", "iv.rds")))
+  expect_true(any(grepl("^Bulk\\.", names(res$bySector))))
+  v <- res$bySector[[grep("^Bulk\\.", names(res$bySector))[1]]]
+  expect_true("Incumbent.Power" %in% v$coefTable$term)
+  expect_s3_class(v$ivDiagnostics, "data.frame")
+})
+
 # ── #2: instrument-level ratchet hazard ─────────────────────────────────────────
 
 test_that("estimatePolicyRatchetModel fits a cloglog hazard with the PSM drivers", {
