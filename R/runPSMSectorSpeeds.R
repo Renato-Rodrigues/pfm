@@ -77,11 +77,34 @@ runPSMSectorSpeeds <- function(group,
       magclass::setNames(panel[, , "GDP per Capita"]^2, "GDP per Capita Sq"))
   }
 
+  # The Actor-Power indices are sector-specific but computed only at the Bulk/
+  # Diffuse grouping (their energy-mix weighting is defined there). A four-sector
+  # outcome must borrow its parent group's actor power: electricity/industry ->
+  # Bulk, buildings/transport -> Diffuse. Alias so preparePanelData(sector=<four>)
+  # resolves "<AP index>|<four-sector>". This is the intended design: it asks
+  # whether the SAME political forces predict DIFFERENT ratcheting speeds across
+  # the four sectors.
+  parentOf <- c(Electricity = "Bulk", Industry = "Bulk",
+                Buildings = "Diffuse", Transport = "Diffuse")
+  apVars <- c("Actor Power Index", "Innovator Power", "Incumbent Power")
+  nm0 <- magclass::getNames(panel)
+  for (sec in sectors) {
+    par <- parentOf[[sec]]
+    for (ap in apVars) {
+      child <- paste0(ap, "|", sec)
+      pv <- paste0(ap, "|", par)
+      if (pv %in% nm0 && !child %in% magclass::getNames(panel)) {
+        panel <- magclass::mbind(panel, magclass::setNames(panel[, , pv], child))
+      }
+    }
+  }
+
   yrs <- magclass::getYears(panel, as.integer = TRUE)
   trainPanel <- panel[, yrs[yrs <= trainEnd], ]
 
   out <- list(spec = cfg$name, trainEnd = trainEnd, bySector = list())
   stepMetrics <- list(trainEnd = trainEnd)
+  errs <- character(0)
   for (sec in sectors) {
     psv <- paste0("Policy Stringency|", sec)
     histArr <- as.array(panel[, yrs[yrs <= trainEnd], psv])[, , 1]
@@ -90,7 +113,11 @@ runPSMSectorSpeeds <- function(group,
     })
     ecm <- tryCatch(
       .psmValidateECMSector(cfg, sec, panel, trainPanel, trainEnd, indexMax, lastObs),
-      error = function(e) { say(sec, " ECM failed: ", conditionMessage(e)); NULL }
+      error = function(e) {
+        say(sec, " ECM failed: ", conditionMessage(e))
+        errs[[sec]] <<- conditionMessage(e)
+        NULL
+      }
     )
     if (is.null(ecm)) next
     out$bySector[[sec]] <- ecm
@@ -103,8 +130,12 @@ runPSMSectorSpeeds <- function(group,
         " (n=", m$n, ")")
   }
   if (!length(out$bySector)) {
+    reason <- if (length(errs)) {
+      paste0("all sectors failed: ",
+             paste(sprintf("%s (%s)", names(errs), errs), collapse = "; "))
+    } else "no sector produced a validated speed"
     .recordStep(groupDir, group, "sector-speeds", t0, status = "failed",
-                metrics = list(reason = "no sector produced a validated speed"))
+                metrics = list(reason = substr(reason, 1, 500)))
     return(invisible(NULL))
   }
   saveRDS(out, file.path(groupDir, "sector-speeds.rds"))
