@@ -36,7 +36,9 @@ panelDataHistorical <- function(aggregate = TRUE,
                                     incumbents_power = list(coal = 0.2, oilgas = 0.2, fossilInd = 1)
                                   )
                                 ),
-                                includePolicyStringency = FALSE) {
+                                includePolicyStringency = FALSE,
+                                psSectorResolution = "two") {
+  psSectorResolution <- match.arg(psSectorResolution, c("two", "four"))
   out <- NULL
 
   # Carbon Price
@@ -53,10 +55,16 @@ panelDataHistorical <- function(aggregate = TRUE,
   # Policy Stringency (PSM outcomes, ADR 0036)
   if (isTRUE(includePolicyStringency)) {
     ps <- calcOutput("PolicyStringency",
-      aggregate = aggregate, regionmapping = outputRegionMappingFile
+      aggregate = aggregate, regionmapping = outputRegionMappingFile,
+      sectorResolution = psSectorResolution
     )
-    psVars <- c(bulk = "Policy Stringency|Bulk", diffuse = "Policy Stringency|Diffuse",
-                composite = "Policy Stringency|Composite")
+    psVars <- if (identical(psSectorResolution, "four")) {
+      c(Electricity = "Policy Stringency|Electricity", Industry = "Policy Stringency|Industry",
+        Buildings = "Policy Stringency|Buildings", Transport = "Policy Stringency|Transport")
+    } else {
+      c(bulk = "Policy Stringency|Bulk", diffuse = "Policy Stringency|Diffuse",
+        composite = "Policy Stringency|Composite")
+    }
     psVars <- psVars[names(psVars) %in% getNames(ps)]
     psY <- intersect(y, getYears(ps, as.integer = TRUE))
     psFull <- new.magpie(getItems(ps, dim = 1), y, unname(psVars), fill = NA)

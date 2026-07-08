@@ -775,7 +775,7 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                 # Policy Stringency Model pipeline (ADR 0036) — run in its OWN Run-Group
                 # (e.g. group = "psm-exhaustive"), never mixed into a price-model group.
                 "psm-sweep", "psm-projection", "psm-agreement", "psm-temporal",
-                "psm-frontier", "psm-iv")
+                "psm-frontier", "psm-iv", "psm-sector-speeds")
   steps <- intersect(allSteps, steps)
   if (length(steps) == 0) stop("runModelGroup: no valid steps. Choose from ",
                                paste(allSteps, collapse = ", "), ".", call. = FALSE)
@@ -794,7 +794,8 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                     "psm-agreement" = "estimator-agreement.rds",
                     "psm-temporal" = "temporal-validation.rds",
                     "psm-frontier" = "frontier.rds",
-                    "psm-iv" = "iv.rds")
+                    "psm-iv" = "iv.rds",
+                    "psm-sector-speeds" = "sector-speeds.rds")
   # A step counts as "already done" (resume-skippable) only when ALL its expected artifacts exist.
   # For the projection step (ADR 0035) that means one projections/<id>.rds per configured scenario
   # PLUS the legacy projection.rds — so a stale single-scenario projection.rds no longer masks
@@ -867,6 +868,14 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
     say("step: psm-iv")
     runPSMIV(group, resultsDir = resultsDir, modelDir = modelDir,
              cachefolder = cachefolder, verbose = verbose)
+  }
+  if (doStep("psm-sector-speeds")) {
+    say("step: psm-sector-speeds")
+    dots <- list(...)
+    ssArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
+                     cachefolder = cachefolder, verbose = verbose),
+                dots[names(dots) %in% names(formals(runPSMSectorSpeeds))])
+    do.call(runPSMSectorSpeeds, ssArgs)
   }
   say("done: ", paste(steps, collapse = ", "))
   invisible(file.path(resultsDir, group))

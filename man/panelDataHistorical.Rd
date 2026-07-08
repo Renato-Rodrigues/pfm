@@ -14,7 +14,8 @@ panelDataHistorical(
     0.5)), diffuse = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
     list(vre = 0.5, elec = 1, biofuel = 0.4), incumbents_power = list(coal = 0.2, oilgas
     = 0.2, fossilInd = 1))),
-  includePolicyStringency = FALSE
+  includePolicyStringency = FALSE,
+  psSectorResolution = "two"
 )
 }
 \arguments{
