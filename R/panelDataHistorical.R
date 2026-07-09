@@ -12,6 +12,11 @@
 #'   the carbon-price panel (and its end-year rule) is unchanged unless the PSM
 #'   explicitly asks for it. Years the CAPMF source does not reach are NA-filled;
 #'   preparePanelData later drops rows with a missing outcome.
+#' @param psSectorResolution character; `"two"` (Bulk/Diffuse, default) or `"four"`
+#'   (Electricity/Industry/Buildings/Transport) CAPMF sector outcomes.
+#' @param psWeighting how CAPMF sectors are aggregated into Bulk/Diffuse: `"equal"`
+#'   (default) or GHG/GDP-share weights (a named numeric vector or a per-cell magpie),
+#'   forwarded to [mrpfm::calcPolicyStringency()] — the T2 aggregation-sensitivity axis.
 #'
 #' @return Returns the combined magpie object for historical data
 #' @author Renato Rodrigues
@@ -37,7 +42,8 @@ panelDataHistorical <- function(aggregate = TRUE,
                                   )
                                 ),
                                 includePolicyStringency = FALSE,
-                                psSectorResolution = "two") {
+                                psSectorResolution = "two",
+                                psWeighting = "equal") {
   psSectorResolution <- match.arg(psSectorResolution, c("two", "four"))
   out <- NULL
 
@@ -56,7 +62,7 @@ panelDataHistorical <- function(aggregate = TRUE,
   if (isTRUE(includePolicyStringency)) {
     ps <- calcOutput("PolicyStringency",
       aggregate = aggregate, regionmapping = outputRegionMappingFile,
-      sectorResolution = psSectorResolution
+      sectorResolution = psSectorResolution, weighting = psWeighting
     )
     psVars <- if (identical(psSectorResolution, "four")) {
       c(Electricity = "Policy Stringency|Electricity", Industry = "Policy Stringency|Industry",

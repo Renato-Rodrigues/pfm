@@ -15,7 +15,8 @@ panelDataHistorical(
     list(vre = 0.5, elec = 1, biofuel = 0.4), incumbents_power = list(coal = 0.2, oilgas
     = 0.2, fossilInd = 1))),
   includePolicyStringency = FALSE,
-  psSectorResolution = "two"
+  psSectorResolution = "two",
+  psWeighting = "equal"
 )
 }
 \arguments{
@@ -33,6 +34,13 @@ and, when available, "Policy Stringency|Composite"; ADR 0036). Default FALSE so
 the carbon-price panel (and its end-year rule) is unchanged unless the PSM
 explicitly asks for it. Years the CAPMF source does not reach are NA-filled;
 preparePanelData later drops rows with a missing outcome.}
+
+\item{psSectorResolution}{character; \code{"two"} (Bulk/Diffuse, default) or \code{"four"}
+(Electricity/Industry/Buildings/Transport) CAPMF sector outcomes.}
+
+\item{psWeighting}{how CAPMF sectors are aggregated into Bulk/Diffuse: \code{"equal"}
+(default) or GHG/GDP-share weights (a named numeric vector or a per-cell magpie),
+forwarded to \code{\link[mrpfm:calcPolicyStringency]{mrpfm::calcPolicyStringency()}} — the T2 aggregation-sensitivity axis.}
 }
 \value{
 Returns the combined magpie object for historical data
