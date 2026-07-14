@@ -48,6 +48,12 @@
 #' @param deltaR2Max Numeric. Fit-reliability gate forwarded to
 #'   \code{\link{computeMaximinScore}} (default \code{1} — a mathematical validity
 #'   bound on the incremental McFadden pseudo-R2; a spec exceeding it is degenerate).
+#' @param inferenceTGate Numeric or \code{NULL}. Inference-fragility within-band
+#'   preference (ADR 0037), forwarded to \code{\link{computeMaximinScore}}. Defaults
+#'   to \code{2.33} (roughly p < .02) for the PSM: among theory-equivalent specs a
+#'   p=.049 squeaker on a theory term loses the near-tie to a comfortable margin.
+#'   Never a hard gate — significance is not an admission criterion. \code{NULL}
+#'   disables.
 #' @param sanityBatchSize,sanityMaxModels,sanityThresholds Sanity-walk knobs;
 #'   thresholds are the \code{\link{computePolicyStringencySanity}} overrides.
 #' @param overwriteConfig Logical. Regenerate the auto-generated spec YAML.
@@ -83,6 +89,7 @@ runPSMSweep <- function(group,
                         softVifGate = 6,
                         trendDominanceGate = 0.9,
                         deltaR2Max = 1,
+                        inferenceTGate = 2.33,
                         sanityBatchSize = 5,
                         sanityMaxModels = 20,
                         sanityThresholds = list(),
@@ -181,13 +188,14 @@ runPSMSweep <- function(group,
   mmCols <- intersect(c("model", "sector", "sigActorPower", "sigInstQual",
                         "sigInteractions", "deltaR2Theory", "pseudoR2", "bic", "maxVIF",
                         "converged", "usesLagged", "nFE", "nObs", "sigControl", "nControl",
-                        "trendShare"), colnames(sub))
+                        "trendShare", "minSigTheoryT"), colnames(sub))
   mm <- computeMaximinScore(sub[, mmCols, drop = FALSE], nearTieEps = nearTieEps,
                             feParsimonyWeight = feParsimonyWeight,
                             dropIdleControls = dropIdleControls,
                             softVifGate = softVifGate,
                             trendDominanceGate = trendDominanceGate,
-                            deltaR2Max = deltaR2Max)
+                            deltaR2Max = deltaR2Max,
+                            inferenceTGate = inferenceTGate)
   maximin[["PolicyStringency"]] <- mm
   pass <- mm[mm$gatePass, , drop = FALSE]
   if (nrow(pass) == 0) {

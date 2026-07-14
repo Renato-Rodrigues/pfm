@@ -223,7 +223,8 @@ runPSMEstimatorAgreement <- function(group, resultsDir = getOption("pfm.resultsD
                                      outputRegionMappingFile = "regionmapping_54.csv",
                                      indexMax = 10,
                                      estimators = c("satP", "fractional", "beta",
-                                                    "levels", "satP-re"),
+                                                    "levels", "satP-re",
+                                                    "satP-yearFE", "levels-twfe"),
                                      verbose = TRUE) {
   groupDir <- .resolveGroupDir(group, resultsDir, modelDir, cachefolder)
   say <- function(...) if (isTRUE(verbose)) message("[PSM-AGREE:", group, "] ", ...)

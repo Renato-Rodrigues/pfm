@@ -189,6 +189,14 @@ test_that("exhaustive grid gains capture-channel and EU-diffusion specs, names a
   expect_true("Control of Corruption (WGI)" %in% unlist(capSpec$instQualityDrivers))
   # Numbering stability: existing spec names (incl. the deployed X-0257) unchanged.
   expect_true("X-0257 WGIge|noRoL|VerAcc compAP lev ctl:ctlNone fe:H12" %in% nms)
+  # Context-dummies block (ADR 0038): the full channel x AP x control x FE cross with
+  # EU + transition appended to every curated control set, levels only.
+  ctx <- grepl(" ctl:[^ ]*\\.Ctx ", nms) & !isTwin
+  expect_equal(sum(ctx), 15 * 2 * 8 * 3)                 # 15 IQ combos x 2 AP x 8 ctl x 3 FE
+  ctxSpec <- specs[[which(ctx)[1]]]
+  expect_true(all(c("EU Membership", "Transition Economy") %in%
+                    unlist(ctxSpec$controlDrivers)))
+  expect_identical(ctxSpec$panelTransform, "levels")
 })
 
 test_that("EU Membership derives a lagged accession dummy in preparePanelData", {
@@ -212,6 +220,50 @@ test_that("EU Membership derives a lagged accession dummy in preparePanelData", 
   expect_gt(euDEU, euR1)          # member > never-member (standardized scale)
   expect_equal(euPOL10, euDEU)    # Poland a member by 2009 (lagged year)
   expect_equal(euPOL04, euR1)     # accession 2004, lagged year 2003 -> not yet
+})
+
+test_that("EU accession table covers ISO3 members for the country-resolution run (ADR 0038)", {
+  regions <- c("CZE", "HRV", "USA")
+  years <- 2000:2019
+  m <- magclass::new.magpie(regions, years,
+                            c("Policy Stringency|Bulk", "Actor Power Index|Bulk",
+                              "Rule of Law (VDem)"), fill = 0.5)
+  df <- preparePanelData(
+    data = m, sector = "Bulk",
+    actorPowerDrivers = "Actor Power Index", actorPowerIndex = "Actor Power Index",
+    instQualityDrivers = "Rule of Law (VDem)", controlDrivers = "EU Membership",
+    regionMappingFixedEffects = NULL, outcomeVar = "Policy Stringency"
+  )
+  euCZE10 <- df$EU.Membership[df$region == "CZE" & df$year == 2010]  # 2004 accession
+  euHRV10 <- df$EU.Membership[df$region == "HRV" & df$year == 2010]  # accedes 2013
+  euHRV19 <- df$EU.Membership[df$region == "HRV" & df$year == 2019]
+  euUSA <- df$EU.Membership[df$region == "USA" & df$year == 2019]
+  expect_gt(euCZE10, euUSA)
+  expect_equal(euHRV10, euUSA)   # not yet a member in (lagged) 2009
+  expect_equal(euHRV19, euCZE10) # member by (lagged) 2018
+})
+
+test_that("Transition Economy derives a static post-communist dummy (ADR 0038)", {
+  regions <- c("POL", "DEU", "ECE_other")
+  years <- 2000:2010
+  m <- magclass::new.magpie(regions, years,
+                            c("Policy Stringency|Bulk", "Actor Power Index|Bulk",
+                              "Rule of Law (VDem)"), fill = 0.5)
+  df <- preparePanelData(
+    data = m, sector = "Bulk",
+    actorPowerDrivers = "Actor Power Index", actorPowerIndex = "Actor Power Index",
+    instQualityDrivers = "Rule of Law (VDem)",
+    controlDrivers = c("EU Membership", "Transition Economy"),
+    regionMappingFixedEffects = NULL, outcomeVar = "Policy Stringency"
+  )
+  expect_true("Transition.Economy" %in% colnames(df))
+  trPOL <- df$Transition.Economy[df$region == "POL"]
+  trECE <- df$Transition.Economy[df$region == "ECE_other"]
+  trDEU <- df$Transition.Economy[df$region == "DEU"]
+  # static: constant within region, transition > non-transition (standardized scale)
+  expect_equal(length(unique(trPOL)), 1L)
+  expect_equal(unique(trPOL), unique(trECE))
+  expect_gt(unique(trPOL), unique(trDEU))
 })
 
 # ── R10: pseudo-out-of-sample validation step ────────────────────────────────────

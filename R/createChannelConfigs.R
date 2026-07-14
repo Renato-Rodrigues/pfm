@@ -297,6 +297,41 @@ channelSpecs <- function(mode = c("guided", "exhaustive")) {
     }
   }
 
+  # ── Context-dummies control block (ADR 0038, 2026-07-13) — appended AFTER the
+  # existing crosses so X-numbers stay stable. One ±block switch adding the von
+  # Dulong context controls (EU Membership + Transition Economy, derived in
+  # preparePanelData) to every curated control set, across the full channel/AP/FE
+  # grid — the control axis effectively doubles (8 -> 16 combinations). Levels
+  # only: the transition dummy is time-invariant and EU near-invariant, so their
+  # FD transforms are (near-)zero columns with no identifying variation.
+  TRN <- "Transition Economy"
+  CTX <- c(EUM, TRN)
+  for (ge in names(govEffOptions)) {
+    for (rl in names(rolOptions)) {
+      for (ac in names(accOptions)) {
+        iq <- c(govEffOptions[[ge]], rolOptions[[rl]], accOptions[[ac]])
+        if (length(iq) == 0) next
+        for (ap in names(apForms)) {
+          for (cs in names(controlSets)) {
+            for (fl in names(feLevels)) {
+              idx <- idx + 1L
+              specs[[idx]] <- spec(
+                sprintf("X-%04d %s|%s|%s %s lev ctl:%s.Ctx fe:%s", idx, ge, rl, ac, ap, cs, fl),
+                paste0("Context-dummies block (ADR 0038): GovEff=", ge, ", RoL=", rl,
+                       ", Acc=", ac, ", AP=", ap, ", controls=", cs,
+                       " + EU/transition dummies, FE=", fl, ", levels."),
+                apForms[[ap]]$drivers, apForms[[ap]]$index, iq, transform = "levels",
+                overrides = list(controlDrivers = c(controlSets[[cs]], CTX),
+                                 regionMappingFixedEffects = feLevels[[fl]]$fe,
+                                 useMundlak = feLevels[[fl]]$mundlak)
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+
   # ── Lagged stringency-price variants (2026-06-14) ──────────────────────────
   # Carbon prices are sticky; a lagged price both fits that and damps projection
   # swings. A lagged dependent + region FE incurs dynamic-panel (Nickell) bias, so

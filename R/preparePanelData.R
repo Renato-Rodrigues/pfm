@@ -133,9 +133,10 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
   hasEcp <- ecpName %in% availableVars
 
   # Verify all requested predictor variables exist (excluding internally computed
-  # lags and the internally derived EU Membership dummy)
+  # lags and the internally derived context dummies, ADR 0038)
   missing <- setdiff(allVarsNeeded, availableVars)
-  missing <- setdiff(missing, c("lagged_ecp", "lagged_adoption", "EU Membership"))
+  missing <- setdiff(missing, c("lagged_ecp", "lagged_adoption",
+                                "EU Membership", "Transition Economy"))
   if (length(missing) > 0) {
     stop(
       "The following variables are missing from the data: ",
@@ -211,7 +212,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
       # All other drivers
       cleanDrivers <- setdiff(
         c(actorPowerDrivers, instQualityDrivers, controlDrivers),
-        c("lagged_ecp", "lagged_adoption", "EU Membership")
+        c("lagged_ecp", "lagged_adoption", "EU Membership", "Transition Economy")
       )
       # Do not process variables again if they were already processed via actorPowerIndex
       cleanDrivers <- setdiff(cleanDrivers, actorPowerIndex)
@@ -250,16 +251,43 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
   # Lagged like every other driver (membership at year - lag).
   if ("EU Membership" %in% controlDrivers) {
     euAccession <- c(
+      # R54 single-country / unambiguous aggregate codes (BELUX both 1958;
+      # ECE_other = CZE+EST+LTU+LVA+SVK, all 2004)
       DEU = 1958, FRA = 1958, ITA = 1958, NLD = 1958, BELUX = 1958,
       IRL = 1973, DNK = 1973, GBR = 1973,
       GRC = 1981, ESP = 1986, PRT = 1986,
-      AUT = 1995, SWE = 1995, FIN = 1995, POL = 2004
+      AUT = 1995, SWE = 1995, FIN = 1995, POL = 2004, ECE_other = 2004,
+      # ISO3 codes for the country-resolution run (ADR 0038 / country sentinel);
+      # single-country R54 codes above already coincide with ISO3
+      BEL = 1958, LUX = 1958,
+      CYP = 2004, CZE = 2004, EST = 2004, HUN = 2004, LTU = 2004, LVA = 2004,
+      MLT = 2004, SVK = 2004, SVN = 2004,
+      BGR = 2007, ROU = 2007, HRV = 2013
     )
     accYr <- euAccession[df$region]
     memberYr <- df$year - lag
     eu <- as.numeric(!is.na(accYr) & memberYr >= accYr)
     eu[df$region == "GBR" & memberYr >= 2020] <- 0
     df[[make.names("EU Membership")]] <- eu
+  }
+
+  # --- Transition Economy (ADR 0038, 2026-07-13): static post-communist dummy --
+  # The second von Dulong context control (Armingeon & Careja transition list).
+  # Time-invariant, so trivially projection-safe; under region FE it is identified
+  # only where a block mixes transition and non-transition members (and at country
+  # resolution). Same deliberate-uncoded rule as the EU dummy: only unambiguous
+  # R54 aggregates are coded (ECS = BGR+HRV+HUN+ROU+SVN and ECE_other are all
+  # post-communist; mixed aggregates stay 0 until composition is verified).
+  if ("Transition Economy" %in% controlDrivers) {
+    transitionCodes <- c(
+      # ISO3 (Armingeon & Careja 2008: CEE + former Soviet Union)
+      "ALB", "ARM", "AZE", "BLR", "BIH", "BGR", "HRV", "CZE", "EST", "GEO",
+      "HUN", "KAZ", "KGZ", "LVA", "LTU", "MKD", "MDA", "MNE", "POL", "ROU",
+      "RUS", "SRB", "SVK", "SVN", "TJK", "TKM", "UKR", "UZB",
+      # unambiguous R54 aggregates
+      "ECS", "ECE_other"
+    )
+    df[[make.names("Transition Economy")]] <- as.numeric(df$region %in% transitionCodes)
   }
 
   # --- Mundlak correction: within-region means of theory & control variables ---
@@ -284,7 +312,12 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
   }
 
   # --- Add region fixed effects (skipped when useMundlak = TRUE) ---
-  if (!is.null(regionMappingFixedEffects) && !isTRUE(useMundlak)) {
+  if (identical(regionMappingFixedEffects, "unit") && !isTRUE(useMundlak)) {
+    # "unit" sentinel (2026-07-13): every row-unit is its own FE block — the TWFE /
+    # unit-FE baseline rung. Resolution-agnostic: 25 dummies at R54, ~50 at country
+    # resolution. Never a swept candidate (ADR 0011); estimator-agreement rung only.
+    df$regionFE <- factor(df$region)
+  } else if (!is.null(regionMappingFixedEffects) && !isTRUE(useMundlak)) {
     mapping <- madrat::toolGetMapping(regionMappingFixedEffects,
       type = "regional",
       where = "mappingfolder"

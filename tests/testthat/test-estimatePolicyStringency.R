@@ -84,6 +84,43 @@ test_that("computeEstimatorAgreement compares the suite on signs and natural-sca
   expect_true(is.finite(agr$fitStats$aic[agr$fitStats$estimator == "satP"]))
 })
 
+test_that("year-FE and TWFE specification rungs fit and keep dummies out of the tables (ADR 0038)", {
+  m <- makePSMagpie()
+  agr <- suppressWarnings(computeEstimatorAgreement(
+    m, sector = "Bulk", estimators = c("satP", "satP-yearFE", "levels-twfe"),
+    actorPowerDrivers = "Actor Power Index", actorPowerIndex = "Actor Power Index",
+    instQualityDrivers = "Rule of Law (VDem)", controlDrivers = NULL,
+    regionMappingFixedEffects = NULL, timeTrend = TRUE, verbose = FALSE
+  ))
+  expect_true(all(c("satP-yearFE", "levels-twfe") %in% names(agr$fits)))
+  # year dummies replace the trend in the year-FE rung ...
+  yf <- rownames(agr$fits[["satP-yearFE"]]$coeftest)
+  expect_true(any(grepl("^yearFE", yf)))
+  expect_false(any(grepl("timeTrend", yf)))
+  # ... and the TWFE rung carries unit FE + year FE
+  tw <- rownames(agr$fits[["levels-twfe"]]$coeftest)
+  expect_true(any(grepl("^regionFE", tw)))
+  expect_true(any(grepl("^yearFE", tw)))
+  # neither dummy family leaks into the comparison/agreement tables
+  expect_false(any(grepl("^regionFE|^yearFE", agr$table$term)))
+  expect_false(any(grepl("^regionFE|^yearFE", agr$agreement$term)))
+  # theory terms survive within-year identification in this DGP (sign agreement)
+  agrTheory <- agr$agreement[agr$agreement$term %in% theoryTerms, ]
+  expect_true(all(agrTheory$signsAgree))
+})
+
+test_that("the 'unit' FE sentinel makes every row-unit its own FE block", {
+  m <- makePSMagpie()
+  fit <- suppressWarnings(estimatePolicyStringencyModel(
+    m, sector = "Bulk", estimator = "levels",
+    actorPowerDrivers = "Actor Power Index", actorPowerIndex = "Actor Power Index",
+    instQualityDrivers = "Rule of Law (VDem)", controlDrivers = NULL,
+    regionMappingFixedEffects = "unit", modelDir = NULL, verbose = FALSE
+  ))
+  expect_true("regionFE" %in% colnames(fit$data))
+  expect_equal(nlevels(fit$data$regionFE), length(unique(fit$data$region)))
+})
+
 test_that("satP engine cache round-trips through the model store", {
   m <- makePSMagpie()
   tmp <- withr::local_tempdir()

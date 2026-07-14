@@ -14,7 +14,8 @@ computeMaximinScore(
   dropIdleControls = TRUE,
   softVifGate = 6,
   temporalSignGate = NULL,
-  trendDominanceGate = 0.5
+  trendDominanceGate = 0.5,
+  inferenceTGate = NULL
 )
 }
 \arguments{
@@ -93,6 +94,17 @@ Low \emph{trend reliance} is also preferred within the band as a \emph{relative}
 (lower \code{trendShare} first; no threshold) when a \code{trendShare} column is present —
 a mild interpretability nudge, applied after the binary demotions and before the BIC
 tie-break.}
+
+\item{inferenceTGate}{Numeric or \code{NULL}. Inference-fragility preference (2026-07-13,
+ADR 0037): within a near-tie band, specs whose weakest \emph{significant} theory term
+(\code{minSigTheoryT}, the minimum cluster-robust |t| over significant theory terms) falls
+below this in any sector are demoted behind theory-equivalent specs whose claimed theory
+results carry comfortable margins — a p=.049 squeaker loses a near-tie to a p=.005 result.
+\strong{Never a hard gate}: statistical significance is not an admission criterion
+(selection on significance would make the winner's p-values uninterpretable). Requires a
+\code{minSigTheoryT} column (NA rows — no significant theory term — are never demoted; the
+tier already handles them); no-ops without it. Default \code{NULL} (off — the price-model
+selection is unchanged; \code{runPSMSweep} enables it at \code{2.33}, i.e. roughly p < .02).}
 }
 \value{
 Data.frame with one row per model, ordered best-first:

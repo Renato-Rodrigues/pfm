@@ -29,7 +29,9 @@ panelDataScenario(
 
 \item{gdxRegionMappingFile}{mapping file for gdx regions}
 
-\item{outputRegionMappingFile}{mapping file for output regions}
+\item{outputRegionMappingFile}{mapping file for output regions, or the sentinel
+\code{"country"} (see \code{\link[=panelDataHistorical]{panelDataHistorical()}}; projection/REMIND coupling normally
+stays at REMIND resolution - the sentinel here is for symmetry, not the default)}
 
 \item{coeff}{list of coefficients for actor power index calculation}
 }

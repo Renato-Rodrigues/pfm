@@ -5,7 +5,9 @@
 #' @param gdxFile gdx file
 #' @param aggregate boolean to aggregate
 #' @param gdxRegionMappingFile mapping file for gdx regions
-#' @param outputRegionMappingFile mapping file for output regions
+#' @param outputRegionMappingFile mapping file for output regions, or the sentinel
+#'   `"country"` (see [`panelDataHistorical()`]; projection/REMIND coupling normally
+#'   stays at REMIND resolution - the sentinel here is for symmetry, not the default)
 #' @param y years to be calculated
 #' @param coeff list of coefficients for actor power index calculation
 #'
@@ -35,6 +37,13 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
                                 )
                               ),
                               harmonizeScenarioYear = 2040) {
+  # "country" sentinel: see panelDataHistorical (identity mapping + scoped config)
+  countryLevel <- identical(outputRegionMappingFile, "country")
+  outputRegionMappingFile <- resolveRegionMapping(outputRegionMappingFile)
+  if (countryLevel) {
+    restoreRegionmapping <- .scopeRegionmapping(outputRegionMappingFile)
+    on.exit(restoreRegionmapping(), add = TRUE)
+  }
   out <- NULL
 
   # Carbon Price

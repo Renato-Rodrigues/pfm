@@ -3,7 +3,10 @@
 #' @description calculates the historical panel data output
 #'
 #' @param aggregate boolean to aggregate
-#' @param outputRegionMappingFile mapping file for output regions
+#' @param outputRegionMappingFile mapping file for output regions, or the sentinel
+#'   `"country"` for a country-resolution run (identity mapping generated in code by
+#'   [`mrpfm::toolCountryIdentityMapping()`]; the global madrat regionmapping config is
+#'   scoped around the data calls so the CAPMF coverage filter sees the right mapping)
 #' @param y years to be calculated
 #' @param coeff list of coefficients for actor power index calculation
 #' @param includePolicyStringency logical; if TRUE, adds the CAPMF-based Policy
@@ -15,8 +18,10 @@
 #' @param psSectorResolution character; `"two"` (Bulk/Diffuse, default) or `"four"`
 #'   (Electricity/Industry/Buildings/Transport) CAPMF sector outcomes.
 #' @param psWeighting how CAPMF sectors are aggregated into Bulk/Diffuse: `"equal"`
-#'   (default) or GHG/GDP-share weights (a named numeric vector or a per-cell magpie),
-#'   forwarded to [mrpfm::calcPolicyStringency()] — the T2 aggregation-sensitivity axis.
+#'   (default), `"ghg"` (EDGAR sectoral emissions), `"gdp"` (OECD value added by
+#'   activity), `"fe"` (final-energy activity proxy), or explicit weights (a named
+#'   numeric vector or a per-cell magpie), forwarded to
+#'   [mrpfm::calcPolicyStringency()] — the T2 aggregation-sensitivity axis.
 #'
 #' @return Returns the combined magpie object for historical data
 #' @author Renato Rodrigues
@@ -45,6 +50,15 @@ panelDataHistorical <- function(aggregate = TRUE,
                                 psSectorResolution = "two",
                                 psWeighting = "equal") {
   psSectorResolution <- match.arg(psSectorResolution, c("two", "four"))
+  # "country" sentinel: generate the identity mapping in code and scope the global
+  # madrat regionmapping config for the duration (the calcPolicyStringency coverage
+  # filter reads the global config, not the regionmapping= argument).
+  countryLevel <- identical(outputRegionMappingFile, "country")
+  outputRegionMappingFile <- resolveRegionMapping(outputRegionMappingFile)
+  if (countryLevel) {
+    restoreRegionmapping <- .scopeRegionmapping(outputRegionMappingFile)
+    on.exit(restoreRegionmapping(), add = TRUE)
+  }
   out <- NULL
 
   # Carbon Price

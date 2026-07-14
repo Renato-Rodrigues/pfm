@@ -19,7 +19,13 @@
 #' @param estimators Character vector; suite members to fit. Defaults to the full
 #'   suite. An unavailable member (e.g. \code{"beta"} without the optional
 #'   \code{betareg} package) or a failing fit is skipped and recorded in
-#'   \code{$skipped}, not an error.
+#'   \code{$skipped}, not an error. Besides the estimator families, two
+#'   \emph{specification} rungs are available (ADR 0038, both in the default set):
+#'   \code{"satP-yearFE"} — the satP engine with year dummies replacing the
+#'   (logistic) time trend, showing the channels survive within-year
+#'   identification; and \code{"levels-twfe"} — the literature-standard two-way
+#'   FE benchmark (unit FE via the \code{"unit"} sentinel + year FE, no trend);
+#'   at country resolution this is the country-FE rung.
 #' @param indexMax Numeric. Structural ceiling of the index (CAPMF: 10).
 #' @param verbose Logical.
 #' @param ... Specification arguments forwarded to
@@ -48,20 +54,39 @@
 computeEstimatorAgreement <- function(data,
                                       sector = "Bulk",
                                       estimators = c("satP", "fractional", "beta",
-                                                     "levels", "satP-re"),
+                                                     "levels", "satP-re",
+                                                     "satP-yearFE", "levels-twfe"),
                                       indexMax = 10,
                                       verbose = TRUE,
                                       ...) {
-  estimators <- match.arg(estimators, c("satP", "fractional", "beta", "levels", "satP-re"),
+  estimators <- match.arg(estimators, c("satP", "fractional", "beta", "levels", "satP-re",
+                                        "satP-yearFE", "levels-twfe"),
                           several.ok = TRUE)
   fits <- list()
   skipped <- character(0)
   for (e in estimators) {
+    # Specification rungs (ADR 0038) resolve to an estimator family plus flag
+    # overrides; the overrides must win over whatever the caller passed in `...`.
+    args <- list(...)
+    est <- e
+    if (identical(e, "satP-yearFE")) {
+      est <- "satP"
+      args$timeTrend <- FALSE
+      args$logisticTimeTrend <- FALSE
+      args$yearFixedEffects <- TRUE
+    } else if (identical(e, "levels-twfe")) {
+      est <- "levels"
+      args$timeTrend <- FALSE
+      args$logisticTimeTrend <- FALSE
+      args$yearFixedEffects <- TRUE
+      args$regionMappingFixedEffects <- "unit"
+      args$useMundlak <- FALSE
+      args$interactRegionFE <- FALSE
+    }
     fits[[e]] <- tryCatch(
-      estimatePolicyStringencyModel(
-        data = data, sector = sector, estimator = e, indexMax = indexMax,
-        modelDir = NULL, verbose = FALSE, ...
-      ),
+      do.call(estimatePolicyStringencyModel,
+              c(list(data = data, sector = sector, estimator = est, indexMax = indexMax,
+                     modelDir = NULL, verbose = FALSE), args)),
       error = function(err) {
         skipped[[e]] <<- conditionMessage(err)
         if (isTRUE(verbose)) {
@@ -77,7 +102,7 @@ computeEstimatorAgreement <- function(data,
   }
 
   dropTerm <- function(terms) {
-    terms == "(Intercept)" | grepl("^regionFE", terms)
+    terms == "(Intercept)" | grepl("^regionFE|^yearFE", terms)
   }
 
   # --- per-term comparison table ------------------------------------------------
@@ -109,7 +134,10 @@ computeEstimatorAgreement <- function(data,
   fitStats <- do.call(rbind, lapply(names(fits), function(e) {
     f <- fits[[e]]
     yNat <- f$outcomeNatural
-    muNat <- tryCatch(.psmNaturalFitted(f$model, e, indexMax), error = function(err) NULL)
+    # Use the fit's own estimator FAMILY (a specification rung like "satP-yearFE"
+    # resolves to "satP"/"levels"; the response inversion depends on the family).
+    muNat <- tryCatch(.psmNaturalFitted(f$model, f$estimator %||% e, indexMax),
+                      error = function(err) NULL)
     rmse <- corNat <- NA_real_
     if (!is.null(muNat) && !is.null(yNat)) {
       # Align on the estimation rows by model-frame row label (glm/betareg drop

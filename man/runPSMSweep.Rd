@@ -28,6 +28,7 @@ runPSMSweep(
   softVifGate = 6,
   trendDominanceGate = 0.9,
   deltaR2Max = 1,
+  inferenceTGate = 2.33,
   sanityBatchSize = 5,
   sanityMaxModels = 20,
   sanityThresholds = list(),
@@ -76,6 +77,13 @@ the hard gate entirely.}
 \item{deltaR2Max}{Numeric. Fit-reliability gate forwarded to
 \code{\link{computeMaximinScore}} (default \code{1} — a mathematical validity
 bound on the incremental McFadden pseudo-R2; a spec exceeding it is degenerate).}
+
+\item{inferenceTGate}{Numeric or \code{NULL}. Inference-fragility within-band
+preference (ADR 0037), forwarded to \code{\link{computeMaximinScore}}. Defaults
+to \code{2.33} (roughly p < .02) for the PSM: among theory-equivalent specs a
+p=.049 squeaker on a theory term loses the near-tie to a comfortable margin.
+Never a hard gate — significance is not an admission criterion. \code{NULL}
+disables.}
 
 \item{sanityBatchSize, sanityMaxModels, sanityThresholds}{Sanity-walk knobs;
 thresholds are the \code{\link{computePolicyStringencySanity}} overrides.}

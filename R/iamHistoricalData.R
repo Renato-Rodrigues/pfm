@@ -19,6 +19,7 @@
 #'
 iamHistoricalData <- function(aggregate = FALSE, outputRegionMappingFile = "regionmappingH12.csv",
                               gdxRegionMappingFile = "regionmappingH12.csv") {
+  outputRegionMappingFile <- resolveRegionMapping(outputRegionMappingFile)
   peVars <- c("pecoal", "peoil", "pegas", "pewin", "pesol", "peur", "pehyd", "pegeo", "petotal")
   seVars <- c("wind", "solar", "seel")
   feVars <- c("fe_indst_fossil", "fe_indst", "fe_seel", "fe_total", "fe_liqbio_tran", "fe_liqtran")

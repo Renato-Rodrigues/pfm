@@ -7,7 +7,8 @@
 computeEstimatorAgreement(
   data,
   sector = "Bulk",
-  estimators = c("satP", "fractional", "beta", "levels", "satP-re"),
+  estimators = c("satP", "fractional", "beta", "levels", "satP-re", "satP-yearFE",
+    "levels-twfe"),
   indexMax = 10,
   verbose = TRUE,
   ...
@@ -25,7 +26,13 @@ panel preparation.}
 \item{estimators}{Character vector; suite members to fit. Defaults to the full
 suite. An unavailable member (e.g. \code{"beta"} without the optional
 \code{betareg} package) or a failing fit is skipped and recorded in
-\code{$skipped}, not an error.}
+\code{$skipped}, not an error. Besides the estimator families, two
+\emph{specification} rungs are available (ADR 0038, both in the default set):
+\code{"satP-yearFE"} — the satP engine with year dummies replacing the
+(logistic) time trend, showing the channels survive within-year
+identification; and \code{"levels-twfe"} — the literature-standard two-way
+FE benchmark (unit FE via the \code{"unit"} sentinel + year FE, no trend);
+at country resolution this is the country-FE rung.}
 
 \item{indexMax}{Numeric. Structural ceiling of the index (CAPMF: 10).}
 

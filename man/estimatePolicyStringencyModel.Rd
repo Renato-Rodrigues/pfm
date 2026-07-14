@@ -31,7 +31,8 @@ estimatePolicyStringencyModel(
   verbose = TRUE,
   maxit = 3000,
   prepared = FALSE,
-  form = "static"
+  form = "static",
+  yearFixedEffects = FALSE
 )
 }
 \arguments{
@@ -78,6 +79,13 @@ data.frame with the response \emph{already transformed} for this estimator
 \item{form}{Character. \code{"static"} (default) or \code{"ecm"} — the
 error-correction dynamics form (satP engine only; see Description). Appended
 last for backward compatibility.}
+
+\item{yearFixedEffects}{Logical. If \code{TRUE}, adds year dummies
+(\code{factor(year)}) to the formula — the year-FE robustness rung
+(ADR 0038): pair with \code{timeTrend = FALSE, logisticTimeTrend = FALSE} to
+show the theory channels survive within-year identification. \strong{Never a
+swept/projection option} (year FE cannot be extrapolated); estimator-agreement
+rung only. Default \code{FALSE}.}
 }
 \value{
 A list with elements \code{model}, \code{coeftest} (cluster-robust),

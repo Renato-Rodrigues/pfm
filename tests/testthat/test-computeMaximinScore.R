@@ -65,6 +65,43 @@ test_that("optional pseudoR2Range gate rejects degenerate fits when enabled", {
   expect_false(grepl("pseudoR2", off_gate$gateFailReason[off_gate$model == "FE-05"]))
 })
 
+test_that("inference-fragility preference demotes marginal theory terms within a near-tie band (ADR 0037)", {
+  # Two Green/Green specs in a near-tie: "Squeaker" leads on meanDeltaR2 by < eps but its
+  # weakest significant theory term is a p=.049 squeaker (|t| ~ 1.97); "Comfort" carries
+  # comfortable margins. With inferenceTGate the comfortable spec wins the band; without,
+  # the base deltaR2 ordering holds.
+  df <- data.frame(
+    model = rep(c("Squeaker", "Comfort"), each = 2),
+    sector = rep(c("Bulk", "Diffuse"), times = 2),
+    sigActorPower = 1, sigInstQual = 1, sigInteractions = 1,
+    deltaR2Theory = c(0.310, 0.310, 0.300, 0.300),
+    maxVIF = 2, converged = TRUE,
+    # Squeaker carries the better BIC, so absent the demotion it wins the band on parsimony
+    bic = c(90, 90, 100, 100),
+    minSigTheoryT = c(1.97, 2.8, 3.1, 2.9),
+    stringsAsFactors = FALSE
+  )
+  on_pref <- computeMaximinScore(df, nearTieEps = 0.025, inferenceTGate = 2.33)
+  expect_lt(on_pref$rank[on_pref$model == "Comfort"], on_pref$rank[on_pref$model == "Squeaker"])
+  # both still pass the hard gates - it is a preference, never a gate
+  expect_true(all(on_pref$gatePass))
+
+  off_pref <- computeMaximinScore(df, nearTieEps = 0.025, inferenceTGate = NULL)
+  expect_lt(off_pref$rank[off_pref$model == "Squeaker"], off_pref$rank[off_pref$model == "Comfort"])
+
+  # outside the near-tie band the preference cannot reorder: a clearly better spec wins anyway
+  df2 <- df
+  df2$deltaR2Theory[df2$model == "Squeaker"] <- 0.40
+  far <- computeMaximinScore(df2, nearTieEps = 0.025, inferenceTGate = 2.33)
+  expect_lt(far$rank[far$model == "Squeaker"], far$rank[far$model == "Comfort"])
+
+  # NA minSigTheoryT (no significant theory term / column semantics) is never demoted
+  df3 <- df
+  df3$minSigTheoryT <- NA_real_
+  na_pref <- computeMaximinScore(df3, nearTieEps = 0.025, inferenceTGate = 2.33)
+  expect_lt(na_pref$rank[na_pref$model == "Squeaker"], na_pref$rank[na_pref$model == "Comfort"])
+})
+
 test_that("missing sectors, non-convergence and lagged terms fail gates", {
   df <- makeScoreInput()
   df <- df[!(df$model == "D4" & df$sector == "Diffuse"), ]

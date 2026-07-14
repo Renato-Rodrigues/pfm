@@ -76,6 +76,12 @@
 #' @param form Character. \code{"static"} (default) or \code{"ecm"} — the
 #'   error-correction dynamics form (satP engine only; see Description). Appended
 #'   last for backward compatibility.
+#' @param yearFixedEffects Logical. If \code{TRUE}, adds year dummies
+#'   (\code{factor(year)}) to the formula — the year-FE robustness rung
+#'   (ADR 0038): pair with \code{timeTrend = FALSE, logisticTimeTrend = FALSE} to
+#'   show the theory channels survive within-year identification. \strong{Never a
+#'   swept/projection option} (year FE cannot be extrapolated); estimator-agreement
+#'   rung only. Default \code{FALSE}.
 #'
 #' @return A list with elements \code{model}, \code{coeftest} (cluster-robust),
 #'   \code{vcov} (clustered by region), \code{sector}, \code{family},
@@ -128,7 +134,8 @@ estimatePolicyStringencyModel <- function(
     verbose = TRUE,
     maxit = 3000,
     prepared = FALSE,
-    form = "static") {
+    form = "static",
+    yearFixedEffects = FALSE) {
   estimator <- match.arg(estimator, c("satP", "fractional", "beta", "levels",
                                       "satP-re", "frontier", "satP-iv"))
   form <- match.arg(form, c("static", "ecm"))
@@ -268,6 +275,12 @@ estimatePolicyStringencyModel <- function(
     useMundlak = useMundlak,
     gdpGovInteraction = gdpGovInteraction
   )
+  if (isTRUE(yearFixedEffects)) {
+    # Year-FE rung (ADR 0038): common-year shocks absorbed by dummies instead of
+    # the (logistic) time trend; identification is within-year only.
+    df$yearFE <- factor(df$year)
+    fml <- stats::update(fml, . ~ . + yearFE)
+  }
 
   # --- 4. Cache (satP engine only — the only estimator entering selection) -----
   cacheExtra <- paste0("psm-", estimator, "+max", indexMax,
@@ -504,7 +517,7 @@ estimatePolicyStringencyModel <- function(
     } else NA_real_
     bet <- stats::coef(fit)
     keepLR <- setdiff(names(bet), c("(Intercept)", "lagged_ecp"))
-    keepLR <- keepLR[!grepl("^regionFE", keepLR)]
+    keepLR <- keepLR[!grepl("^regionFE|^yearFE", keepLR)]
     result$longRun <- if (is.finite(phi) && phi != 0) {
       data.frame(term = keepLR, longRunEffect = as.numeric(-bet[keepLR] / phi),
                  stringsAsFactors = FALSE)
@@ -651,7 +664,7 @@ estimatePolicyStringencyModel <- function(
   beta <- if (inherits(fit, "betareg")) stats::coef(fit, model = "mean") else stats::coef(fit)
   beta <- beta[colnames(mm)]
   keep <- setdiff(colnames(mm), "(Intercept)")
-  keep <- keep[!grepl("^regionFE", keep)]
+  keep <- keep[!grepl("^regionFE|^yearFE", keep)]
   vc <- vcovMat[colnames(mm), colnames(mm), drop = FALSE]
 
   if (estimator == "levels") {

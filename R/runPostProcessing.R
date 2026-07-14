@@ -869,6 +869,11 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
     runPSMIV(group, resultsDir = resultsDir, modelDir = modelDir,
              cachefolder = cachefolder, verbose = verbose)
   }
+  if (doStep("psm-influence")) {
+    say("step: psm-influence")
+    runPSMInfluence(group, resultsDir = resultsDir, modelDir = modelDir,
+                    cachefolder = cachefolder, verbose = verbose)
+  }
   if (doStep("psm-sector-speeds")) {
     say("step: psm-sector-speeds")
     dots <- list(...)

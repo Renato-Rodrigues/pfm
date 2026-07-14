@@ -18,6 +18,7 @@
 downscaleREMINDResults <- function(gdxFile = "fulldata.gdx", aggregate = FALSE,
                                    gdxRegionMappingFile = "regionmappingH12.csv",
                                    outputRegionMappingFile = "regionmappingH12.csv") {
+  outputRegionMappingFile <- resolveRegionMapping(outputRegionMappingFile)
   # REMIND mapping file
   remindMappingFile <- toolGetMapping(gdxRegionMappingFile, type = "regional", where = "mappingfolder")
 

@@ -2,8 +2,12 @@ test_that("channelSpecs builds the expected suites", {
   g <- channelSpecs("guided")
   expect_length(g, 14) # WGI GovEff state capacity (V-Dem PCA dropped 2026-06-16)
   ex <- channelSpecs("exhaustive")
-  # ADR 0011: 15 IQ x 2 AP x 8 controls x (3 FE levels + 1 hybridFD) + 1 pureFD + 4 lag
-  expect_length(ex, 965)
+  # Base specs: 15 IQ x 2 AP x 8 controls x (3 FE levels + 1 hybridFD) = 960 (ADR 0011)
+  # + 1 pureFD + 36 capture (R9) + 12 dif:EU (R7) + 4 lag + 720 context-dummies
+  # block (ADR 0038: 15 IQ x 2 AP x 8 controls x 3 FE, levels only) = 1733 base;
+  # every LEVELS base spec gets a saturating stringency-only twin (ADR 0028):
+  # 720 + 36 + 12 + 4 + 720 = 1492 twins -> 3225 total.
+  expect_length(ex, 3225)
   # every spec has the fields the report schema needs
   needed <- c("name", "description", "actorPowerDrivers", "actorPowerIndex",
               "instQualityDrivers", "controlDrivers", "logisticTimeTrend",
@@ -12,9 +16,10 @@ test_that("channelSpecs builds the expected suites", {
   # names unique within each suite
   expect_false(anyDuplicated(vapply(g, `[[`, character(1), "name")) > 0)
   expect_false(anyDuplicated(vapply(ex, `[[`, character(1), "name")) > 0)
-  # exhaustive transform split: 724 levels (720 cross + 4 lag) + 240 hybridFD + 1 pureFD
+  # exhaustive transform split: 2984 levels (1492 base + 1492 satP twins)
+  # + 240 hybridFD + 1 pureFD
   tr <- vapply(ex, `[[`, character(1), "panelTransform")
-  expect_equal(as.integer(table(tr)[c("levels", "hybridFD", "pureFD")]), c(724L, 240L, 1L))
+  expect_equal(as.integer(table(tr)[c("levels", "hybridFD", "pureFD")]), c(2984L, 240L, 1L))
   # Option 2b: no hybrid AP form (no spec has split mains with a composite index)
   hybrid <- vapply(ex, function(s) {
     setequal(s$actorPowerDrivers, c("Innovator Power", "Incumbent Power")) &&

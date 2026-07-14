@@ -13,7 +13,8 @@ runPSMEstimatorAgreement(
   y = 2000:2022,
   outputRegionMappingFile = "regionmapping_54.csv",
   indexMax = 10,
-  estimators = c("satP", "fractional", "beta", "levels", "satP-re"),
+  estimators = c("satP", "fractional", "beta", "levels", "satP-re", "satP-yearFE",
+    "levels-twfe"),
   verbose = TRUE
 )
 }

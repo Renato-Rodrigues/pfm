@@ -582,7 +582,7 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
     sigControl = 0L, nControl = length(cfg$controlDrivers),
     deltaR2Theory = NA_real_, theoryFrac = NA_real_,
     aic = NA_real_, bic = NA_real_, pseudoR2 = NA_real_, nObs = NA_integer_, nFE = NA_integer_,
-    trendShare = NA_real_, nonTheoryShare = NA_real_,
+    trendShare = NA_real_, nonTheoryShare = NA_real_, minSigTheoryT = NA_real_,
     maxVIF = NA_real_, converged = FALSE, usesLagged = isTRUE(cfg$includeLagged),
     brier = NA_real_, auc = NA_real_, calibrationSlope = NA_real_, rmse = NA_real_,
     stringsAsFactors = FALSE
@@ -622,6 +622,25 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
   # Control-term significance (for the drop-idle-control tie-break, 2026-06-24): a control
   # is "idle" when present (nControl > 0) but never significant across sectors.
   base$sigControl <- countMatches(sigBase, cfg$controlDrivers)
+  # Weakest claimed theory result (ADR 0037): the minimum cluster-robust |t| among the
+  # SIGNIFICANT theory terms (mains + interactions). Feeds the inference-fragility
+  # within-band preference — a spec whose weakest significant theory term is a p=.049
+  # squeaker is demoted behind theory-equivalent specs with comfortable margins.
+  # NA when no theory term is significant (the tier already handles that case).
+  base$minSigTheoryT <- tryCatch({
+    if (is.null(ct) || is.null(pvals)) NA_real_ else {
+      thVars <- c(cfg$actorPowerDrivers, cfg$actorPowerIndex, cfg$instQualityDrivers)
+      thVars <- thVars[!is.na(thVars) & nzchar(thVars)]
+      if (length(thVars) == 0) NA_real_ else {
+        pats <- make.names(thVars)
+        isTheoryTerm <- function(nm) any(vapply(pats, function(p) grepl(p, nm, fixed = TRUE),
+                                                logical(1)))
+        sigTheory <- sigVars[vapply(sigVars, isTheoryTerm, logical(1))]
+        if (length(sigTheory) == 0) NA_real_ else
+          min(abs(ct[sigTheory, 3]), na.rm = TRUE)
+      }
+    }
+  }, error = function(e) NA_real_)
 
   isLf <- inherits(m, "logistf")
   k <- length(stats::coef(m))

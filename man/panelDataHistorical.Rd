@@ -24,7 +24,10 @@ panelDataHistorical(
 
 \item{y}{years to be calculated}
 
-\item{outputRegionMappingFile}{mapping file for output regions}
+\item{outputRegionMappingFile}{mapping file for output regions, or the sentinel
+\code{"country"} for a country-resolution run (identity mapping generated in code by
+\code{\link[mrpfm:toolCountryIdentityMapping]{mrpfm::toolCountryIdentityMapping()}}; the global madrat regionmapping config is
+scoped around the data calls so the CAPMF coverage filter sees the right mapping)}
 
 \item{coeff}{list of coefficients for actor power index calculation}
 
@@ -39,8 +42,10 @@ preparePanelData later drops rows with a missing outcome.}
 (Electricity/Industry/Buildings/Transport) CAPMF sector outcomes.}
 
 \item{psWeighting}{how CAPMF sectors are aggregated into Bulk/Diffuse: \code{"equal"}
-(default) or GHG/GDP-share weights (a named numeric vector or a per-cell magpie),
-forwarded to \code{\link[mrpfm:calcPolicyStringency]{mrpfm::calcPolicyStringency()}} — the T2 aggregation-sensitivity axis.}
+(default), \code{"ghg"} (EDGAR sectoral emissions), \code{"gdp"} (OECD value added by
+activity), \code{"fe"} (final-energy activity proxy), or explicit weights (a named
+numeric vector or a per-cell magpie), forwarded to
+\code{\link[mrpfm:calcPolicyStringency]{mrpfm::calcPolicyStringency()}} — the T2 aggregation-sensitivity axis.}
 }
 \value{
 Returns the combined magpie object for historical data

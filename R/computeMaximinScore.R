@@ -92,6 +92,16 @@ computeTheoryTier <- function(sigActorPower, sigInstQual, sigInteractions) {
 #'   \code{vifGate} (which excludes a spec entirely); this only re-orders near-ties, e.g.
 #'   nudging selection toward a low-VIF composite-AP stringency spec over a high-VIF split-AP
 #'   one. \code{NULL} disables. Default \code{6}.
+#' @param inferenceTGate Numeric or \code{NULL}. Inference-fragility preference (2026-07-13,
+#'   ADR 0037): within a near-tie band, specs whose weakest \emph{significant} theory term
+#'   (\code{minSigTheoryT}, the minimum cluster-robust |t| over significant theory terms) falls
+#'   below this in any sector are demoted behind theory-equivalent specs whose claimed theory
+#'   results carry comfortable margins — a p=.049 squeaker loses a near-tie to a p=.005 result.
+#'   \strong{Never a hard gate}: statistical significance is not an admission criterion
+#'   (selection on significance would make the winner's p-values uninterpretable). Requires a
+#'   \code{minSigTheoryT} column (NA rows — no significant theory term — are never demoted; the
+#'   tier already handles them); no-ops without it. Default \code{NULL} (off — the price-model
+#'   selection is unchanged; \code{runPSMSweep} enables it at \code{2.33}, i.e. roughly p < .02).
 #' @param temporalSignGate Numeric in \code{[0, 1]} or \code{NULL}. Soft temporal sign-stability
 #'   preference (2026-06-24, ADR-less refinement of the selection machinery): within a near-tie
 #'   band, specs whose \code{temporalSignStable} (fraction of \emph{theory-term} coefficient signs
@@ -120,7 +130,8 @@ computeTheoryTier <- function(sigActorPower, sigInstQual, sigInteractions) {
 computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range = NULL,
                                 nearTieEps = 0.05, feParsimonyWeight = 0,
                                 dropIdleControls = TRUE, softVifGate = 6,
-                                temporalSignGate = NULL, trendDominanceGate = 0.5) {
+                                temporalSignGate = NULL, trendDominanceGate = 0.5,
+                                inferenceTGate = NULL) {
   required <- c("model", "sector", "sigActorPower", "sigInstQual",
                 "sigInteractions", "deltaR2Theory", "maxVIF", "converged")
   missingCols <- setdiff(required, colnames(df))
@@ -209,14 +220,17 @@ computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range 
       idleControl = if (all(c("nControl", "sigControl") %in% colnames(m))) {
         any(m$nControl > 0, na.rm = TRUE) && !any(m$sigControl > 0, na.rm = TRUE)
       } else FALSE,
-      # Fragility demotions (0/1 each, binary): high collinearity, and temporal sign-instability.
+      # Fragility demotions (0/1 each, binary): high collinearity, temporal sign-instability,
+      # and inference fragility (ADR 0037: weakest significant theory term below inferenceTGate).
       # (Trend reliance is handled separately as a *relative* within-band key, not a demotion.)
       fragility = {
         vifBad <- !is.null(softVifGate) && "maxVIF" %in% colnames(m) &&
           any(!is.na(m$maxVIF) & m$maxVIF > softVifGate)
         tempBad <- !is.null(temporalSignGate) && "temporalSignStable" %in% colnames(m) &&
           any(!is.na(m$temporalSignStable) & m$temporalSignStable < temporalSignGate)
-        as.integer(isTRUE(vifBad)) + as.integer(isTRUE(tempBad))
+        inferBad <- !is.null(inferenceTGate) && "minSigTheoryT" %in% colnames(m) &&
+          any(!is.na(m$minSigTheoryT) & m$minSigTheoryT < inferenceTGate)
+        as.integer(isTRUE(vifBad)) + as.integer(isTRUE(tempBad)) + as.integer(isTRUE(inferBad))
       },
       # Relative trend-reliance key (lower preferred); NA (no trend term) -> 0 (best, no reliance).
       trendKey = if ("trendShare" %in% colnames(m)) {
