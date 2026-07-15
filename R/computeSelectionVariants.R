@@ -21,6 +21,13 @@
 #' @param tierGates Character vector of tier gates to document. Default
 #'   \code{c("Green", "Blue")}.
 #' @param deployedGate Which gate's winner is the deployment (default \code{"Green"}).
+#' @param deployedModel Character or \code{NULL}. The ACTUAL deployed spec when it
+#'   differs from the gate winner — i.e. the post-sanity selection (the sanity /
+#'   responsiveness walk can reject the maximin leader; 2026-07-15: the walk
+#'   rejected nine scenario-blind composites before deploying X-0290). The
+#'   sharing-cost exhibit is computed against this model so \code{sharingCost}
+#'   describes the real deployment, not a rejected leader. \code{NULL} falls back
+#'   to the \code{deployedGate} winner.
 #' @param ... Further arguments forwarded to \code{\link{computeMaximinScore}}
 #'   (near-tie knobs, hard-gate thresholds, ...). \code{rankBy} is fixed to
 #'   \code{"worseDeltaR2"}.
@@ -35,7 +42,8 @@
 #' @author Renato Rodrigues
 computeSelectionVariants <- function(df, sectors = c("Bulk", "Diffuse"),
                                      tierGates = c("Green", "Blue"),
-                                     deployedGate = "Green", ...) {
+                                     deployedGate = "Green",
+                                     deployedModel = NULL, ...) {
   deployedGate <- match.arg(deployedGate, tierGates)
   rankings <- lapply(tierGates, function(tg) {
     computeMaximinScore(df, rankBy = "worseDeltaR2", tierGate = tg, ...)
@@ -50,7 +58,7 @@ computeSelectionVariants <- function(df, sectors = c("Bulk", "Diffuse"),
   # documented gate (last of tierGates, typically "Blue") as the admissible pool.
   pool <- rankings[[tierGates[length(tierGates)]]]
   okModels <- pool$model[pool$gatePass]
-  dep <- winners[[deployedGate]]
+  dep <- if (!is.null(deployedModel)) deployedModel else winners[[deployedGate]]
   perSector <- do.call(rbind, lapply(sectors, function(sec) {
     s <- df[df$model %in% okModels & df$sector == sec &
               is.finite(df$deltaR2Theory), , drop = FALSE]
@@ -75,6 +83,7 @@ computeSelectionVariants <- function(df, sectors = c("Bulk", "Diffuse"),
   rownames(perSector) <- NULL
 
   list(winners = as.list(winners), perSector = perSector,
-       rankings = rankings, deployedGate = deployedGate)
+       rankings = rankings, deployedGate = deployedGate,
+       deployedModel = dep)
 }
 # nolint end

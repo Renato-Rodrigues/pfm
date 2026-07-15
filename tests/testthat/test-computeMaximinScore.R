@@ -160,6 +160,16 @@ test_that("computeSelectionVariants documents tier winners and the sharing cost"
   expect_equal(ps$sharingCost[ps$sector == "Bulk"], 0.03, tolerance = 1e-9)
   # Diffuse best own = BalancedBlue (0.17); deployed 0.13 -> cost 0.04
   expect_equal(ps$sharingCost[ps$sector == "Diffuse"], 0.04, tolerance = 1e-9)
+
+  # deployedModel override (post-sanity deployment differs from the gate winner):
+  # costs are computed against the ACTUAL deployment
+  v2 <- computeSelectionVariants(df, tierGates = c("Green", "Blue"),
+                                 deployedGate = "Green",
+                                 deployedModel = "LopsidedGreen", nearTieEps = 0)
+  expect_equal(v2$deployedModel, "LopsidedGreen")
+  ps2 <- v2$perSector
+  expect_equal(ps2$sharingCost[ps2$sector == "Bulk"], 0.10 - 0.04, tolerance = 1e-9)
+  expect_equal(ps2$sharingCost[ps2$sector == "Diffuse"], 0.17 - 0.16, tolerance = 1e-9)
 })
 
 test_that("missing sectors, non-convergence and lagged terms fail gates", {

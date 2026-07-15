@@ -9,6 +9,7 @@ computeSelectionVariants(
   sectors = c("Bulk", "Diffuse"),
   tierGates = c("Green", "Blue"),
   deployedGate = "Green",
+  deployedModel = NULL,
   ...
 )
 }
@@ -22,6 +23,14 @@ computeSelectionVariants(
 \code{c("Green", "Blue")}.}
 
 \item{deployedGate}{Which gate's winner is the deployment (default \code{"Green"}).}
+
+\item{deployedModel}{Character or \code{NULL}. The ACTUAL deployed spec when it
+differs from the gate winner — i.e. the post-sanity selection (the sanity /
+responsiveness walk can reject the maximin leader; 2026-07-15: the walk
+rejected nine scenario-blind composites before deploying X-0290). The
+sharing-cost exhibit is computed against this model so \code{sharingCost}
+describes the real deployment, not a rejected leader. \code{NULL} falls back
+to the \code{deployedGate} winner.}
 
 \item{...}{Further arguments forwarded to \code{\link{computeMaximinScore}}
 (near-tie knobs, hard-gate thresholds, ...). \code{rankBy} is fixed to

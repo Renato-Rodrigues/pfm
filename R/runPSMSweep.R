@@ -337,6 +337,31 @@ runPSMSweep <- function(group,
         else if (isTRUE(sel$tierRelaxed)) " (tier-relaxed: Blue gate; passed sanity + responsiveness)"
         else " (passed bounded-index Projection Sanity)")
   }
+  # Post-sanity recompute of the variants exhibit (ADR 0039 caveat fix): the
+  # sanity/responsiveness walk can reject the maximin leader, so the sharing-cost
+  # columns must reference the FINAL deployment, not the pre-sanity gate winner.
+  if (!is.null(selectionVariants) && length(selected) > 0 &&
+        !identical(selected[["PolicyStringency"]], selectionVariants$deployedModel)) {
+    selectionVariants <- tryCatch(
+      computeSelectionVariants(sub[, mmCols, drop = FALSE], sectors = sectors,
+                               tierGates = documentTierGates,
+                               deployedGate = if (!is.null(tierGate)) tierGate else documentTierGates[1],
+                               deployedModel = selected[["PolicyStringency"]],
+                               nearTieEps = nearTieEps,
+                               feParsimonyWeight = feParsimonyWeight,
+                               dropIdleControls = dropIdleControls,
+                               softVifGate = softVifGate,
+                               trendDominanceGate = trendDominanceGate,
+                               deltaR2Max = deltaR2Max,
+                               inferenceTGate = inferenceTGate),
+      error = function(e) selectionVariants
+    )
+    saveRDS(selectionVariants, file.path(groupDir, "selection-variants.rds"))
+    ps <- selectionVariants$perSector
+    say("Sharing cost vs the DEPLOYED spec (post-sanity): ",
+        paste(sprintf("%s best %s (dR2 %.3f, cost %.3f)", ps$sector, ps$bestModel,
+                      ps$bestDeltaR2, ps$sharingCost), collapse = " | "))
+  }
   results$tier <- computeTheoryTier(results$sigActorPower, results$sigInstQual,
                                     results$sigInteractions)
 
