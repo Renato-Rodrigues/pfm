@@ -379,6 +379,8 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
 .psmSanitySelect <- function(passModels, specByName, sectors, panelData, scenarioData,
                              modelDir, batchSize, maxModels, thresholds, regionBlocks,
                              histIndexBySector, indexMax = 10,
+                             referenceScenarioData = NULL, minScenarioDelta = 0.05,
+                             deltaWindow = c(2040, 2060),
                              say = function(...) invisible()) {
   traceRows <- list()
   flagsByModel <- list()
@@ -422,6 +424,54 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
         f <- sn$flags
         f$sector <- sec
         modelFlags[[sec]] <- f
+      }
+      # Scenario-responsiveness gate (ADR 0039, handoff item 7): project the same
+      # spec on the REFERENCE scenario and require the gating and reference
+      # projections to differ. A spec whose median |gating - reference| index
+      # delta over IN-COVERAGE region-years in the evaluation window falls below
+      # `minScenarioDelta` is severe-flagged "scenarioBlind" - a feasibility layer
+      # that cannot distinguish an ambitious from a current-policy pathway cannot
+      # inform coupling (composite-AP specs clamp to the same support edge under
+      # both pathways; empirically ~0.00 vs split ~0.56 at 2050).
+      if (!is.null(referenceScenarioData)) {
+        ref <- tryCatch(
+          projectPSMSpecScenario(cfg, sec, histData = panelData,
+                                 scenarioData = referenceScenarioData,
+                                 modelDir = modelDir, indexMax = indexMax, verbose = FALSE),
+          error = function(e) NULL
+        )
+        if (is.null(ref)) {
+          evaluable <- FALSE
+          reason <- "reference-scenario projection failed"
+          break
+        }
+        keep <- c("region", "year", "index")
+        cmp <- merge(proj[, c(keep, intersect("outOfCoverage", colnames(proj)))],
+                     ref[, keep], by = c("region", "year"),
+                     suffixes = c("", ".ref"))
+        if ("outOfCoverage" %in% colnames(cmp)) {
+          cmp <- cmp[!cmp$outOfCoverage %in% TRUE, , drop = FALSE]
+        }
+        cmp <- cmp[cmp$year >= deltaWindow[1] & cmp$year <= deltaWindow[2], , drop = FALSE]
+        respDelta <- if (nrow(cmp) > 0) {
+          stats::median(abs(cmp$index - cmp$index.ref), na.rm = TRUE)
+        } else NA_real_
+        if (!is.finite(respDelta) || respDelta < minScenarioDelta) {
+          nSevere <- nSevere + 1L
+          modelFlags[[paste0(sec, ".scenarioBlind")]] <- data.frame(
+            rule = "scenarioBlind", severity = "severe",
+            region = "ALL", year = NA_integer_,
+            value = respDelta,
+            detail = paste0("median |gating-reference| index delta ",
+                            round(respDelta, 4), " < ", minScenarioDelta,
+                            " over ", deltaWindow[1], "-", deltaWindow[2],
+                            " (in-coverage)"),
+            sector = sec, stringsAsFactors = FALSE
+          )
+          say("  [sanity:PolicyStringency] ", m, " (", sec, ") scenario-blind: ",
+              "median |gating-reference| = ", round(respDelta, 4),
+              " < ", minScenarioDelta)
+        }
       }
     }
     pass <- evaluable && nSevere == 0L

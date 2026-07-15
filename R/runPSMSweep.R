@@ -54,6 +54,27 @@
 #'   p=.049 squeaker on a theory term loses the near-tie to a comfortable margin.
 #'   Never a hard gate — significance is not an admission criterion. \code{NULL}
 #'   disables.
+#' @param rankBy,tierGate Tournament v2 (ADR 0039), forwarded to
+#'   \code{\link{computeMaximinScore}}. PSM defaults: \code{rankBy = "worseDeltaR2"}
+#'   (rank gate-passers by the worse sector's \eqn{\Delta R^2}(theory)) and
+#'   \code{tierGate = "Green"} (the deployment must be Green in both sectors). Set
+#'   \code{rankBy = "tierMean", tierGate = NULL} for the pre-v2 semantics.
+#' @param documentTierGates Character vector. Tier gates for the documented
+#'   selection variants (\code{\link{computeSelectionVariants}}: tier-gate winners +
+#'   the Specification-Sharing Cost exhibit), written to
+#'   \code{selection-variants.rds}. \code{NULL} skips the exhibit.
+#' @param referenceScenarioData Optional pre-built REFERENCE scenario panel (the
+#'   non-gating Policy Scenario, e.g. National Policies). When supplied together
+#'   with \code{scenarioData}, the sanity walk applies the
+#'   \strong{scenario-responsiveness gate} (ADR 0039): specs whose gating and
+#'   reference projections are indistinguishable (median in-coverage |Δindex| below
+#'   \code{minScenarioDelta} within \code{deltaWindow}) are severe-flagged
+#'   \code{scenarioBlind} and deselected.
+#' @param referenceGdxFile Optional path to the reference scenario's
+#'   \code{fulldata.gdx}; used to build \code{referenceScenarioData} when that is
+#'   \code{NULL}.
+#' @param minScenarioDelta,deltaWindow Responsiveness-gate knobs (default
+#'   \code{0.05} index points over \code{c(2040, 2060)}).
 #' @param sanityBatchSize,sanityMaxModels,sanityThresholds Sanity-walk knobs;
 #'   thresholds are the \code{\link{computePolicyStringencySanity}} overrides.
 #' @param overwriteConfig Logical. Regenerate the auto-generated spec YAML.
@@ -90,6 +111,13 @@ runPSMSweep <- function(group,
                         trendDominanceGate = 0.9,
                         deltaR2Max = 1,
                         inferenceTGate = 2.33,
+                        rankBy = "worseDeltaR2",
+                        tierGate = "Green",
+                        documentTierGates = c("Green", "Blue"),
+                        referenceScenarioData = NULL,
+                        referenceGdxFile = NULL,
+                        minScenarioDelta = 0.05,
+                        deltaWindow = c(2040, 2060),
                         sanityBatchSize = 5,
                         sanityMaxModels = 20,
                         sanityThresholds = list(),
@@ -153,6 +181,25 @@ runPSMSweep <- function(group,
       }
     )
   }
+  # Reference scenario panel (ADR 0039: the responsiveness gate needs a second,
+  # non-gating pathway to compare against).
+  if (is.null(referenceScenarioData) && !is.null(referenceGdxFile) &&
+        file.exists(referenceGdxFile)) {
+    say("Building REFERENCE scenario panel from gdx ...")
+    referenceScenarioData <- tryCatch(
+      panelDataScenario(gdxFile = referenceGdxFile, aggregate = TRUE,
+                        outputRegionMappingFile = outputRegionMappingFile),
+      error = function(e) {
+        say("reference scenario panel failed (", conditionMessage(e),
+            "); responsiveness gate skipped.")
+        NULL
+      }
+    )
+  }
+  if (!is.null(referenceScenarioData) && is.null(scenarioData)) {
+    say("WARNING: reference scenario supplied without a gating scenario - ",
+        "responsiveness gate needs both; it will be skipped.")
+  }
 
   # ── Specs: shared channel grid adapted for the PSM ───────────────────────────
   if (is.null(specs)) {
@@ -195,8 +242,40 @@ runPSMSweep <- function(group,
                             softVifGate = softVifGate,
                             trendDominanceGate = trendDominanceGate,
                             deltaR2Max = deltaR2Max,
-                            inferenceTGate = inferenceTGate)
+                            inferenceTGate = inferenceTGate,
+                            rankBy = rankBy, tierGate = tierGate)
   maximin[["PolicyStringency"]] <- mm
+  # Documented selection variants (ADR 0039): tier-gate winners + the
+  # Specification-Sharing Cost exhibit. Documentation only - never the deployment.
+  selectionVariants <- NULL
+  if (!is.null(documentTierGates) && identical(rankBy, "worseDeltaR2")) {
+    selectionVariants <- tryCatch(
+      computeSelectionVariants(sub[, mmCols, drop = FALSE], sectors = sectors,
+                               tierGates = documentTierGates,
+                               deployedGate = if (!is.null(tierGate)) tierGate else documentTierGates[1],
+                               nearTieEps = nearTieEps,
+                               feParsimonyWeight = feParsimonyWeight,
+                               dropIdleControls = dropIdleControls,
+                               softVifGate = softVifGate,
+                               trendDominanceGate = trendDominanceGate,
+                               deltaR2Max = deltaR2Max,
+                               inferenceTGate = inferenceTGate),
+      error = function(e) {
+        say("selection-variants exhibit failed: ", conditionMessage(e))
+        NULL
+      }
+    )
+    if (!is.null(selectionVariants)) {
+      saveRDS(selectionVariants, file.path(groupDir, "selection-variants.rds"))
+      say("Selection variants: ",
+          paste(names(selectionVariants$winners), unlist(selectionVariants$winners),
+                sep = " -> ", collapse = " | "))
+      ps <- selectionVariants$perSector
+      say("Sharing cost: ",
+          paste(sprintf("%s best %s (dR2 %.3f, cost %.3f)", ps$sector, ps$bestModel,
+                        ps$bestDeltaR2, ps$sharingCost), collapse = " | "))
+    }
+  }
   pass <- mm[mm$gatePass, , drop = FALSE]
   if (nrow(pass) == 0) {
     # Self-diagnosing: tally WHY every spec failed the hard gate (reason labels,
@@ -219,12 +298,43 @@ runPSMSweep <- function(group,
       batchSize = sanityBatchSize, maxModels = sanityMaxModels,
       thresholds = sanityThresholds, regionBlocks = .h12RegionBlocks(),
       histIndexBySector = .histIndexBySector(panelData, sectors),
-      indexMax = indexMax, say = say
+      indexMax = indexMax,
+      referenceScenarioData = referenceScenarioData,
+      minScenarioDelta = minScenarioDelta, deltaWindow = deltaWindow,
+      say = say
     )
+    # Tier-relaxed fallback (ADR 0039): if every Green-gate candidate fails the
+    # sanity walk (e.g. all scenario-blind), walk the Blue-gate pool before
+    # accepting a forced least-flagged Green spec.
+    if (isTRUE(sel$forced) && identical(tierGate, "Green") &&
+          !is.null(selectionVariants) && "Blue" %in% names(selectionVariants$rankings)) {
+      mmBlue <- selectionVariants$rankings$Blue
+      blueOnly <- setdiff(mmBlue$model[mmBlue$gatePass], pass$model)
+      if (length(blueOnly) > 0) {
+        say("Green pool exhausted in sanity - walking the tier-relaxed (Blue) pool ...")
+        selBlue <- .psmSanitySelect(
+          passModels = blueOnly, specByName = specByName, sectors = sectors,
+          panelData = panelData, scenarioData = scenarioData, modelDir = modelDir,
+          batchSize = sanityBatchSize, maxModels = sanityMaxModels,
+          thresholds = sanityThresholds, regionBlocks = .h12RegionBlocks(),
+          histIndexBySector = .histIndexBySector(panelData, sectors),
+          indexMax = indexMax,
+          referenceScenarioData = referenceScenarioData,
+          minScenarioDelta = minScenarioDelta, deltaWindow = deltaWindow,
+          say = say
+        )
+        if (!isTRUE(selBlue$forced)) {
+          selBlue$tierRelaxed <- TRUE
+          sel <- selBlue
+          say("Tier-relaxed deployment: a Blue-gate spec passed sanity where no Green did.")
+        }
+      }
+    }
     selected[["PolicyStringency"]] <- sel$chosen
     sanity[["PolicyStringency"]] <- sel
     say("Selected PSM spec: ", sel$chosen,
         if (isTRUE(sel$forced)) " (LEAST-FLAGGED fallback - no candidate passed sanity)"
+        else if (isTRUE(sel$tierRelaxed)) " (tier-relaxed: Blue gate; passed sanity + responsiveness)"
         else " (passed bounded-index Projection Sanity)")
   }
   results$tier <- computeTheoryTier(results$sigActorPower, results$sigInstQual,
@@ -241,6 +351,7 @@ runPSMSweep <- function(group,
   res <- list(
     results = results, coefficients = grid$coefficients,
     maximin = maximin, selected = selected, sanity = sanity,
+    selectionVariants = selectionVariants,
     specs = specs, selectedConfigPath = selectedConfigPath,
     fitSummary = list(nJobs = grid$nJobs, nNew = grid$nNew, nFailed = grid$nFailed)
   )

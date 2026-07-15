@@ -29,6 +29,13 @@ runPSMSweep(
   trendDominanceGate = 0.9,
   deltaR2Max = 1,
   inferenceTGate = 2.33,
+  rankBy = "worseDeltaR2",
+  tierGate = "Green",
+  documentTierGates = c("Green", "Blue"),
+  referenceScenarioData = NULL,
+  referenceGdxFile = NULL,
+  minScenarioDelta = 0.05,
+  deltaWindow = c(2040, 2060),
   sanityBatchSize = 5,
   sanityMaxModels = 20,
   sanityThresholds = list(),
@@ -84,6 +91,32 @@ to \code{2.33} (roughly p < .02) for the PSM: among theory-equivalent specs a
 p=.049 squeaker on a theory term loses the near-tie to a comfortable margin.
 Never a hard gate — significance is not an admission criterion. \code{NULL}
 disables.}
+
+\item{rankBy, tierGate}{Tournament v2 (ADR 0039), forwarded to
+\code{\link{computeMaximinScore}}. PSM defaults: \code{rankBy = "worseDeltaR2"}
+(rank gate-passers by the worse sector's \eqn{\Delta R^2}(theory)) and
+\code{tierGate = "Green"} (the deployment must be Green in both sectors). Set
+\code{rankBy = "tierMean", tierGate = NULL} for the pre-v2 semantics.}
+
+\item{documentTierGates}{Character vector. Tier gates for the documented
+selection variants (\code{\link{computeSelectionVariants}}: tier-gate winners +
+the Specification-Sharing Cost exhibit), written to
+\code{selection-variants.rds}. \code{NULL} skips the exhibit.}
+
+\item{referenceScenarioData}{Optional pre-built REFERENCE scenario panel (the
+non-gating Policy Scenario, e.g. National Policies). When supplied together
+with \code{scenarioData}, the sanity walk applies the
+\strong{scenario-responsiveness gate} (ADR 0039): specs whose gating and
+reference projections are indistinguishable (median in-coverage |Δindex| below
+\code{minScenarioDelta} within \code{deltaWindow}) are severe-flagged
+\code{scenarioBlind} and deselected.}
+
+\item{referenceGdxFile}{Optional path to the reference scenario's
+\code{fulldata.gdx}; used to build \code{referenceScenarioData} when that is
+\code{NULL}.}
+
+\item{minScenarioDelta, deltaWindow}{Responsiveness-gate knobs (default
+\code{0.05} index points over \code{c(2040, 2060)}).}
 
 \item{sanityBatchSize, sanityMaxModels, sanityThresholds}{Sanity-walk knobs;
 thresholds are the \code{\link{computePolicyStringencySanity}} overrides.}

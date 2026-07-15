@@ -162,7 +162,7 @@ test_that("runPSMIV writes the two-variant IV artifact from the deployed spec", 
                       actorPowerIndex = "Incumbent Power",
                       instQualityDrivers = "Rule of Law (VDem)",
                       controlDrivers = NULL, regionMappingFixedEffects = NULL)),
-    sectors = "Bulk", selectFE = NULL, verbose = FALSE
+    sectors = "Bulk", selectFE = NULL, tierGate = "Blue", verbose = FALSE
   )))
   res <- suppressMessages(suppressWarnings(runPSMIV(
     group = "psm-iv", resultsDir = resultsDir, modelDir = modelDir,

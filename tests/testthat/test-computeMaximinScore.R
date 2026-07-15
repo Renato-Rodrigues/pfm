@@ -102,6 +102,66 @@ test_that("inference-fragility preference demotes marginal theory terms within a
   expect_lt(na_pref$rank[na_pref$model == "Squeaker"], na_pref$rank[na_pref$model == "Comfort"])
 })
 
+test_that("Tournament v2: worseDeltaR2 ranking and tier gate (ADR 0039)", {
+  df <- data.frame(
+    model = rep(c("BalancedBlue", "LopsidedGreen", "WeakGreen"), each = 2),
+    sector = rep(c("Bulk", "Diffuse"), times = 3),
+    #                Balanced (Blue)  Lopsided (Green)  Weak (Green)
+    sigActorPower   = c(1, 1,          1, 1,              1, 1),
+    sigInstQual     = c(1, 1,          1, 1,              1, 1),
+    sigInteractions = c(0, 0,          1, 1,              1, 1),
+    deltaR2Theory   = c(0.10, 0.17,    0.04, 0.16,        0.07, 0.13),
+    maxVIF = 2, converged = TRUE, bic = 100,
+    stringsAsFactors = FALSE
+  )
+  # tierMean (legacy): tier first -> LopsidedGreen (mean .100) beats WeakGreen (mean .100)?
+  # Both Green; means equal -> band/BIC/name; the point: BalancedBlue ranks LAST despite
+  # the best worse-sector dR2, because it is Blue.
+  legacy <- computeMaximinScore(df, rankBy = "tierMean")
+  expect_gt(legacy$rank[legacy$model == "BalancedBlue"],
+            max(legacy$rank[legacy$model != "BalancedBlue"] * 0 + 2) - 1) # ranks 3rd
+  expect_equal(legacy$rank[legacy$model == "BalancedBlue"], 3)
+
+  # worseDeltaR2 (v2, no tier gate): BalancedBlue wins on min dR2 (.10 > .07 > .04)
+  v2 <- computeMaximinScore(df, rankBy = "worseDeltaR2", nearTieEps = 0)
+  expect_equal(v2$model[v2$rank == 1], "BalancedBlue")
+  expect_equal(v2$model[v2$rank == 2], "WeakGreen")
+
+  # Green tier gate: BalancedBlue fails the hard gate; WeakGreen wins
+  v2g <- computeMaximinScore(df, rankBy = "worseDeltaR2", tierGate = "Green", nearTieEps = 0)
+  expect_false(v2g$gatePass[v2g$model == "BalancedBlue"])
+  expect_match(v2g$gateFailReason[v2g$model == "BalancedBlue"], "tier below Green")
+  expect_equal(v2g$model[v2g$rank == 1], "WeakGreen")
+
+  # Blue gate admits all three; ranking unchanged from ungated v2
+  v2b <- computeMaximinScore(df, rankBy = "worseDeltaR2", tierGate = "Blue", nearTieEps = 0)
+  expect_true(all(v2b$gatePass))
+  expect_equal(v2b$model[v2b$rank == 1], "BalancedBlue")
+})
+
+test_that("computeSelectionVariants documents tier winners and the sharing cost", {
+  df <- data.frame(
+    model = rep(c("BalancedBlue", "LopsidedGreen", "WeakGreen"), each = 2),
+    sector = rep(c("Bulk", "Diffuse"), times = 3),
+    sigActorPower   = c(1, 1,  1, 1,  1, 1),
+    sigInstQual     = c(1, 1,  1, 1,  1, 1),
+    sigInteractions = c(0, 0,  1, 1,  1, 1),
+    deltaR2Theory   = c(0.10, 0.17,  0.04, 0.16,  0.07, 0.13),
+    maxVIF = 2, converged = TRUE, bic = 100,
+    stringsAsFactors = FALSE
+  )
+  v <- computeSelectionVariants(df, tierGates = c("Green", "Blue"),
+                                deployedGate = "Green", nearTieEps = 0)
+  expect_equal(v$winners$Green, "WeakGreen")
+  expect_equal(v$winners$Blue, "BalancedBlue")
+  ps <- v$perSector
+  # Bulk best own spec = BalancedBlue (0.10); deployed (WeakGreen) has 0.07
+  expect_equal(ps$bestModel[ps$sector == "Bulk"], "BalancedBlue")
+  expect_equal(ps$sharingCost[ps$sector == "Bulk"], 0.03, tolerance = 1e-9)
+  # Diffuse best own = BalancedBlue (0.17); deployed 0.13 -> cost 0.04
+  expect_equal(ps$sharingCost[ps$sector == "Diffuse"], 0.04, tolerance = 1e-9)
+})
+
 test_that("missing sectors, non-convergence and lagged terms fail gates", {
   df <- makeScoreInput()
   df <- df[!(df$model == "D4" & df$sector == "Diffuse"), ]

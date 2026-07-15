@@ -92,6 +92,18 @@ computeTheoryTier <- function(sigActorPower, sigInstQual, sigInteractions) {
 #'   \code{vifGate} (which excludes a spec entirely); this only re-orders near-ties, e.g.
 #'   nudging selection toward a low-VIF composite-AP stringency spec over a high-VIF split-AP
 #'   one. \code{NULL} disables. Default \code{6}.
+#' @param rankBy Character. Primary ordering of gate-passers (ADR 0039).
+#'   \code{"tierMean"} (default — unchanged price-model semantics): worse-sector
+#'   Theory Tier first, mean \eqn{\Delta R^2}(theory) second. \code{"worseDeltaR2"}
+#'   (PSM Tournament v2): rank directly by the \strong{worse sector's}
+#'   \eqn{\Delta R^2}(theory) — \code{min(Bulk, Diffuse)} — the more faithful
+#'   operationalisation of the maximin principle; tier then acts only through
+#'   \code{tierGate}, and the near-tie band + within-band preferences operate on
+#'   the worse-sector metric.
+#' @param tierGate Character or \code{NULL}. Hard tier gate (ADR 0039): specs whose
+#'   worse-sector tier is below this fail the gate (\code{"Green"} = Green in both
+#'   sectors required; \code{"Blue"} = at least Blue). \code{NULL} (default) applies
+#'   no tier gate — under \code{rankBy = "tierMean"} tier already drives the ranking.
 #' @param inferenceTGate Numeric or \code{NULL}. Inference-fragility preference (2026-07-13,
 #'   ADR 0037): within a near-tie band, specs whose weakest \emph{significant} theory term
 #'   (\code{minSigTheoryT}, the minimum cluster-robust |t| over significant theory terms) falls
@@ -131,7 +143,11 @@ computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range 
                                 nearTieEps = 0.05, feParsimonyWeight = 0,
                                 dropIdleControls = TRUE, softVifGate = 6,
                                 temporalSignGate = NULL, trendDominanceGate = 0.5,
-                                inferenceTGate = NULL) {
+                                inferenceTGate = NULL,
+                                rankBy = c("tierMean", "worseDeltaR2"),
+                                tierGate = NULL) {
+  rankBy <- match.arg(rankBy)
+  if (!is.null(tierGate)) tierGate <- match.arg(tierGate, c("Green", "Blue"))
   required <- c("model", "sector", "sigActorPower", "sigInstQual",
                 "sigInteractions", "deltaR2Theory", "maxVIF", "converged")
   missingCols <- setdiff(required, colnames(df))
@@ -192,6 +208,16 @@ computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range 
                                              "): ", paste(trendy, collapse = ", ")))
       }
     }
+    # Tier gate (ADR 0039, Tournament v2): the deployment must reach `tierGate` in
+    # its WORSE sector; below it the spec fails the hard gate (tier stops ranking).
+    if (!is.null(tierGate)) {
+      minTR <- min(tierRank[m$tier])
+      if (minTR < tierRank[[tierGate]]) {
+        failReasons <- c(failReasons,
+                         paste0("worse-sector tier below ", tierGate, " gate (",
+                                names(tierRank)[match(minTR, tierRank)], ")"))
+      }
+    }
     if (!is.null(pseudoR2Range) && "pseudoR2" %in% colnames(m)) {
       badPR2 <- m$sector[!is.na(m$pseudoR2) &
                            (m$pseudoR2 < pseudoR2Range[1] - tol | m$pseudoR2 > pseudoR2Range[2] + tol)]
@@ -246,15 +272,25 @@ computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range 
   out <- do.call(rbind, rows)
   rownames(out) <- NULL
 
-  # Base order: gate pass, worse-sector tier, mean deltaR2(theory), then name.
-  out <- out[order(-out$gatePass, -tierRank[out$minTier],
-                   -out$meanDeltaR2, out$model), , drop = FALSE]
+  # Base order (ADR 0039): "tierMean" = gate pass, worse-sector tier, mean
+  # deltaR2(theory), name (the historical price-model semantics); "worseDeltaR2" =
+  # gate pass, worse-sector deltaR2(theory) — min(Bulk, Diffuse) — then name
+  # (Tournament v2: tier acts only through tierGate).
+  worseKey <- ifelse(is.finite(out$minDeltaR2), out$minDeltaR2, -Inf)
+  if (identical(rankBy, "worseDeltaR2")) {
+    out <- out[order(-out$gatePass, -worseKey, out$model), , drop = FALSE]
+  } else {
+    out <- out[order(-out$gatePass, -tierRank[out$minTier],
+                     -out$meanDeltaR2, out$model), , drop = FALSE]
+  }
   rownames(out) <- NULL
 
-  # BIC parsimony tie-break (ADR 0012): within gate-passing specs of the same tier,
-  # treat those whose meanDeltaR2(theory) is within nearTieEps of the running leader as
-  # theory-equivalent and rank the most parsimonious (lowest summed BIC) first. Falls
-  # back to the pure tier->deltaR2 order when BIC is unavailable or nearTieEps == 0.
+  # BIC parsimony tie-break (ADR 0012): within gate-passing specs that are
+  # theory-equivalent to the running leader (same tier + mean deltaR2 within
+  # nearTieEps under "tierMean"; worse-sector deltaR2 within nearTieEps under
+  # "worseDeltaR2"), rank the most parsimonious (lowest summed BIC) first — after
+  # the within-band preference keys. Falls back to the pure base order when BIC is
+  # unavailable or nearTieEps == 0.
   haveBIC <- "sumBIC" %in% colnames(out) && any(is.finite(out$sumBIC))
   if (haveBIC && nearTieEps > 0) {
     bicKey <- ifelse(is.finite(out$sumBIC), out$sumBIC, Inf)
@@ -270,15 +306,23 @@ computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range 
     trendKey <- if ("trendKey" %in% colnames(out)) {
       ifelse(is.na(out$trendKey), 0, out$trendKey)
     } else rep(0, nrow(out))
+    # recompute after the base reorder so band membership indexes the sorted frame
+    worseKey <- ifelse(is.finite(out$minDeltaR2), out$minDeltaR2, -Inf)
     placed <- integer(0)
-    remaining <- which(out$gatePass)            # already tier->deltaR2 ordered
+    remaining <- which(out$gatePass)            # already base-ordered
     while (length(remaining) > 0) {
       lead <- remaining[1]
-      dl <- out$meanDeltaR2[lead]
-      band <- if (is.na(dl)) lead else
-        remaining[out$minTier[remaining] == out$minTier[lead] &
-                    !is.na(out$meanDeltaR2[remaining]) &
-                    out$meanDeltaR2[remaining] >= dl - nearTieEps]
+      band <- if (identical(rankBy, "worseDeltaR2")) {
+        dl <- worseKey[lead]
+        if (!is.finite(dl)) lead else
+          remaining[is.finite(worseKey[remaining]) & worseKey[remaining] >= dl - nearTieEps]
+      } else {
+        dl <- out$meanDeltaR2[lead]
+        if (is.na(dl)) lead else
+          remaining[out$minTier[remaining] == out$minTier[lead] &
+                      !is.na(out$meanDeltaR2[remaining]) &
+                      out$meanDeltaR2[remaining] >= dl - nearTieEps]
+      }
       # clean-control first, then low-fragility (VIF/temporal), then low trend-reliance,
       # then parsimony (FE-discounted BIC), then name.
       band <- band[order(idleKey[band], fragKey[band], trendKey[band], bicKey[band],

@@ -15,7 +15,9 @@ computeMaximinScore(
   softVifGate = 6,
   temporalSignGate = NULL,
   trendDominanceGate = 0.5,
-  inferenceTGate = NULL
+  inferenceTGate = NULL,
+  rankBy = c("tierMean", "worseDeltaR2"),
+  tierGate = NULL
 )
 }
 \arguments{
@@ -105,6 +107,20 @@ results carry comfortable margins — a p=.049 squeaker loses a near-tie to a p=
 \code{minSigTheoryT} column (NA rows — no significant theory term — are never demoted; the
 tier already handles them); no-ops without it. Default \code{NULL} (off — the price-model
 selection is unchanged; \code{runPSMSweep} enables it at \code{2.33}, i.e. roughly p < .02).}
+
+\item{rankBy}{Character. Primary ordering of gate-passers (ADR 0039).
+\code{"tierMean"} (default — unchanged price-model semantics): worse-sector
+Theory Tier first, mean \eqn{\Delta R^2}(theory) second. \code{"worseDeltaR2"}
+(PSM Tournament v2): rank directly by the \strong{worse sector's}
+\eqn{\Delta R^2}(theory) — \code{min(Bulk, Diffuse)} — the more faithful
+operationalisation of the maximin principle; tier then acts only through
+\code{tierGate}, and the near-tie band + within-band preferences operate on
+the worse-sector metric.}
+
+\item{tierGate}{Character or \code{NULL}. Hard tier gate (ADR 0039): specs whose
+worse-sector tier is below this fail the gate (\code{"Green"} = Green in both
+sectors required; \code{"Blue"} = at least Blue). \code{NULL} (default) applies
+no tier gate — under \code{rankBy = "tierMean"} tier already drives the ranking.}
 }
 \value{
 Data.frame with one row per model, ordered best-first:

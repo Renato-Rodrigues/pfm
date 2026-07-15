@@ -114,13 +114,16 @@ psmTestSpecs <- list(
 )
 
 # Run a small PSM sweep into fresh tempdirs; returns the paths + result.
-psmTestSweep <- function(group, resultsDir, modelDir, scenarioData = NULL) {
+# tierGate = "Blue": the synthetic DGP has no interaction effect, so the fixture
+# pool is all-Blue - the Green deployment gate (ADR 0039 default) would correctly
+# select nothing (that behaviour has its own dedicated test).
+psmTestSweep <- function(group, resultsDir, modelDir, scenarioData = NULL, ...) {
   suppressMessages(suppressWarnings(runPSMSweep(
     group = group, mode = "guided",
     resultsDir = resultsDir, modelDir = modelDir,
     panelData = makePSMSweepMagpie(), scenarioData = scenarioData,
     specs = psmTestSpecs, sectors = c("Bulk", "Diffuse"),
-    selectFE = NULL, verbose = FALSE
+    selectFE = NULL, tierGate = "Blue", verbose = FALSE, ...
   )))
 }
 

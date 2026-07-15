@@ -127,7 +127,8 @@ test_that("runPSMSweep runs end-to-end and writes the Run-Group artifacts", {
     group = "psm-test", mode = "guided",
     resultsDir = resultsDir, modelDir = modelDir,
     panelData = m, scenarioData = scen, specs = psmTestSpecs,
-    sectors = c("Bulk", "Diffuse"), selectFE = NULL, verbose = FALSE
+    sectors = c("Bulk", "Diffuse"), selectFE = NULL, tierGate = "Blue",
+    verbose = FALSE
   )))
   # fits: 2 specs x 2 sectors x 1 stage
   expect_equal(nrow(res$results), 4)
@@ -149,6 +150,55 @@ test_that("runPSMSweep runs end-to-end and writes the Run-Group artifacts", {
   expect_equal(length(sel), 2)
   expect_true(all(vapply(sel, `[[`, character(1), "estimator") == "satP"))
   expect_true(all(grepl("^PolicyStringency: ", vapply(sel, `[[`, character(1), "model_type"))))
+})
+
+test_that("Tournament v2: the Green deployment gate selects nothing from an all-Blue pool (ADR 0039)", {
+  # The fixture DGP has no interaction effect, so every spec is Blue. Under the
+  # v2 default (tierGate = "Green") selection must come up EMPTY - loudly, with
+  # the tier gate in the failure tally - rather than deploying a Blue spec.
+  resultsDir <- withr::local_tempdir()
+  res <- suppressMessages(suppressWarnings(runPSMSweep(
+    group = "psm-green-gate", mode = "guided",
+    resultsDir = resultsDir, modelDir = withr::local_tempdir(),
+    panelData = makePSMSweepMagpie(), specs = psmTestSpecs,
+    sectors = c("Bulk", "Diffuse"), selectFE = NULL, verbose = FALSE
+  )))
+  expect_length(res$selected, 0)
+  mm <- res$maximin$PolicyStringency
+  expect_true(all(!mm$gatePass))
+  expect_true(any(grepl("tier below Green", mm$gateFailReason)))
+  # the documented variants still record the Blue winner + sharing-cost exhibit
+  v <- res$selectionVariants
+  expect_false(is.null(v))
+  expect_true(is.na(v$winners$Green))
+  expect_true(v$winners$Blue %in% c("psmA", "psmB"))
+  expect_equal(nrow(v$perSector), 2)
+  expect_true(file.exists(file.path(resultsDir, "psm-green-gate", "selection-variants.rds")))
+})
+
+test_that("the scenario-responsiveness gate rejects scenario-blind specs (ADR 0039)", {
+  # An IDENTICAL reference panel makes every spec's |gating - reference| delta zero
+  # -> all candidates severe-flagged scenarioBlind -> forced least-flagged fallback.
+  scen <- makePSMSweepScenarioMagpie()
+  resultsDir <- withr::local_tempdir()
+  res <- psmTestSweep("psm-blind", resultsDir, withr::local_tempdir(),
+                      scenarioData = scen, referenceScenarioData = scen,
+                      deltaWindow = range(magclass::getYears(scen, as.integer = TRUE)))
+  sel <- res$sanity$PolicyStringency
+  expect_true(isTRUE(sel$forced))
+  fl <- do.call(rbind, sel$flags)
+  expect_true(any(fl$rule == "scenarioBlind"))
+
+  # A genuinely DIFFERENT reference panel clears the gate.
+  scen2 <- scen
+  scen2[, , "Actor Power Index|Bulk"] <- scen2[, , "Actor Power Index|Bulk"] - 0.4
+  scen2[, , "Actor Power Index|Diffuse"] <- scen2[, , "Actor Power Index|Diffuse"] - 0.4
+  res2 <- psmTestSweep("psm-responsive", withr::local_tempdir(), withr::local_tempdir(),
+                       scenarioData = scen, referenceScenarioData = scen2,
+                       deltaWindow = range(magclass::getYears(scen, as.integer = TRUE)))
+  sel2 <- res2$sanity$PolicyStringency
+  expect_false(isTRUE(sel2$forced))
+  expect_true(res2$selected$PolicyStringency %in% c("psmA", "psmB"))
 })
 
 test_that("runPSMSweep refuses a panel without the PSM outcomes", {
