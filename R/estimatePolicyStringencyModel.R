@@ -73,6 +73,13 @@
 #' @param prepared Logical. When \code{TRUE}, \code{data} is an already-prepared
 #'   data.frame with the response \emph{already transformed} for this estimator
 #'   (bootstrap/refit entry, ADR 0025); prep, transforms, cache and save are skipped.
+#' @param apTransform Character. \code{"linear"} (default) or \code{"saturating"}
+#'   — the functional form of the actor-power drivers (ADR 0040). See
+#'   \code{\link{preparePanelData}}. The saturating form bounds the extrapolation
+#'   of the actor-power slopes (and hence of the AP x IQ interactions) outside
+#'   the historical share range; it is swept as an axis by
+#'   \code{\link{psmSpecs}}. Part of the fit-cache key, so linear and saturating
+#'   fits never collide.
 #' @param form Character. \code{"static"} (default) or \code{"ecm"} — the
 #'   error-correction dynamics form (satP engine only; see Description). Appended
 #'   last for backward compatibility.
@@ -135,7 +142,8 @@ estimatePolicyStringencyModel <- function(
     maxit = 3000,
     prepared = FALSE,
     form = "static",
-    yearFixedEffects = FALSE) {
+    yearFixedEffects = FALSE,
+    apTransform = "linear") {
   estimator <- match.arg(estimator, c("satP", "fractional", "beta", "levels",
                                       "satP-re", "frontier", "satP-iv"))
   form <- match.arg(form, c("static", "ecm"))
@@ -200,7 +208,8 @@ estimatePolicyStringencyModel <- function(
       lag = lag,
       useMundlak = useMundlak,
       gdpGovInteraction = gdpGovInteraction,
-      outcomeVar = outcomeVar
+      outcomeVar = outcomeVar,
+      apTransform = apTransform
     )
   }
   .dscale <- attr(df, "driverScaling")
@@ -284,7 +293,8 @@ estimatePolicyStringencyModel <- function(
 
   # --- 4. Cache (satP engine only — the only estimator entering selection) -----
   cacheExtra <- paste0("psm-", estimator, "+max", indexMax,
-                       if (identical(form, "ecm")) "+ecm" else "")
+                       if (identical(form, "ecm")) "+ecm" else "",
+                       if (identical(apTransform, "saturating")) "+satAP" else "")
   usesCache <- identical(estimator, "satP") && !is.null(modelDir)
   if (usesCache && !isTRUE(ignoreCache)) {
     ids <- computeModelId(fml, df, extra = cacheExtra)

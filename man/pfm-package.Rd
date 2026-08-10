@@ -20,7 +20,6 @@ Useful links:
 
 Authors:
 \itemize{
-  \item Renato Rodrigues \email{renato.rodrigues@pik-potsdam.de} (\href{https://orcid.org/0000-0002-5863-5514}{ORCID})
   \item Elmar Kriegler \email{kriegler@pik-potsdam.de} (\href{https://orcid.org/0000-0002-3307-2647}{ORCID})
 }
 

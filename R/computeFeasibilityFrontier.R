@@ -26,8 +26,12 @@
 #'   \code{outcomeNatural}).
 #'
 #' @return Data.frame \code{region, year, observedIndex, frontierIndex,
-#'   expectedIndex, slackIndex, efficiencyRatio}: \code{frontierIndex} is the
+#'   expectedIndex, expectedIndexP10/P50/P90, slackIndex, efficiencyRatio}:
+#'   \code{frontierIndex} is the
 #'   feasibility ceiling, \code{expectedIndex} the slack-adjusted expectation,
+#'   the \code{P10/P50/P90} columns the per-row percentiles of the conditional
+#'   slack distribution mapped onto the index scale (the stochastic band, ADR
+#'   0040 — quote these rather than a point ceiling, given boundary gamma),
 #'   \code{slackIndex} their gap (the "political ambition gap" in index points)
 #'   and \code{efficiencyRatio} = observed/frontier (the frontier
 #'   Implementability Factor).
@@ -65,12 +69,36 @@ computeFeasibilityFrontier <- function(fit) {
 
   frontierIndex <- indexMax * stats::plogis(etaF)
   expectedIndex <- indexMax * stats::plogis(etaF - slackEta)
+
+  # --- Stochastic band (ADR 0040) ---------------------------------------------
+  # The frontier is STOCHASTIC: u | eps is a normal(muStar, sigmaStar^2) truncated
+  # at 0, so each row carries a full conditional slack DISTRIBUTION, not just its
+  # Jondrow point estimate. Reporting only the point estimate is the project's
+  # most attackable number given gamma sits at the boundary (0.98-0.99), where the
+  # variance decomposition is degenerate and the SEs are meaningless. The
+  # percentiles below are quantiles of that conditional distribution PER ROW - not
+  # cross-country quantiles of the point estimates, which would be a different and
+  # wrong object - and give the coupled exercise an honest band instead of a false
+  # point. Note the inversion: a HIGH slack quantile is a LOW index, so the p10
+  # index uses the 90th slack percentile.
+  qTruncSlack <- function(q) {
+    a <- stats::pnorm(-muStar / sigmaStar)             # mass below the 0 truncation
+    z <- stats::qnorm(pmin(pmax(a + q * (1 - a), 1e-12), 1 - 1e-12))
+    pmax(muStar + sigmaStar * z, 0)
+  }
+  expectedIndexP10 <- indexMax * stats::plogis(etaF - qTruncSlack(0.90))
+  expectedIndexP50 <- indexMax * stats::plogis(etaF - qTruncSlack(0.50))
+  expectedIndexP90 <- indexMax * stats::plogis(etaF - qTruncSlack(0.10))
+
   data.frame(
     region = df[rownames(mm), "region"],
     year = df[rownames(mm), "year"],
     observedIndex = obsRows,
     frontierIndex = frontierIndex,
     expectedIndex = expectedIndex,
+    expectedIndexP10 = expectedIndexP10,
+    expectedIndexP50 = expectedIndexP50,
+    expectedIndexP90 = expectedIndexP90,
     slackIndex = frontierIndex - expectedIndex,
     efficiencyRatio = pmin(pmax(obsRows / pmax(frontierIndex, 1e-9), 0), 1),
     stringsAsFactors = FALSE,

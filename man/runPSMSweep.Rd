@@ -36,6 +36,7 @@ runPSMSweep(
   referenceGdxFile = NULL,
   minScenarioDelta = 0.05,
   deltaWindow = c(2040, 2060),
+  supportShareGate = 0.25,
   sanityBatchSize = 5,
   sanityMaxModels = 20,
   sanityThresholds = list(),
@@ -117,6 +118,13 @@ reference projections are indistinguishable (median in-coverage |Δindex| below
 
 \item{minScenarioDelta, deltaWindow}{Responsiveness-gate knobs (default
 \code{0.05} index points over \code{c(2040, 2060)}).}
+
+\item{supportShareGate}{Numeric. Severe-gate threshold on the mean
+\code{driverOutOfSupport} share within \code{deltaWindow} over in-coverage
+rows (ADR 0040; default 0.25). A spec whose projection in the evaluation
+window is mostly winsorized is scoring the extrapolation guard, not the
+model - the diagnosed cause of the ceiling-feedback sign artifact. Set
+\code{NA} to disable.}
 
 \item{sanityBatchSize, sanityMaxModels, sanityThresholds}{Sanity-walk knobs;
 thresholds are the \code{\link{computePolicyStringencySanity}} overrides.}

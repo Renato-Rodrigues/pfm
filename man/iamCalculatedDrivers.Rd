@@ -7,10 +7,10 @@
 iamCalculatedDrivers(data)
 }
 \arguments{
-\item{data}{A \code{\link[magclass:magclass]{magpie}} object.}
+\item{data}{A \code{\link[magclass:magclass-package]{magpie}} object.}
 }
 \value{
-A \code{\link[magclass:magclass]{magpie}} object with calculated drivers
+A \code{\link[magclass:magclass-package]{magpie}} object with calculated drivers
 }
 \description{
 Calculated drivers

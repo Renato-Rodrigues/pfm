@@ -38,8 +38,8 @@ startRun(
 \item{group}{Character. Run-Group name. Required.}
 
 \item{steps}{Character subset of \code{c("sweep","robustness","temporal","subnational",
-"difference-first","projection","selection-bootstrap","psm-sweep","psm-projection",
-"psm-agreement")}. Default is the first four;
+  "difference-first","projection","selection-bootstrap","psm-sweep","psm-projection",
+  "psm-agreement")}. Default is the first four;
 \code{"difference-first"} is the ADR 0014 alternative-selection comparison,
 \code{"projection"} writes the per-scenario feasibility projections (ADR 0035; needs a
 scenario gdx) and \code{"selection-bootstrap"} the selection-uncertainty bootstrap — all
@@ -79,7 +79,7 @@ the \code{$scenarios} of \code{\link{parseScenarioRegistry}}. Forwarded to the
 standard / default account / node-default mem / \code{resultsDir/<group>}).}
 
 \item{outputDir}{Character or NULL. Where rendered reports are written when \code{render =
-TRUE} (defaults to \code{resultsDir}). Rendering shells out to the installed \pkg{pfmreports}
+  TRUE} (defaults to \code{resultsDir}). Rendering shells out to the installed \pkg{pfmreports}
 package (ADR 0021); \code{pfm} gains no dependency on it.}
 
 \item{render}{Logical. After the run, shell out to render the pfm-reports outputs for the

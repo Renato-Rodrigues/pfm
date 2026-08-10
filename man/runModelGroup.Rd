@@ -28,7 +28,7 @@ runModelGroup(
 \item{group}{Character. Run-Group name.}
 
 \item{steps}{Character vector subset of \code{c("sweep","robustness","temporal",
-"subnational","difference-first","projection","selection-bootstrap")}. Default is the
+  "subnational","difference-first","projection","selection-bootstrap")}. Default is the
 first four (the standard pipeline); \code{"difference-first"} (ADR 0014 alternative
 selection) and \code{"projection"} (persist the deployed scenario projection as
 \code{projection.rds}, ADR 0009; requires \code{gdxFile}) are recognised but off by

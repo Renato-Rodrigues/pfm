@@ -32,7 +32,8 @@ estimatePolicyStringencyModel(
   maxit = 3000,
   prepared = FALSE,
   form = "static",
-  yearFixedEffects = FALSE
+  yearFixedEffects = FALSE,
+  apTransform = "linear"
 )
 }
 \arguments{
@@ -86,6 +87,14 @@ last for backward compatibility.}
 show the theory channels survive within-year identification. \strong{Never a
 swept/projection option} (year FE cannot be extrapolated); estimator-agreement
 rung only. Default \code{FALSE}.}
+
+\item{apTransform}{Character. \code{"linear"} (default) or \code{"saturating"}
+— the functional form of the actor-power drivers (ADR 0040). See
+\code{\link{preparePanelData}}. The saturating form bounds the extrapolation
+of the actor-power slopes (and hence of the AP x IQ interactions) outside
+the historical share range; it is swept as an axis by
+\code{\link{psmSpecs}}. Part of the fit-cache key, so linear and saturating
+fits never collide.}
 }
 \value{
 A list with elements \code{model}, \code{coeftest} (cluster-robust),

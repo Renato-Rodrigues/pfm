@@ -19,7 +19,8 @@ preparePanelData(
   trendMidpoint = 2030,
   trendSteepness = 0.08,
   trendFreezeYear = NULL,
-  outcomeVar = "Effective Carbon Price"
+  outcomeVar = "Effective Carbon Price",
+  apTransform = "linear"
 )
 }
 \arguments{
@@ -76,6 +77,18 @@ the Policy Stringency Model passes \code{"Policy Stringency"} (ADR 0036).
 Whatever the outcome, its panel column is named \code{ecp} (and its lag
 \code{lagged_ecp}) for historical reasons, so all downstream estimation
 machinery works unchanged.}
+
+\item{apTransform}{Character. Functional form of the actor-power drivers
+(ADR 0040). \code{"linear"} (default) uses the raw share. \code{"saturating"}
+applies the parameter-free diminishing-returns map \code{x / (x + xBar)} with
+\code{xBar} the training median, so the marginal political effect of the
+energy transition flattens instead of extrapolating linearly into a region no
+country has occupied. Applies only to strictly-positive actor-power columns
+(the composite Actor Power Index is a difference and is left linear).
+\strong{Fit mode only}: \code{xBar} is frozen into the \code{"driverScaling"}
+attribute as the \code{sat} element, so apply-mode callers reproduce the
+transform by passing the stored \code{driverScaling} and need not set this
+argument.}
 }
 \value{
 data.frame with columns: region, year, timeTrend, regionFE (unless

@@ -21,7 +21,7 @@ downscaleREMINDResults(
 \item{outputRegionMappingFile}{string with path to output mapping file}
 }
 \value{
-A \code{\link[magclass:magclass]{magpie}} object with downscaled REMIND data.
+A \code{\link[magclass:magclass-package]{magpie}} object with downscaled REMIND data.
 }
 \description{
 Reads REMIND variables from a GDX file, downscales to country level and aggregates to alternative region mapping.

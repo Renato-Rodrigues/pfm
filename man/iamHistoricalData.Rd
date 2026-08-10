@@ -21,7 +21,7 @@ used in the REMIND GDX (e.g. \code{"regionmappingEU21.csv"}) so that the returne
 set is consistent with the disaggregation target.}
 }
 \value{
-A list with historical \code{\link[magclass:magclass]{magpie}} objects.
+A list with historical \code{\link[magclass:magclass-package]{magpie}} objects.
 }
 \description{
 Gets historical REMIND variables from IEA and Ember.

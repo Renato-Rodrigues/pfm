@@ -165,7 +165,7 @@ runPSMTemporalValidation <- function(group,
       fe[!fe %in% lv] <- if ("Other" %in% lv) "Other" else lv[1]
       vDf$regionFE <- factor(fe, levels = lv)
     }
-    guarded <- .psmDriverGuard(vDf, .driverSupportRanges(fit$data))
+    guarded <- .psmDriverGuard(vDf, .driverSupportRanges(fit$data, fit$driverScaling))
     vDf <- guarded$df
 
     tt <- stats::delete.response(stats::terms(fit$formula))
@@ -310,7 +310,7 @@ runPSMTemporalValidation <- function(group,
     fe[!fe %in% lv] <- if ("Other" %in% lv) "Other" else lv[1]
     vDf$regionFE <- factor(fe, levels = lv)
   }
-  vDf <- .psmDriverGuard(vDf, .driverSupportRanges(fit$data))$df
+  vDf <- .psmDriverGuard(vDf, .driverSupportRanges(fit$data, fit$driverScaling))$df
 
   nSV <- fit$squeeze$n
   toEta <- function(v) {
@@ -419,7 +419,7 @@ runPSMTemporalValidation <- function(group,
     fe[!fe %in% lv] <- if ("Other" %in% lv) "Other" else lv[1]
     vDf$regionFE <- factor(fe, levels = lv)
   }
-  vDf <- .psmDriverGuard(vDf, .driverSupportRanges(fitEv$data))$df
+  vDf <- .psmDriverGuard(vDf, .driverSupportRanges(fitEv$data, fitEv$driverScaling))$df
   vDf <- vDf[vDf$year > trainEnd & is.finite(vDf$ecp), , drop = FALSE]
   if (nrow(vDf) == 0) stop("no held-out event rows")
 

@@ -34,7 +34,7 @@
 #'
 #' @keywords internal
 #' @author Renato Rodrigues
-.driverSupportRanges <- function(df) {
+.driverSupportRanges <- function(df, scaling = attr(df, "driverScaling")) {
   excl <- c("region", "year", "ecp", "lagged_ecp", "lagged_adoption",
             "timeTrend", "logisticTimeTrend", "regionFE")
   cols <- setdiff(colnames(df), excl)
@@ -47,7 +47,35 @@
     c(min = min(v), max = max(v))
   })
   names(ranges) <- cols
-  ranges[!vapply(ranges, is.null, logical(1))]
+  ranges <- ranges[!vapply(ranges, is.null, logical(1))]
+
+  # Saturating actor-power columns (ADR 0040) are guarded at the PHYSICAL domain
+  # of the underlying share rather than at the empirical sample range. Rationale:
+  # the guard is load-bearing under the LINEAR form because the marginal effect is
+  # constant there, so a 4-SD extrapolation moves the linear predictor by 4 SD
+  # worth of slope. Under x/(x + xBar) the marginal effect decays as 1/(x+xBar)^2,
+  # so the whole remaining physical domain contributes a bounded, small amount -
+  # measured, the projections sit 0.33-0.48 SD (Bulk) / 0.77-1.66 SD (Diffuse)
+  # past the training max and 100% inside the physical domain. Clamping them at
+  # the empirical max instead would winsorize BOTH scenarios to the same edge and
+  # zero the innovator scenario signal - the exact artifact this transform exists
+  # to remove (docs/psm-ceiling-feedback-diagnosis.md). Shares are bounded by 1 by
+  # construction, so xTilde is bounded by 1/(1 + xBar); 1 is an upper bound for
+  # every share composite here (some are lower), making this the permissive but
+  # still finite choice. The empirical range is retained as an attribute so the
+  # out-of-SAMPLE audit is not weakened by the wider guard.
+  empirical <- ranges
+  if (!is.null(scaling)) {
+    for (cl in names(ranges)) {
+      sc <- scaling[[cl]]
+      if (is.null(sc) || !("sat" %in% names(sc)) || !is.finite(sc[["sat"]])) next
+      m <- sc[["mean"]]; s <- sc[["sd"]]
+      ranges[[cl]] <- c(min = (0 - m) / s,
+                        max = (1 / (1 + sc[["sat"]]) - m) / s)
+    }
+  }
+  attr(ranges, "empirical") <- empirical
+  ranges
 }
 
 # Winsorize prepared scenario rows at the training support and recompute the
@@ -55,8 +83,11 @@
 .psmDriverGuard <- function(df, ranges) {
   guardCols <- intersect(names(ranges), colnames(df))
   outCount <- rep(0L, nrow(df))
+  sampCount <- rep(0L, nrow(df))
+  empirical <- attr(ranges, "empirical")
   if (length(guardCols) == 0) {
-    return(list(df = df, outOfSupport = rep(NA_real_, nrow(df))))
+    return(list(df = df, outOfSupport = rep(NA_real_, nrow(df)),
+                outOfSample = rep(NA_real_, nrow(df))))
   }
   for (cl in guardCols) {
     lo <- ranges[[cl]][["min"]]
@@ -64,6 +95,16 @@
     v <- df[[cl]]
     outside <- is.finite(v) & (v < lo | v > hi)
     outCount <- outCount + as.integer(outside)
+    # Out-of-SAMPLE audit against the empirical training range: reported even
+    # where the guard range is wider (saturating columns), so widening the guard
+    # never silently weakens the extrapolation disclosure.
+    er <- if (!is.null(empirical)) empirical[[cl]] else NULL
+    if (!is.null(er)) {
+      sampCount <- sampCount +
+        as.integer(is.finite(v) & (v < er[["min"]] | v > er[["max"]]))
+    } else {
+      sampCount <- sampCount + as.integer(outside)
+    }
     df[[cl]] <- pmin(pmax(v, lo), hi)
   }
   # Recompute interaction columns from the guarded factors (they were built from
@@ -75,7 +116,9 @@
       df[[ic]] <- df[[parts[1]]] * df[[parts[2]]]
     }
   }
-  list(df = df, outOfSupport = outCount / length(guardCols))
+  list(df = df,
+       outOfSupport = outCount / length(guardCols),
+       outOfSample = sampCount / length(guardCols))
 }
 
 # Spread of the estimated region-FE coefficients (the reference level enters as 0).

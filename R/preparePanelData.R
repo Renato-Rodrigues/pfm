@@ -48,6 +48,17 @@
 #'   so the trend is not extrapolated out of sample and stops dominating
 #'   projections. \code{NULL} (default, used for the historical fit) applies no
 #'   freeze, leaving the in-sample design unchanged.
+#' @param apTransform Character. Functional form of the actor-power drivers
+#'   (ADR 0040). \code{"linear"} (default) uses the raw share. \code{"saturating"}
+#'   applies the parameter-free diminishing-returns map \code{x / (x + xBar)} with
+#'   \code{xBar} the training median, so the marginal political effect of the
+#'   energy transition flattens instead of extrapolating linearly into a region no
+#'   country has occupied. Applies only to strictly-positive actor-power columns
+#'   (the composite Actor Power Index is a difference and is left linear).
+#'   \strong{Fit mode only}: \code{xBar} is frozen into the \code{"driverScaling"}
+#'   attribute as the \code{sat} element, so apply-mode callers reproduce the
+#'   transform by passing the stored \code{driverScaling} and need not set this
+#'   argument.
 #'
 #' @return data.frame with columns: region, year, timeTrend, regionFE (unless
 #'   \code{useMundlak = TRUE}), ecp, plus one column per driver (safe R-named),
@@ -72,7 +83,8 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
                              driverScaling = NULL,
                              trendMidpoint = 2030, trendSteepness = 0.08,
                              trendFreezeYear = NULL,
-                             outcomeVar = "Effective Carbon Price") {
+                             outcomeVar = "Effective Carbon Price",
+                             apTransform = "linear") {
   # If data is already a data.frame, assume it is already prepared and return it.
   if (is.data.frame(data)) {
     return(data)
@@ -371,6 +383,58 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
                         scaleExcl)
   scaleVars  <- intersect(scaleVars, colnames(df))
   scaleVars  <- scaleVars[!grepl("_grp_mean$", scaleVars)]
+
+  # --- Saturating actor-power transform (ADR 0040), applied BEFORE scaling -----
+  # The actor-power drivers are energy-system shares whose HISTORICAL range is a
+  # small part of the range any transition scenario visits (Bulk innovator power
+  # spans 0.03-0.43 in training, 95th pct 0.23, and REMIND takes it to 0.58-0.68).
+  # A model linear in the share extrapolates its slope - including the negative
+  # interaction slopes - far outside the identified region, which is the diagnosed
+  # cause of the declining projections and the perverse ceiling feedback (see
+  # docs/psm-ceiling-feedback-diagnosis.md). The saturating form applies
+  #     xTilde = x / (x + xBar),   xBar = training MEDIAN of x,
+  # a parameter-free, strictly increasing map onto (0, 1) with diminishing
+  # returns: the marginal effect at projection levels is ~19x smaller than at the
+  # historical median, so extrapolation is bounded instead of linear. Substantive
+  # reading: political power saturates in economic weight - the first tenth of
+  # renewables builds a constituency, the eighth tenth adds little that is new.
+  #
+  # An S-curve (plogis) was tested and REJECTED: it saturates every country to
+  # 1.000 by 2050, which re-creates the scenario-blindness the responsiveness gate
+  # exists to catch. The hyperbolic form keeps a live scenario signal.
+  #
+  # xBar is FROZEN exactly like mean/sd: it is stored INSIDE the driverScaling
+  # entry as the `sat` element, so every existing apply-mode caller (which already
+  # passes driverScaling = fit$driverScaling) reproduces the transform with no
+  # signature change. Applied only to actor-power columns that are strictly
+  # positive - the composite Actor Power Index is a DIFFERENCE (innovator minus
+  # incumbent, ~[-0.8, 0.1]) for which "diminishing returns in a share" is not
+  # defined, so it is left linear and flagged with sat = NA.
+  apTransform <- match.arg(apTransform, c("linear", "saturating"))
+  apVars <- intersect(make.names(unique(c(actorPowerDrivers, actorPowerIndex))), scaleVars)
+  satOf <- function(col) {
+    if (!is.null(driverScaling) && !is.null(driverScaling[[col]])) {
+      s <- driverScaling[[col]]
+      return(if ("sat" %in% names(s)) unname(s[["sat"]]) else NA_real_)
+    }
+    if (!identical(apTransform, "saturating")) return(NA_real_)
+    v <- df[[col]]
+    if (any(v < 0, na.rm = TRUE)) {
+      warning("preparePanelData: apTransform = 'saturating' skipped for '", col,
+              "' (column takes negative values; the saturating form is defined ",
+              "for shares). Column left linear.", call. = FALSE)
+      return(NA_real_)
+    }
+    md <- stats::median(v, na.rm = TRUE)
+    if (!is.finite(md) || md <= 0) return(NA_real_)
+    md
+  }
+  satPars <- stats::setNames(vapply(apVars, satOf, numeric(1)), apVars)
+  for (col in apVars) {
+    sp <- satPars[[col]]
+    if (is.finite(sp)) df[[col]] <- df[[col]] / (df[[col]] + sp)
+  }
+
   scaling    <- if (is.null(driverScaling)) list() else driverScaling
   for (col in scaleVars) {
     if (!is.null(driverScaling) && !is.null(driverScaling[[col]])) {
@@ -380,6 +444,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
       s <- stats::sd(df[[col]], na.rm = TRUE)
       if (!is.finite(s) || s < 1e-8) s <- 1
       scaling[[col]] <- c(mean = m, sd = s)
+      if (col %in% apVars) scaling[[col]] <- c(scaling[[col]], sat = satPars[[col]])
     }
     df[[col]] <- (df[[col]] - m) / s
   }

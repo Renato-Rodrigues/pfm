@@ -73,6 +73,12 @@
 #' @param referenceGdxFile Optional path to the reference scenario's
 #'   \code{fulldata.gdx}; used to build \code{referenceScenarioData} when that is
 #'   \code{NULL}.
+#' @param supportShareGate Numeric. Severe-gate threshold on the mean
+#'   \code{driverOutOfSupport} share within \code{deltaWindow} over in-coverage
+#'   rows (ADR 0040; default 0.25). A spec whose projection in the evaluation
+#'   window is mostly winsorized is scoring the extrapolation guard, not the
+#'   model - the diagnosed cause of the ceiling-feedback sign artifact. Set
+#'   \code{NA} to disable.
 #' @param minScenarioDelta,deltaWindow Responsiveness-gate knobs (default
 #'   \code{0.05} index points over \code{c(2040, 2060)}).
 #' @param sanityBatchSize,sanityMaxModels,sanityThresholds Sanity-walk knobs;
@@ -118,6 +124,7 @@ runPSMSweep <- function(group,
                         referenceGdxFile = NULL,
                         minScenarioDelta = 0.05,
                         deltaWindow = c(2040, 2060),
+                        supportShareGate = 0.25,
                         sanityBatchSize = 5,
                         sanityMaxModels = 20,
                         sanityThresholds = list(),
@@ -301,6 +308,7 @@ runPSMSweep <- function(group,
       indexMax = indexMax,
       referenceScenarioData = referenceScenarioData,
       minScenarioDelta = minScenarioDelta, deltaWindow = deltaWindow,
+      supportShareGate = supportShareGate,
       say = say
     )
     # Tier-relaxed fallback (ADR 0039): if every Green-gate candidate fails the
@@ -321,6 +329,7 @@ runPSMSweep <- function(group,
           indexMax = indexMax,
           referenceScenarioData = referenceScenarioData,
           minScenarioDelta = minScenarioDelta, deltaWindow = deltaWindow,
+          supportShareGate = supportShareGate,
           say = say
         )
         if (!isTRUE(selBlue$forced)) {
@@ -428,6 +437,7 @@ psmSpecs <- function(specs, verbose = TRUE) {
       cfg[[f]] <- isTRUE(cfg[[f]])
     }
     cfg$panelTransform <- if (is.null(cfg$panelTransform)) "levels" else cfg$panelTransform
+    cfg$apTransform <- if (is.null(cfg$apTransform)) "linear" else cfg$apTransform
     cfg
   }
   specs <- lapply(specs, normalize)
@@ -450,6 +460,32 @@ psmSpecs <- function(specs, verbose = TRUE) {
   if (isTRUE(verbose) && length(specs) < n0) {
     message("[psmSpecs] ", n0 - length(specs), " of ", n0,
             " specs dropped (FD transforms, satP twins, ridge).")
+  }
+
+  # --- Saturating actor-power axis (ADR 0040) ---------------------------------
+  # Appended as TWINS so the linear originals keep their X-numbers and remain
+  # comparable with earlier sweeps; the twin carries the " satAP" suffix. Only
+  # SPLIT actor-power specs get a twin: the saturating map x/(x + xBar) is defined
+  # for shares, and the composite Actor Power Index is a difference (innovator
+  # minus incumbent) that takes negative values (preparePanelData would skip it
+  # and the twin would be a duplicate of its linear parent). This is also why the
+  # axis roughly doubles only the split half of the grid rather than all of it.
+  isSplitAP <- function(cfg) {
+    api <- unlist(cfg$actorPowerIndex)
+    length(api) > 0 && !any(grepl("^Actor Power Index", api))
+  }
+  twins <- lapply(Filter(isSplitAP, specs), function(cfg) {
+    cfg$apTransform <- "saturating"
+    cfg$name <- paste0(cfg$name, " satAP")
+    cfg$description <- paste0(cfg$description %||% "",
+                              if (nzchar(cfg$description %||% "")) " " else "",
+                              "[saturating actor power: x/(x+median), ADR 0040]")
+    cfg
+  })
+  specs <- c(specs, twins)
+  if (isTRUE(verbose)) {
+    message("[psmSpecs] ", length(twins), " saturating actor-power twins appended",
+            " (total ", length(specs), " specs).")
   }
   specs
 }

@@ -14,8 +14,12 @@ computeFeasibilityFrontier(fit)
 }
 \value{
 Data.frame \code{region, year, observedIndex, frontierIndex,
-  expectedIndex, slackIndex, efficiencyRatio}: \code{frontierIndex} is the
+  expectedIndex, expectedIndexP10/P50/P90, slackIndex, efficiencyRatio}:
+\code{frontierIndex} is the
 feasibility ceiling, \code{expectedIndex} the slack-adjusted expectation,
+the \code{P10/P50/P90} columns the per-row percentiles of the conditional
+slack distribution mapped onto the index scale (the stochastic band, ADR
+0040 — quote these rather than a point ceiling, given boundary gamma),
 \code{slackIndex} their gap (the "political ambition gap" in index points)
 and \code{efficiencyRatio} = observed/frontier (the frontier
 Implementability Factor).

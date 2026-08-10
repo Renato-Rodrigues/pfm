@@ -4,7 +4,7 @@
 \alias{.driverSupportRanges}
 \title{Driver-support guard for bounded-index projections (R3, 2026-07-06)}
 \usage{
-.driverSupportRanges(df)
+.driverSupportRanges(df, scaling = attr(df, "driverScaling"))
 }
 \arguments{
 \item{df}{A prepared panel data.frame (fit: training rows; guard: scenario rows).}

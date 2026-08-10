@@ -64,7 +64,7 @@ selected (maximin + falsification only).}
 
 \item{levelsFE}{Named list of candidate block-FE strategies for the winner's
 \emph{levels} re-estimate, each \code{list(fe = <mapping file or NULL>, mundlak =
-<logical>)}. hybridFD specs carry no region FE (differenced out), so the levels
+  <logical>)}. hybridFD specs carry no region FE (differenced out), so the levels
 deliverable would otherwise be pooled/inflation-prone; the FE is therefore
 \strong{chosen by the Projection Sanity gate} among these (ADR 0014). Default
 \code{{H12, OECDp, Mundlak}}. When no \code{scenarioData} is given the first

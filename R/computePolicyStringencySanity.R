@@ -61,6 +61,7 @@ projectPSMSpecScenario <- function(cfg, sector, histData, scenarioData,
     useMundlak = isTRUE(cfg$useMundlak),
     gdpGovInteraction = isTRUE(cfg$gdpGovInteraction),
     includeLaggedPS = isTRUE(cfg$includeLaggedPS),
+    apTransform = cfg$apTransform %||% "linear",
     modelDir = modelDir, updateIndex = FALSE, verbose = FALSE
   )
   lastHistYear <- suppressWarnings(max(fit$data$year, na.rm = TRUE))
@@ -90,9 +91,10 @@ projectPSMSpecScenario <- function(cfg, sector, histData, scenarioData,
   # sanity gate scores projections on the same design support the coefficients
   # were estimated on. The in-session fit always carries its estimation rows.
   driverGuard <- match.arg(driverGuard)
-  ranges <- .driverSupportRanges(fit$data)
+  ranges <- .driverSupportRanges(fit$data, fit$driverScaling)
   guarded <- .psmDriverGuard(sDf, ranges)
   driverOutOfSupport <- guarded$outOfSupport
+  driverOutOfSample <- guarded$outOfSample
   if (identical(driverGuard, "winsorize")) {
     sDf <- guarded$df
   }
@@ -162,6 +164,7 @@ projectPSMSpecScenario <- function(cfg, sector, histData, scenarioData,
     indexHi = if (!is.null(etaHi)) indexMax * stats::plogis(etaHi) else NA_real_,
     outOfCoverage = ocRows,
     driverOutOfSupport = driverOutOfSupport,
+    driverOutOfSample = driverOutOfSample,
     stringsAsFactors = FALSE
   )
   cut <- minProjYear %||% (if (is.finite(lastHistYear)) lastHistYear else -Inf)
@@ -381,6 +384,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
                              histIndexBySector, indexMax = 10,
                              referenceScenarioData = NULL, minScenarioDelta = 0.05,
                              deltaWindow = c(2040, 2060),
+                             supportShareGate = 0.25,
                              say = function(...) invisible()) {
   traceRows <- list()
   flagsByModel <- list()
@@ -425,6 +429,66 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
         f$sector <- sec
         modelFlags[[sec]] <- f
       }
+
+      # Support-share gate (ADR 0040). A spec whose projection inside the
+      # evaluation window is mostly WINSORIZED is not producing model output, it
+      # is producing guard output: the diagnosed failure mode is that innovator
+      # power leaves its training support by ~2040 and the guard then clamps both
+      # scenarios to the same edge, so the entire scenario signal (and the sign of
+      # the ceiling feedback) is an artifact of where the clamp bites rather than
+      # of politics. See docs/psm-ceiling-feedback-diagnosis.md. Measured on the
+      # audit column the guard already emits, over in-coverage rows in the same
+      # window the responsiveness gate uses.
+      if (is.finite(supportShareGate) && "driverOutOfSupport" %in% colnames(proj)) {
+        w <- proj[proj$year >= deltaWindow[1] & proj$year <= deltaWindow[2], , drop = FALSE]
+        if ("outOfCoverage" %in% colnames(w)) {
+          w <- w[!w$outOfCoverage %in% TRUE, , drop = FALSE]
+        }
+        supportShare <- if (nrow(w) > 0) mean(w$driverOutOfSupport, na.rm = TRUE) else NA_real_
+        if (!is.finite(supportShare) || supportShare > supportShareGate) {
+          nSevere <- nSevere + 1L
+          modelFlags[[paste0(sec, ".extrapolationDominated")]] <- data.frame(
+            rule = "extrapolationDominated", severity = "severe",
+            region = "ALL", year = NA_integer_,
+            value = supportShare,
+            detail = paste0("mean driverOutOfSupport ", round(supportShare, 3),
+                            " > ", supportShareGate, " over ", deltaWindow[1], "-",
+                            deltaWindow[2], " (in-coverage)"),
+            sector = sec, stringsAsFactors = FALSE
+          )
+          say("  [sanity:PolicyStringency] ", m, " (", sec, ") extrapolation-dominated: ",
+              "mean driverOutOfSupport = ", round(supportShare, 3),
+              " > ", supportShareGate)
+        }
+      }
+
+      # Ratchet monotonicity audit (ADR 0040) - REPORT ONLY, never a gate. A
+      # policy-stringency index is an accumulating stock: countries do not repeal
+      # their portfolios. The model does not know this, and under the linear
+      # actor-power form the Bulk projection DECLINED over the century. This
+      # measures how often the projected path falls, so the saturating form can be
+      # judged on whether it removes the decline rather than on assertion. If a
+      # deployed spec still shows a material share here, the transform did not
+      # work and the decline is being masked, not fixed.
+      if (all(c("region", "year", "index") %in% colnames(proj))) {
+        mono <- unlist(lapply(split(proj[order(proj$year), ], proj$region[order(proj$year)]),
+                              function(d) {
+                                if (nrow(d) < 2) return(numeric(0))
+                                diff(d$index) < -1e-8
+                              }), use.names = FALSE)
+        monoShare <- if (length(mono)) mean(mono, na.rm = TRUE) else NA_real_
+        if (is.finite(monoShare) && monoShare > 0.05) {
+          nWarning <- nWarning + 1L
+          modelFlags[[paste0(sec, ".nonMonotone")]] <- data.frame(
+            rule = "nonMonotone", severity = "warning",
+            region = "ALL", year = NA_integer_, value = monoShare,
+            detail = paste0(round(100 * monoShare), "% of projected year-on-year ",
+                            "steps decrease (policy stock should ratchet)"),
+            sector = sec, stringsAsFactors = FALSE
+          )
+        }
+      }
+
       # Scenario-responsiveness gate (ADR 0039, handoff item 7): project the same
       # spec on the REFERENCE scenario and require the gating and reference
       # projections to differ. A spec whose median |gating - reference| index

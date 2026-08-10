@@ -46,6 +46,7 @@
         useMundlak = cfg$useMundlak,
         gdpGovInteraction = cfg$gdpGovInteraction,
         logisticTimeTrend = cfg$logisticTimeTrend,
+        apTransform = cfg$apTransform %||% "linear",
         modelDir = modelDir, updateIndex = FALSE, ignoreCache = forceRefit,
         verbose = verbose, prepared = prepared
       )
