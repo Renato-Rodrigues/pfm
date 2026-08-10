@@ -104,9 +104,9 @@ runPSMProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "ou
     if (!is.null(trainRegions) && length(trainRegions)) {
       shared <- length(intersect(projRegions, trainRegions)) / length(trainRegions)
       if (shared < 0.9) {
-        stop("runPSMProjection: REGIONAL RESOLUTION MISMATCH. The deployed model was ",
-             "estimated on ", length(trainRegions), " regions but the projection panel ",
-             "carries ", length(projRegions), " (only ",
+        stop("runPSMProjection: REGIONAL RESOLUTION MISMATCH. The Run-Group's ",
+             "training panel carries ", length(trainRegions), " regions but the ",
+             "projection panel carries ", length(projRegions), " (only ",
              round(100 * shared), "% of the training regions appear in it). Projecting ",
              "aggregated drivers onto a model trained at a finer resolution is not a ",
              "valid projection. Pass outputRegionMappingFile = \"country\" (the ",
