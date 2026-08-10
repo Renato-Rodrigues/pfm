@@ -9,6 +9,8 @@
 #   Rscript start.R --group=exhaustive --nCores=128 --render
 #   Rscript start.R --group=guided --steps=sweep,robustness --cluster=local
 #   Rscript start.R --group=no-fe54 --mode=exhaustive --qos=medium --time=2-00:00:00 --selectFE=H12,OECDp,Mundlak
+#   # country-resolution PSM Run-Group (REQUIRED, else the steps default to R54):
+#   Rscript start.R --group=psm-country-v3 --steps=psm-projection --outputRegionMappingFile=country
 #
 # Defaults come from ./config.yml when present (resultsDir, modelDir, gdxPath), else sensible
 # fallbacks. SLURM vs local is auto-detected (override with --cluster=slurm|local).
@@ -62,5 +64,12 @@ callArgs <- list(
   forceRefit      = hasFlag("forceRefit")
 )
 if (!is.null(selectFE)) callArgs$selectFE <- strsplit(selectFE, ",")[[1]]  # forwarded to runSweep
+# Regional resolution of the panels a step builds. MUST match the resolution the
+# deployed model was estimated at: pass "country" (the Country-Identity Mapping
+# sentinel) for a country-resolution Run-Group. Without this flag the steps fall
+# back to regionmapping_54.csv, which silently projects R54-aggregated drivers onto
+# a country-trained model (runPSMProjection now errors loudly on that mismatch).
+orm <- getArg("outputRegionMappingFile", NULL)
+if (!is.null(orm)) callArgs$outputRegionMappingFile <- orm
 do.call(pfm::startRun, callArgs)
 # nolint end

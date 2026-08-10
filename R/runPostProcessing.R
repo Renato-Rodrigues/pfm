@@ -776,7 +776,7 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                 # (e.g. group = "psm-exhaustive"), never mixed into a price-model group.
                 "psm-sweep", "psm-projection", "psm-agreement", "psm-temporal",
                 "psm-frontier", "psm-iv", "psm-influence", "psm-sector-speeds",
-                "psm-selection-bootstrap")
+                "psm-selection-bootstrap", "psm-replay")
   steps <- intersect(allSteps, steps)
   if (length(steps) == 0) stop("runModelGroup: no valid steps. Choose from ",
                                paste(allSteps, collapse = ", "), ".", call. = FALSE)
@@ -798,7 +798,8 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                     "psm-iv" = "iv.rds",
                     "psm-influence" = "influence.rds",
                     "psm-sector-speeds" = "sector-speeds.rds",
-                    "psm-selection-bootstrap" = "selection-bootstrap.rds")
+                    "psm-selection-bootstrap" = "selection-bootstrap.rds",
+                    "psm-replay" = "historical-replay.rds")
   # A step counts as "already done" (resume-skippable) only when ALL its expected artifacts exist.
   # For the projection step (ADR 0035) that means one projections/<id>.rds per configured scenario
   # PLUS the legacy projection.rds — so a stale single-scenario projection.rds no longer masks
@@ -849,8 +850,32 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                  dots[names(dots) %in% names(formals(runPSMSweep))])
     do.call(runPSMSweep, psmArgs)
   }
-  if (doStep("psm-projection")) { say("step: psm-projection"); runPSMProjection(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile, scenarios = scenarios, verbose = verbose) }
-  if (doStep("psm-agreement")) { say("step: psm-agreement"); runPSMEstimatorAgreement(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, verbose = verbose) }
+  # Dots are forwarded to BOTH of these (as they already are to psm-temporal /
+  # -frontier / -sector-speeds / -selection-bootstrap). Without it there was no way
+  # to reach `outputRegionMappingFile` from the launcher, so a country-resolution
+  # Run-Group silently projected at R54 — see the guard in runPSMProjection().
+  if (doStep("psm-projection")) {
+    say("step: psm-projection")
+    dots <- list(...)
+    pjArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
+                     cachefolder = cachefolder, gdxFile = gdxFile,
+                     scenarios = scenarios, verbose = verbose),
+                dots[names(dots) %in% setdiff(names(formals(runPSMProjection)),
+                                              c("group", "resultsDir", "modelDir",
+                                                "cachefolder", "gdxFile", "scenarios",
+                                                "verbose"))])
+    do.call(runPSMProjection, pjArgs)
+  }
+  if (doStep("psm-agreement")) {
+    say("step: psm-agreement")
+    dots <- list(...)
+    agArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
+                     cachefolder = cachefolder, verbose = verbose),
+                dots[names(dots) %in% setdiff(names(formals(runPSMEstimatorAgreement)),
+                                              c("group", "resultsDir", "modelDir",
+                                                "cachefolder", "verbose"))])
+    do.call(runPSMEstimatorAgreement, agArgs)
+  }
   if (doStep("psm-temporal")) {
     say("step: psm-temporal")
     dots <- list(...)
@@ -894,6 +919,14 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                 dots[names(dots) %in% setdiff(names(formals(runPSMSelectionBootstrap)),
                                               c("nResamples", "topK"))])
     do.call(runPSMSelectionBootstrap, sbArgs)
+  }
+  if (doStep("psm-replay")) {
+    say("step: psm-replay")
+    dots <- list(...)
+    rpArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
+                     cachefolder = cachefolder, verbose = verbose),
+                dots[names(dots) %in% names(formals(runPSMHistoricalReplay))])
+    do.call(runPSMHistoricalReplay, rpArgs)
   }
   say("done: ", paste(steps, collapse = ", "))
   invisible(file.path(resultsDir, group))

@@ -83,6 +83,40 @@ runPSMProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "ou
       }
     )
   }
+  # ── Resolution guard (2026-08-10) ───────────────────────────────────────────
+  # The projection panel MUST be built at the same regional resolution the model
+  # was estimated at. Nothing else enforces this: `outputRegionMappingFile`
+  # defaults to R54, so a country-resolution Run-Group projected via a launcher
+  # that does not pass the "country" sentinel silently scores R54-AGGREGATED
+  # drivers on a country-trained model. That happened to psm-country-v3 (job
+  # 1747324): 54 aggregate regions against 49 ISO3 training countries, and the
+  # resulting fan-out reversed the sign of the scenario response. Fail loudly.
+  if (!is.null(panel) && magclass::is.magpie(panel)) {
+    projRegions <- magclass::getItems(panel, dim = 1)
+    trainPath <- file.path(groupDir, "manifest.json")
+    trainRegions <- tryCatch({
+      mf <- jsonlite::read_json(trainPath)
+      tp <- file.path(modelDir, "panels", paste0("panel_", mf$panel_hash, ".rds"))
+      tr <- readRDS(tp)
+      if (is.list(tr) && !is.null(tr$data)) tr <- tr$data
+      if (magclass::is.magpie(tr)) magclass::getItems(tr, dim = 1) else unique(as.character(tr$region))
+    }, error = function(e) NULL)
+    if (!is.null(trainRegions) && length(trainRegions)) {
+      shared <- length(intersect(projRegions, trainRegions)) / length(trainRegions)
+      if (shared < 0.9) {
+        stop("runPSMProjection: REGIONAL RESOLUTION MISMATCH. The deployed model was ",
+             "estimated on ", length(trainRegions), " regions but the projection panel ",
+             "carries ", length(projRegions), " (only ",
+             round(100 * shared), "% of the training regions appear in it). Projecting ",
+             "aggregated drivers onto a model trained at a finer resolution is not a ",
+             "valid projection. Pass outputRegionMappingFile = \"country\" (the ",
+             "Country-Identity Mapping sentinel) for a country-resolution Run-Group, ",
+             "or supply `panelData`/`scenarioData` built at the model's resolution.",
+             call. = FALSE)
+      }
+    }
+  }
+
   psVars <- paste0("Policy Stringency|", sectors)
   if (is.null(panel) ||
         (magclass::is.magpie(panel) && !all(psVars %in% magclass::getNames(panel)))) {

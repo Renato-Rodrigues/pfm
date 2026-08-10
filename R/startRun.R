@@ -81,7 +81,8 @@ startRun <- function(group,
                   "projection", "selection-bootstrap",
                   "psm-sweep", "psm-projection", "psm-agreement",
                   "psm-temporal", "psm-frontier", "psm-iv", "psm-influence",
-                  "psm-sector-speeds", "psm-selection-bootstrap")   # ADR 0036 PSM pipeline
+                  "psm-sector-speeds", "psm-selection-bootstrap",
+                  "psm-replay")   # ADR 0036 PSM pipeline
   steps <- intersect(validSteps, steps)
   droppedSteps <- setdiff(requestedSteps, validSteps)
   if (length(steps) == 0) stop("startRun: no valid steps.", call. = FALSE)
@@ -312,7 +313,7 @@ startRun <- function(group,
   # read the PSM group's differently-shaped artifacts and render empty/misleading sections.
   psmSteps <- c("psm-sweep", "psm-projection", "psm-agreement", "psm-temporal",
                 "psm-frontier", "psm-iv", "psm-influence", "psm-sector-speeds",
-                "psm-selection-bootstrap")
+                "psm-selection-bootstrap", "psm-replay")
   reps <- if (all(steps %in% psmSteps)) character(0) else
     c("selection", "model-selection", "results-adoption", "results-stringency", "publication")
   if (any(c("robustness", "temporal", "difference-first") %in% steps)) reps <- c(reps, "robustness")
