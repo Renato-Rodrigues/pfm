@@ -43,11 +43,14 @@ startRun(
 \code{"difference-first"} is the ADR 0014 alternative-selection comparison,
 \code{"projection"} writes the per-scenario feasibility projections (ADR 0035; needs a
 scenario gdx) and \code{"selection-bootstrap"} the selection-uncertainty bootstrap — all
-off by default and enabled by the \code{--paper} publication workflow. The three
+off by default and enabled by the \code{--paper} publication workflow. The
 \code{psm-*} steps are the Policy Stringency Model pipeline (ADR 0036:
-\code{\link{runPSMSweep}} → \code{\link{runPSMProjection}} →
-\code{\link{runPSMEstimatorAgreement}}); run them in their OWN Run-Group
-(e.g. \code{group = "psm-exhaustive"}), never mixed into a price-model group.}
+\code{\link{runPSMSweep}}, \code{\link{runPSMProjection}},
+\code{\link{runPSMEstimatorAgreement}}, \code{\link{runPSMTemporalValidation}},
+\code{\link{runPSMFrontier}}, \code{\link{runPSMIV}}, \code{\link{runPSMInfluence}},
+\code{\link{runPSMSectorSpeeds}}, \code{\link{runPSMSelectionBootstrap}}); run them
+in their OWN Run-Group (e.g. \code{group = "psm-exhaustive"}), never mixed into a
+price-model group.}
 
 \item{mode}{\code{"exhaustive"} (default) or \code{"guided"}.}
 

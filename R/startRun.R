@@ -18,11 +18,14 @@
 #'   \code{"difference-first"} is the ADR 0014 alternative-selection comparison,
 #'   \code{"projection"} writes the per-scenario feasibility projections (ADR 0035; needs a
 #'   scenario gdx) and \code{"selection-bootstrap"} the selection-uncertainty bootstrap — all
-#'   off by default and enabled by the \code{--paper} publication workflow. The three
+#'   off by default and enabled by the \code{--paper} publication workflow. The
 #'   \code{psm-*} steps are the Policy Stringency Model pipeline (ADR 0036:
-#'   \code{\link{runPSMSweep}} → \code{\link{runPSMProjection}} →
-#'   \code{\link{runPSMEstimatorAgreement}}); run them in their OWN Run-Group
-#'   (e.g. \code{group = "psm-exhaustive"}), never mixed into a price-model group.
+#'   \code{\link{runPSMSweep}}, \code{\link{runPSMProjection}},
+#'   \code{\link{runPSMEstimatorAgreement}}, \code{\link{runPSMTemporalValidation}},
+#'   \code{\link{runPSMFrontier}}, \code{\link{runPSMIV}}, \code{\link{runPSMInfluence}},
+#'   \code{\link{runPSMSectorSpeeds}}, \code{\link{runPSMSelectionBootstrap}}); run them
+#'   in their OWN Run-Group (e.g. \code{group = "psm-exhaustive"}), never mixed into a
+#'   price-model group.
 #' @param mode \code{"exhaustive"} (default) or \code{"guided"}.
 #' @param selectionMethod \code{"levels-first"} (default) or \code{"difference-first"}.
 #' @param resultsDir,modelDir Configurable Results Root / Fit Cache (the ADR 0009 model store;
@@ -77,8 +80,8 @@ startRun <- function(group,
   validSteps <- c("sweep", "robustness", "temporal", "subnational", "difference-first",
                   "projection", "selection-bootstrap",
                   "psm-sweep", "psm-projection", "psm-agreement",
-                  "psm-temporal", "psm-frontier", "psm-iv",
-                  "psm-sector-speeds")   # ADR 0036 PSM pipeline
+                  "psm-temporal", "psm-frontier", "psm-iv", "psm-influence",
+                  "psm-sector-speeds", "psm-selection-bootstrap")   # ADR 0036 PSM pipeline
   steps <- intersect(validSteps, steps)
   droppedSteps <- setdiff(requestedSteps, validSteps)
   if (length(steps) == 0) stop("startRun: no valid steps.", call. = FALSE)
@@ -308,7 +311,8 @@ startRun <- function(group,
   # A PSM-only run (ADR 0036) renders only the PSM report; the price-model report set would
   # read the PSM group's differently-shaped artifacts and render empty/misleading sections.
   psmSteps <- c("psm-sweep", "psm-projection", "psm-agreement", "psm-temporal",
-                "psm-frontier", "psm-iv", "psm-sector-speeds")
+                "psm-frontier", "psm-iv", "psm-influence", "psm-sector-speeds",
+                "psm-selection-bootstrap")
   reps <- if (all(steps %in% psmSteps)) character(0) else
     c("selection", "model-selection", "results-adoption", "results-stringency", "publication")
   if (any(c("robustness", "temporal", "difference-first") %in% steps)) reps <- c(reps, "robustness")
