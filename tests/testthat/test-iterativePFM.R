@@ -126,3 +126,48 @@ test_that("gdp scaling without a target year warns rather than silently no-oppin
   expect_true("scenario" %in% names(formals(psmCouplingWeights)))
   expect_true("year" %in% names(formals(psmCouplingWeights)))
 })
+
+# --- bind mode 3: mild progression --------------------------------------------
+# Mode 3 GENERATES the price instead of constraining one, so its failure mode is
+# different: an unseeded or undelivered path means a ZERO carbon price everywhere,
+# which would look like a valid "uncoupled" run. Both sides must refuse instead.
+
+test_that("mode 3 refuses to run without a seed", {
+  d <- withr::local_tempdir()
+  gd <- file.path(d, "grp"); dir.create(gd, recursive = TRUE)
+  writeLines("[]", file.path(gd, "selected-models-psm.yml"))
+  writeLines('{"panel_hash":"nope"}', file.path(gd, "manifest.json"))
+  g <- file.path(d, "fulldata.gdx"); file.create(g)
+  # No refGdx: the seed price cannot be read, so it must not silently start at zero.
+  expect_warning(
+    iterativePFM(gdx = g, group = "grp", resultsDir = d, modelDir = d,
+                 bindMode = 3L, refGdx = NULL,
+                 outputFile = file.path(d, "p45_regiDiff_phi.gdx")),
+    "FAILED")
+  expect_false(file.exists(file.path(d, "p45_regiDiff_phi.gdx")))
+})
+
+test_that("the worse-sector rule picks one stringency path per region-year", {
+  # Mode 3 must use the same maximin discipline phi does, or the price path would be
+  # constrained by a different sector than the feasibility share.
+  feas <- data.frame(
+    region = c("EUR", "EUR", "USA", "USA"),
+    year   = c(2030, 2030, 2030, 2030),
+    feasibleIndex = c(5, 3, 6, 7),          # EUR worse = 3, USA worse = 6
+    ceilingIndex  = c(8, 8, 9, 9),
+    sector = c("Bulk", "Diffuse", "Bulk", "Diffuse"), stringsAsFactors = FALSE)
+  key <- paste(feas$region, feas$year)
+  ord <- order(key, feas$feasibleIndex)
+  one <- feas[ord, ][!duplicated(key[ord]), ]
+  expect_equal(nrow(one), 2L)
+  expect_equal(one$feasibleIndex[one$region == "EUR"], 3)
+  expect_equal(one$feasibleIndex[one$region == "USA"], 6)
+})
+
+test_that("a heavily capped path is flagged, not returned quietly", {
+  d <- data.frame(region = rep("EUR", 4), year = seq(2025, 2040, 5),
+                  feasibleIndex = 1e-6, ceilingIndex = 8, stringsAsFactors = FALSE)
+  p <- projectMildProgressionPrice(d, c(EUR = 10), lambda = 1, maxGrowth = 1)
+  expect_gt(attr(p, "cappedShare"), 0.25)   # the threshold iterativePFM warns on
+  expect_true(all(is.finite(p$price)))
+})

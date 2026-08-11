@@ -319,6 +319,48 @@ iterativePFM <- function(gdx = "fulldata.gdx",
                                lambda = lambda, sectorRule = "min", file = NULL)
       }, error = function(e) { say("price bound failed: ", conditionMessage(e)); NULL })
     }
+    # --- bind mode 3: the mild-progression price path (Elmar variant) ------------
+    # Generated bottom-up from the political gap rather than constraining the
+    # cost-optimal path, so it needs a SEED: the observed current-policy price. That
+    # comes from the reference gdx, exactly as P_ref does for mode 2.
+    if (identical(bindMode, 3L)) {
+      if (is.null(refGdx) || !nzchar(refGdx) || !file.exists(refGdx)) {
+        stop("iterativePFM: bind mode 3 (mild progression) seeds the price path from ",
+             "the current-policy run, but no reference gdx was found (refGdx = ",
+             refGdx %||% "NULL", "). Refusing to continue - an unseeded path would ",
+             "start every region at zero.")
+      }
+      TCO2 <- 1000 / (44 / 12)
+      pR <- gdx::readGDX(refGdx, "pm_taxCO2eq") * TCO2
+      seedYr <- suppressWarnings(min(magclass::getYears(pR, as.integer = TRUE)[
+        magclass::getYears(pR, as.integer = TRUE) >= 2025]))
+      seed <- stats::setNames(as.numeric(pR[, seedYr, ]),
+                              magclass::getItems(pR, dim = 1))
+      seed <- seed[is.finite(seed)]
+      # One stringency path per region: the WORSE sector, the same maximin discipline
+      # phi uses, so mode 3 is constrained by the same sector that sets the share.
+      key <- paste(feas$region, feas$year)
+      ord <- order(key, feas$feasibleIndex)
+      one <- feas[ord, ][!duplicated(key[ord]), , drop = FALSE]
+      mp <- projectMildProgressionPrice(
+        one[, c("region", "year", "feasibleIndex", "ceilingIndex")],
+        priceSeed = seed, lambda = mean(lambda, na.rm = TRUE), seedYear = seedYr)
+      cs <- attr(mp, "cappedShare")
+      if (is.finite(cs) && cs > 0.25) {
+        warning("iterativePFM: the mild-progression growth cap bound ",
+                round(100 * cs), "% of steps - the path is being driven by maxGrowth, ",
+                "not by the political dynamics. Do not quote it as a result.",
+                call. = FALSE)
+      }
+      say(sprintf("mild progression: seed %d, %d regions, capped share %.2f",
+                  seedYr, length(unique(mp$region)), cs))
+      yrsM <- sort(unique(mp$year))
+      mpg <- magclass::new.magpie(sort(unique(mp$region)), yrsM, "p45_pfmMPPrice",
+                                  fill = 0)
+      mpg[cbind(as.character(mp$region), as.character(mp$year))] <- mp$price
+      syms$p45_pfmMPPrice <- .psmGdxParam(mpg, "p45_pfmMPPrice")
+    }
+
     if (identical(bindMode, 2L) && is.null(bnd)) {
       stop("iterativePFM: bind mode 2 caps the ABSOLUTE price, but no feasibility ",
            "bound could be built (refGdx = ", refGdx %||% "NULL", "). Refusing to ",
