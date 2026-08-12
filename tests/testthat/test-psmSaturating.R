@@ -200,3 +200,34 @@ test_that("linear and saturating fits do not collide in the fit cache", {
   expect_equal(unname(stats::coef(fL2$model)), unname(stats::coef(fL$model)),
                tolerance = 1e-8)
 })
+
+# --- country exclusion (docs/psm-pecoal-estonia-issue.md) ----------------------
+# Estonia is dropped because its upstream PE|Coal is negative, which the clamp turns
+# into a coal share of 0.0 - a "clean" reading for a very carbon-intensive system.
+# The exclusion must be a visible option, never a silent hard-coded filter.
+
+test_that("excludeCountries defaults to EST and is reversible", {
+  expect_equal(eval(formals(preparePanelData)$excludeCountries), "EST")
+  withr::with_options(list(pfm.excludeCountries = character(0)), {
+    expect_length(eval(formals(preparePanelData)$excludeCountries), 0)
+  })
+})
+
+test_that("an excluded country is removed and the removal is announced", {
+  m <- makePSMagpie()
+  regs <- magclass::getItems(m, dim = 1)
+  skip_if(length(regs) < 2)
+  target <- regs[1]
+  args <- list(data = m, sector = "Bulk",
+               actorPowerDrivers = "Actor Power Index",
+               actorPowerIndex = "Actor Power Index",
+               instQualityDrivers = "Rule of Law (VDem)", controlDrivers = NULL,
+               regionMappingFixedEffects = NULL, outcomeVar = "Policy Stringency")
+  keptAll <- do.call(preparePanelData, c(args, list(excludeCountries = character(0))))
+  expect_true(target %in% as.character(keptAll$region))
+  expect_message(
+    dropped <- do.call(preparePanelData, c(args, list(excludeCountries = target))),
+    "excluding")
+  expect_false(target %in% as.character(dropped$region))
+  expect_lt(nrow(dropped), nrow(keptAll))
+})

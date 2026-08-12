@@ -20,7 +20,8 @@ preparePanelData(
   trendSteepness = 0.08,
   trendFreezeYear = NULL,
   outcomeVar = "Effective Carbon Price",
-  apTransform = "linear"
+  apTransform = "linear",
+  excludeCountries = getOption("pfm.excludeCountries", "EST")
 )
 }
 \arguments{
@@ -89,6 +90,15 @@ country has occupied. Applies only to strictly-positive actor-power columns
 attribute as the \code{sat} element, so apply-mode callers reproduce the
 transform by passing the stored \code{driverScaling} and need not set this
 argument.}
+
+\item{excludeCountries}{ISO3 codes dropped from the panel before estimation.
+Defaults to \code{getOption("pfm.excludeCountries", "EST")}. Estonia's upstream
+\code{PE|Coal} is negative (derived coal gases and coke are booked as primary coal,
+and Estonia consumes them without producing any), so the clamp turns its coal share
+into 0.0 - a \emph{clean} reading for one of Europe's most carbon-intensive systems.
+A wrong-but-plausible value biases the fit invisibly; a dropped country is visible
+in the sample size. Set to \code{character(0)} once the upstream issue is resolved -
+see \code{docs/psm-pecoal-estonia-issue.md}.}
 }
 \value{
 data.frame with columns: region, year, timeTrend, regionFE (unless

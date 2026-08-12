@@ -48,6 +48,14 @@
 #'   so the trend is not extrapolated out of sample and stops dominating
 #'   projections. \code{NULL} (default, used for the historical fit) applies no
 #'   freeze, leaving the in-sample design unchanged.
+#' @param excludeCountries ISO3 codes dropped from the panel before estimation.
+#'   Defaults to \code{getOption("pfm.excludeCountries", "EST")}. Estonia's upstream
+#'   \code{PE|Coal} is negative (derived coal gases and coke are booked as primary coal,
+#'   and Estonia consumes them without producing any), so the clamp turns its coal share
+#'   into 0.0 - a \emph{clean} reading for one of Europe's most carbon-intensive systems.
+#'   A wrong-but-plausible value biases the fit invisibly; a dropped country is visible
+#'   in the sample size. Set to \code{character(0)} once the upstream issue is resolved -
+#'   see \code{docs/psm-pecoal-estonia-issue.md}.
 #' @param apTransform Character. Functional form of the actor-power drivers
 #'   (ADR 0040). \code{"linear"} (default) uses the raw share. \code{"saturating"}
 #'   applies the parameter-free diminishing-returns map \code{x / (x + xBar)} with
@@ -84,7 +92,9 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
                              trendMidpoint = 2030, trendSteepness = 0.08,
                              trendFreezeYear = NULL,
                              outcomeVar = "Effective Carbon Price",
-                             apTransform = "linear") {
+                             apTransform = "linear",
+                             excludeCountries = getOption("pfm.excludeCountries",
+                                                          "EST")) {
   # If data is already a data.frame, assume it is already prepared and return it.
   if (is.data.frame(data)) {
     return(data)
@@ -250,6 +260,24 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
     })
     names(cols) <- col_names
     df <- as.data.frame(cols, stringsAsFactors = FALSE)
+  }
+
+  # --- countries excluded from estimation (docs/psm-pecoal-estonia-issue.md) ---
+  # EST by default: its PE|Coal is NEGATIVE upstream (derived coal gases and coke are
+  # counted as primary coal, and Estonia consumes them without producing any), so the
+  # clamp turns its coal share into 0.0 - reading as a CLEAN system for one of Europe's
+  # most carbon-intensive. A wrong-but-plausible value biases the fit while looking
+  # fine; a dropped country is at least visible in the sample size.
+  # Reverse with options(pfm.excludeCountries = character(0)) once upstream is fixed.
+  if (length(excludeCountries)) {
+    drop <- as.character(df$region) %in% excludeCountries
+    if (any(drop)) {
+      message("[preparePanelData] excluding ", sum(drop), " row(s) for ",
+              paste(intersect(excludeCountries, unique(as.character(df$region))),
+                    collapse = ", "),
+              " - see docs/psm-pecoal-estonia-issue.md")
+      df <- df[!drop, , drop = FALSE]
+    }
   }
 
   # --- EU Membership (R7, 2026-07-06): time-varying accession dummy -----------
