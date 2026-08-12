@@ -184,11 +184,29 @@ iterativePFM <- function(gdx = "fulldata.gdx",
                               gdxRegionMappingFile = gdxRegionMapping,
                               outputRegionMappingFile = "country")
 
+    # The Run-Group may be a SUBDIRECTORY of resultsDir, or the artifacts may sit
+    # directly in it - preparePFM.R copies them flat into <run>/pfm/ while still
+    # recording a group NAME for the log. Resolve by finding the marker file rather
+    # than trusting the name to be a path segment.
+    marker <- "selected-models-psm.yml"
     gd <- file.path(resultsDir, group)
-    sel <- yaml::read_yaml(file.path(gd, "selected-models-psm.yml"))
+    if (!file.exists(file.path(gd, marker)) &&
+          file.exists(file.path(resultsDir, marker))) {
+      gd <- resultsDir
+    }
+    if (!file.exists(file.path(gd, marker))) {
+      stop("no '", marker, "' under '", file.path(resultsDir, group), "' or '",
+           resultsDir, "' (working directory: ", getwd(), ")")
+    }
+    sel <- yaml::read_yaml(file.path(gd, marker))
     mf <- jsonlite::read_json(file.path(gd, "manifest.json"))
-    panel <- readRDS(file.path(modelDir, "panels",
-                               paste0("panel_", mf$panel_hash, ".rds")))
+    pfile <- paste0("panel_", mf$panel_hash, ".rds")
+    pcand <- c(file.path(modelDir, "panels", pfile), file.path(gd, "panels", pfile),
+               file.path(gd, pfile), file.path(modelDir, pfile))
+    phit <- pcand[file.exists(pcand)][1]
+    if (is.na(phit)) stop("panel '", pfile, "' not found in: ",
+                          paste(pcand, collapse = ", "))
+    panel <- readRDS(phit)
     fr <- readRDS(file.path(gd, "frontier.rds"))
     if (is.null(lambda)) {
       tv <- readRDS(file.path(gd, "temporal-validation.rds"))
