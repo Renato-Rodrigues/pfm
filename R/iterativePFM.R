@@ -383,10 +383,16 @@ iterativePFM <- function(gdx = "fulldata.gdx",
         round(as.numeric(difftime(Sys.time(), t0, units = "secs")), 1), "s")
     TRUE
   }, error = function(e) {
-    warning("iterativePFM: coupling step FAILED (", conditionMessage(e),
-            "). No gdx written - REMIND will retain the previous iteration's phi, ",
-            "so the run continues with a frozen rather than an absent coupling.",
-            call. = FALSE)
+    # message(), NOT warning(): R DEFERS warnings in batch mode and prints only
+    # "There were N warnings", so the one diagnostic that matters is the one the log
+    # hides. This text is why the coupling produced no gdx - it must always be visible.
+    msg <- conditionMessage(e)
+    message("[iterativePFM] **** COUPLING STEP FAILED ****")
+    message("[iterativePFM] reason: ", msg)
+    message("[iterativePFM] no gdx written - REMIND keeps the previous phi. ",
+            "Execute_Loadpoint will report a missing file; that is the symptom, ",
+            "not the cause.")
+    warning("iterativePFM: coupling step FAILED (", msg, ")", call. = FALSE)
     FALSE
   })
   invisible(ok)
