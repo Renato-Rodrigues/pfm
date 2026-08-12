@@ -423,3 +423,34 @@ test_that("theta = 0 is still the exact uncoupled null under both rules", {
     expect_true(all(a$phi == 1), info = rule)
   }
 })
+
+# --- the fit argument: identical result, no refit -------------------------------
+# The ECM depends only on histData + spec, both invariant across the coupling loop.
+# Passing it in must change nothing about the answer - only the cost.
+
+test_that("a supplied fit reproduces the fitted-in-place result exactly", {
+  f <- fpFixture()
+  fb <- c("(Intercept)" = 0.8)
+  a <- projectFeasiblePath(f$spec, "Bulk", f$hist, f$scen, frontierBeta = fb,
+                           modelDir = NULL)
+  ecm <- estimatePolicyStringencyModel(
+    data = f$hist, sector = "Bulk", estimator = "satP", form = "ecm",
+    actorPowerDrivers = unlist(f$spec$actorPowerDrivers),
+    actorPowerIndex = unlist(f$spec$actorPowerIndex),
+    instQualityDrivers = unlist(f$spec$instQualityDrivers),
+    controlDrivers = unlist(f$spec$controlDrivers),
+    regionMappingFixedEffects = f$spec$regionMappingFixedEffects,
+    logisticTimeTrend = isTRUE(f$spec$logisticTimeTrend),
+    apTransform = f$spec$apTransform %||% "linear",
+    modelDir = NULL, updateIndex = FALSE, verbose = FALSE)
+  b <- projectFeasiblePath(f$spec, "Bulk", f$hist, f$scen, frontierBeta = fb,
+                           fit = ecm, modelDir = NULL)
+  expect_equal(a$feasibleIndex, b$feasibleIndex, tolerance = 1e-12)
+  expect_equal(a$ceilingIndex, b$ceilingIndex, tolerance = 1e-12)
+  expect_equal(attr(a, "lambda"), attr(b, "lambda"), tolerance = 1e-12)
+})
+
+test_that("fit is exposed and defaults to fitting in place", {
+  expect_true("fit" %in% names(formals(projectFeasiblePath)))
+  expect_null(eval(formals(projectFeasiblePath)$fit))
+})

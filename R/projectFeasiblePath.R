@@ -62,6 +62,10 @@
 #'   saturating actor-power form (ADR 0040) is the fix. Enable only to test
 #'   sensitivity, and read \code{nonMonotoneShare} in the attributes first.
 #' @param indexMax Numeric. Index ceiling. Default \code{10}.
+#' @param fit Optional pre-fitted ECM from
+#'   \code{\link{estimatePolicyStringencyModel}(form = "ecm")}. It depends only on
+#'   \code{histData} and \code{spec}, so in a loop where those are fixed - the REMIND
+#'   coupling - fitting once and passing it here removes the dominant per-call cost.
 #' @param modelDir Fit Cache root, or \code{NULL}.
 #' @param verbose Logical.
 #'
@@ -88,6 +92,7 @@ projectFeasiblePath <- function(spec, sector, histData, scenarioData,
                                 seedYear = NULL,
                                 ratchet = FALSE,
                                 indexMax = 10,
+                                fit = NULL,
                                 modelDir = getOption("pfm.modelDir", "output"),
                                 verbose = FALSE) {
   rule <- match.arg(rule)
@@ -103,7 +108,11 @@ projectFeasiblePath <- function(spec, sector, histData, scenarioData,
   unl <- function(x) if (is.null(x)) NULL else unlist(x)
 
   # --- 1. ECM fit: source of lambda, of the equilibrium, and of the design ------
-  fit <- estimatePolicyStringencyModel(
+  # The fit depends only on histData and spec, BOTH of which are invariant across the
+  # coupling loop - only scenarioData changes between iterations. Refitting it every
+  # call is the single largest cost in iterativePFM(), so callers that hold it fixed
+  # may pass it in. NULL keeps the original behaviour.
+  fit <- if (!is.null(fit)) fit else estimatePolicyStringencyModel(
     data = histData, sector = sector, estimator = "satP", form = "ecm",
     indexMax = indexMax,
     actorPowerDrivers = unl(spec$actorPowerDrivers),

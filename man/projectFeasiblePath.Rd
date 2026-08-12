@@ -16,6 +16,7 @@ projectFeasiblePath(
   seedYear = NULL,
   ratchet = FALSE,
   indexMax = 10,
+  fit = NULL,
   modelDir = getOption("pfm.modelDir", "output"),
   verbose = FALSE
 )
@@ -64,6 +65,11 @@ saturating actor-power form (ADR 0040) is the fix. Enable only to test
 sensitivity, and read \code{nonMonotoneShare} in the attributes first.}
 
 \item{indexMax}{Numeric. Index ceiling. Default \code{10}.}
+
+\item{fit}{Optional pre-fitted ECM from
+\code{\link{estimatePolicyStringencyModel}(form = "ecm")}. It depends only on
+\code{histData} and \code{spec}, so in a loop where those are fixed - the REMIND
+coupling - fitting once and passing it here removes the dominant per-call cost.}
 
 \item{modelDir}{Fit Cache root, or \code{NULL}.}
 

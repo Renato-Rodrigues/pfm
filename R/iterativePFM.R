@@ -261,8 +261,37 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       ct <- fr$bySector[[sec]]$coefTable
       fb <- stats::setNames(ct$estimate, ct$term)
       fb <- fb[!names(fb) %in% c("sigmaSq", "gamma")]
+      # The ECM fit depends only on the historical panel and the spec - neither
+      # changes across the coupling loop - so it is fitted ONCE and cached in the run
+      # folder. Every later iteration reads it back. This was the dominant cost:
+      # two refits per call, ~20 calls per run, all producing the identical object.
+      fitCache <- file.path(resultsDir, paste0("ecm-fit-", sec, ".rds"))
+      ecm <- if (file.exists(fitCache)) {
+        tryCatch(readRDS(fitCache), error = function(e) NULL)
+      } else NULL
+      if (is.null(ecm)) {
+        t1 <- Sys.time()
+        ecm <- estimatePolicyStringencyModel(
+          data = panel, sector = sec, estimator = "satP", form = "ecm",
+          actorPowerDrivers = unlist(cfg$actorPowerDrivers),
+          actorPowerIndex = unlist(cfg$actorPowerIndex),
+          instQualityDrivers = unlist(cfg$instQualityDrivers),
+          controlDrivers = unlist(cfg$controlDrivers),
+          regionMappingFixedEffects = cfg$regionMappingFixedEffects,
+          logisticTimeTrend = isTRUE(cfg$logisticTimeTrend),
+          interactRegionFE = isTRUE(cfg$interactRegionFE),
+          useMundlak = isTRUE(cfg$useMundlak),
+          gdpGovInteraction = isTRUE(cfg$gdpGovInteraction),
+          apTransform = cfg$apTransform %||% "linear",
+          modelDir = modelDir, updateIndex = FALSE, verbose = FALSE)
+        saveRDS(ecm, fitCache)
+        say(sprintf("%s ECM fitted and cached in %.0fs - later iterations reuse it",
+                    sec, as.numeric(difftime(Sys.time(), t1, units = "secs"))))
+      } else {
+        say(sec, " ECM read from cache")
+      }
       p <- projectFeasiblePath(cfg, sec, histData = panel, scenarioData = scen,
-                               rule = "speed-limited", frontierBeta = fb,
+                               rule = "speed-limited", frontierBeta = fb, fit = ecm,
                                modelDir = modelDir, verbose = FALSE)
       a <- aggregateFeasibilityToRegions(p, mapping, weights = wts,
                                          assignment = asg[[sec]],
