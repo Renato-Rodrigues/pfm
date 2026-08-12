@@ -401,10 +401,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       }
       say(sprintf("mild progression: seed %d, %d regions, capped share %.2f",
                   seedYr, length(unique(mp$region)), cs))
-      yrsM <- sort(unique(mp$year))
-      mpg <- magclass::new.magpie(sort(unique(mp$region)), yrsM, "p45_pfmMPPrice",
-                                  fill = 0)
-      mpg[cbind(as.character(mp$region), as.character(mp$year))] <- mp$price
+      mpg <- .psmLongToMagpie(mp, "p45_pfmMPPrice", valueCol = "price")
       syms$p45_pfmMPPrice <- .psmGdxParam(mpg, "p45_pfmMPPrice")
     }
 
@@ -414,14 +411,10 @@ iterativePFM <- function(gdx = "fulldata.gdx",
            "continue - a missing bound would cap every price at zero.")
     }
     if (!is.null(bnd) && all(c("region", "year", "priceBound") %in% names(bnd))) {
-      yrs <- sort(unique(bnd$year))
-      pb <- magclass::new.magpie(sort(unique(bnd$region)), yrs, "p45_pfmPriceBound",
-                                 fill = 0)
-      pb[cbind(as.character(bnd$region), as.character(bnd$year))] <- bnd$priceBound
-      pb <- .psmGdxParam(pb, "p45_pfmPriceBound")
-      syms$p45_pfmPriceBound <- pb
+      pb <- .psmLongToMagpie(bnd, "p45_pfmPriceBound", valueCol = "priceBound")
+      syms$p45_pfmPriceBound <- .psmGdxParam(pb, "p45_pfmPriceBound")
       say(sprintf("price bound exported for %d regions x %d periods",
-                  length(unique(bnd$region)), length(yrs)))
+                  length(unique(bnd$region)), length(unique(bnd$year))))
     } else {
       say("NOTE: no price bound exported - bind mode 2 would have nothing to cap on")
     }
@@ -445,6 +438,40 @@ iterativePFM <- function(gdx = "fulldata.gdx",
   invisible(ok)
 }
 # nolint end
+
+#' Build a region x year magpie from a long data.frame
+#'
+#' \strong{Do not reach for \code{m[cbind(region, year)] <- value}.} A magpie is a
+#' THREE-dimensional array (region, year, data), so a two-column index matrix is not
+#' a valid matrix subscript for it, and the year labels are \code{"y2030"} rather
+#' than \code{"2030"} anyway. Both mistakes surface as the same unhelpful
+#' \code{subscript out of bounds ("2025", "2030", ...)} — which is exactly how every
+#' coupled REMIND run of 2026-08-12 died on its first coupling call, in every bind
+#' mode, after the expensive part of the work had already been done. Filling the
+#' underlying array by POSITION avoids depending on either label convention.
+#'
+#' @param df Long data.frame with region, year and a value column.
+#' @param name GAMS symbol name (the magpie's data dimension).
+#' @param valueCol Name of the value column.
+#' @param regionCol,yearCol Names of the index columns.
+#' @return A magpie of dimension regions x years x 1, zero where \code{df} is silent.
+#' @keywords internal
+#' @author Renato Rodrigues
+.psmLongToMagpie <- function(df, name, valueCol,
+                             regionCol = "region", yearCol = "year") {
+  regs <- as.character(df[[regionCol]])
+  yrs <- as.integer(df[[yearCol]])
+  if (anyNA(yrs)) {
+    stop(".psmLongToMagpie: non-numeric years in '", name, "'")
+  }
+  uReg <- sort(unique(regs))
+  uYr <- sort(unique(yrs))
+  m <- magclass::new.magpie(uReg, uYr, name, fill = 0)
+  a <- as.array(m)
+  a[cbind(match(regs, uReg), match(yrs, uYr), 1L)] <- as.numeric(df[[valueCol]])
+  m[, , ] <- a
+  m
+}
 
 #' Tag a magpie so gdx::writeGDX can write it
 #'

@@ -60,6 +60,63 @@ test_that("all three symbols the coupling needs coexist in one gdx", {
   expect_equal(dim(gdx::readGDX(f, "p45_pfmPriceBound"))[2], 2L)
 })
 
+# --- long data.frame -> magpie ------------------------------------------------
+# The step that took down every coupled run of 2026-08-12. The price bound and the
+# mild-progression path arrive as long data.frames and used to be poured into a
+# magpie with m[cbind(region, year)] <- value. That is not a valid subscript for a
+# three-dimensional magpie in any year-label convention, so it threw
+# "subscript out of bounds" on the FIRST coupling call of every bind mode - after
+# phi had already been computed, and with the diagnostic buried under a 315-element
+# vector of years.
+
+test_that("a long data.frame becomes a magpie without matrix indexing", {
+  skip_if_no_gdx()
+  d <- data.frame(region = rep(c("EUR", "USA"), each = 3),
+                  year = rep(c(2025, 2030, 2050), 2),
+                  priceBound = c(10, 20, 30, 40, 50, 60),
+                  stringsAsFactors = FALSE)
+  m <- pfm:::.psmLongToMagpie(d, "p45_pfmPriceBound", valueCol = "priceBound")
+  expect_true(magclass::is.magpie(m))
+  expect_setequal(magclass::getItems(m, dim = 1), c("EUR", "USA"))
+  expect_equal(magclass::getYears(m, as.integer = TRUE), c(2025, 2030, 2050))
+  # Values must land on the right region-year, not merely be present.
+  for (i in seq_len(nrow(d))) {
+    expect_equal(as.numeric(m[d$region[i], d$year[i], ]), d$priceBound[i],
+                 info = paste(d$region[i], d$year[i]))
+  }
+})
+
+test_that("the bound survives unsorted, ragged input", {
+  skip_if_no_gdx()
+  # Shuffled rows and a region missing a period: the gap must read as 0, not shift
+  # every later value by one slot the way positional filling would.
+  d <- data.frame(region = c("USA", "EUR", "USA", "EUR"),
+                  year = c(2050, 2030, 2030, 2050),
+                  priceBound = c(4, 1, 3, 2), stringsAsFactors = FALSE)
+  m <- pfm:::.psmLongToMagpie(d[c(3, 1, 4, 2), ], "p45_pfmPriceBound",
+                              valueCol = "priceBound")
+  expect_equal(as.numeric(m["EUR", 2030, ]), 1)
+  expect_equal(as.numeric(m["EUR", 2050, ]), 2)
+  expect_equal(as.numeric(m["USA", 2030, ]), 3)
+  expect_equal(as.numeric(m["USA", 2050, ]), 4)
+})
+
+test_that("a bound built from a data.frame is writable and reloadable", {
+  skip_if_no_gdx()
+  # The end-to-end shape of what iterativePFM does: build from long, tag, write.
+  f <- withr::local_tempfile(fileext = ".gdx")
+  d <- data.frame(region = rep(c("EUR", "USA"), each = 2),
+                  year = rep(c(2030, 2050), 2),
+                  priceBound = c(50, 120, 60, 140), stringsAsFactors = FALSE)
+  bound <- pfm:::.psmGdxParam(
+    pfm:::.psmLongToMagpie(d, "p45_pfmPriceBound", valueCol = "priceBound"),
+    "p45_pfmPriceBound")
+  gdx::writeGDX(list(p45_pfmPriceBound = bound), f)
+  back <- gdx::readGDX(f, "p45_pfmPriceBound")
+  expect_equal(as.numeric(back["EUR", 2050, ]), 120, tolerance = 1e-12)
+  expect_equal(as.numeric(back["USA", 2030, ]), 60, tolerance = 1e-12)
+})
+
 test_that("the delta is written over regions, not GLO", {
   skip_if_no_gdx()
   # GAMS loads p45_pfmDelta into a parameter indexed on regi and sums over it. A
