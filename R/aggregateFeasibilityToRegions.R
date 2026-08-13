@@ -238,7 +238,22 @@ aggregateFeasibilityToRegions <- function(path, mapping, weights = NULL,
   agg$relativeGap[!agg$ceilingValid] <- NA_real_
 
   # --- Tiers and the feasibility share, assigned ONCE at tierYear --------------
-  ty <- tierYear %||% suppressWarnings(min(agg$year, na.rm = TRUE))
+  # Snap the requested tier year onto a year the projection actually carries. A caller
+  # deriving it from cm_startyear cannot know the period grid, and an unmatched year
+  # silently empties `base` below - which hands EVERY region phi = 1, i.e. a completely
+  # uncoupled run wearing a coupled label. Snap, say so, and fail loudly if nothing fits.
+  yrsAvail <- sort(unique(agg$year[is.finite(agg$year)]))
+  if (!length(yrsAvail)) stop("aggregateFeasibilityToRegions: no finite years in the projection")
+  ty <- tierYear %||% suppressWarnings(min(yrsAvail, na.rm = TRUE))
+  if (!ty %in% yrsAvail) {
+    later <- yrsAvail[yrsAvail >= ty]
+    snapped <- if (length(later)) later[1] else yrsAvail[length(yrsAvail)]
+    if (isTRUE(verbose)) {
+      message("[aggregateFeasibilityToRegions] tierYear ", ty,
+              " is not a projection period; snapped to ", snapped)
+    }
+    ty <- snapped
+  }
   gapCol <- if (identical(gapMeasure, "relative")) "relativeGap" else "gapIndex"
   base <- agg[agg$year == ty & agg$ceilingValid, c("region", gapCol), drop = FALSE]
   names(base)[2] <- "gapIndex"
@@ -251,9 +266,12 @@ aggregateFeasibilityToRegions <- function(path, mapping, weights = NULL,
     k <- pmin(pmax(k, 1L), nTiers)
     tierMap <- stats::setNames(k, base$region)
     tierOf <- as.integer(tierMap[agg$region])
-  } else if (isTRUE(verbose)) {
-    message("[aggregateFeasibilityToRegions] no region has a valid ceiling in ",
-            ty, " - every region falls back to phi = 1 (uncoupled).")
+  } else {
+    # Falling back to phi = 1 for every region is an UNCOUPLED run. Under a coupling
+    # that is a silent, total failure, so it is an error rather than a message.
+    stop("aggregateFeasibilityToRegions: no region has a valid ceiling in ", ty,
+         " - every region would fall back to phi = 1, i.e. an uncoupled run. ",
+         "Check the tier year against the projection's periods and the coverage rule.")
   }
   agg$tier <- tierOf
 

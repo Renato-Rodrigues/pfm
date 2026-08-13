@@ -111,8 +111,10 @@ iterativePFM <- function(gdx = "fulldata.gdx",
                                                     "SSP2"),
                          runtimeConfig = getOption("pfm.couplingRuntimeConfig",
                                                    "pfm-coupling-runtime.yml"),
+                         tierYear = getOption("pfm.couplingTierYear", NULL),
                          verbose = TRUE) {
   say <- function(...) if (isTRUE(verbose)) message("[iterativePFM] ", ...)
+  rtIteration <- NULL
 
   # --- static settings, written into the run folder by preparePFM.R -------------
   # Paths here are RELATIVE to the run folder (the working directory when GAMS calls
@@ -146,6 +148,21 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     if (!is.null(rt)) {
       if (!is.null(rt$bindMode)) bindMode <- as.integer(rt$bindMode)
       if (!is.null(rt$theta)) theta <- as.numeric(rt$theta)
+      if (!is.null(rt$iteration)) rtIteration <- rt$iteration
+      # The tier year decides WHERE the ambition gap is read, and that single choice
+      # decides whether this is a feedback loop at all. REMIND fixes its solution before
+      # cm_startyear, so a tier year inside that window makes phi a constant: it came
+      # back bit-identical on every call of the 2026-08-13 batch, delta exactly 0, and
+      # the energy system could not move it by construction. Place it at the first
+      # projection period STRICTLY after the frozen window unless told otherwise.
+      if (is.null(tierYear) && !is.null(rt$startYear)) {
+        sy <- suppressWarnings(as.numeric(rt$startYear))
+        if (is.finite(sy)) {
+          tierYear <- sy + 5
+          say("tier year derived from cm_startyear ", sy, " -> ", tierYear,
+              " (the first period REMIND is free to change)")
+        }
+      }
       say("runtime config from GAMS: bindMode ", bindMode, ", theta ",
           signif(theta, 4), if (!is.null(rt$iteration)) paste0(", iteration ", rt$iteration) else "")
     } else {
@@ -296,6 +313,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       a <- aggregateFeasibilityToRegions(p, mapping, weights = wts,
                                          assignment = asg[[sec]],
                                          theta = theta, nTiers = nTiers,
+                                         tierYear = tierYear,
                                          gapMeasure = gapMeasure, phiRule = phiRule)
       a$sector <- sec
       a
@@ -349,10 +367,18 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     dOut <- .psmCouplingSym1d("p45_pfmDelta",
                               stats::setNames(rep(if (is.finite(delta)) delta else 1e6,
                                                   length(phi)), names(phi)))
+    # Freshness stamp. GAMS cannot otherwise tell a gdx written by THIS call from one
+    # left over by a previous one: a failed call writes nothing, Execute_Loadpoint keeps
+    # the old values, and a stale small delta would read as convergence. Echoing the
+    # iteration GAMS asked for lets the model verify the answer is its own.
+    itSeen <- suppressWarnings(as.numeric(if (!is.null(rtIteration)) rtIteration else NA))
+    if (!is.finite(itSeen)) itSeen <- -1
+    iOut <- .psmCouplingSym1d("p45_pfmIterSeen",
+                              stats::setNames(rep(itSeen, length(phi)), names(phi)))
     # Bind mode 2 needs the ABSOLUTE politically feasible price per region-period.
     # Exported unconditionally: it costs one extra symbol, and a mode-2 run that
     # silently found no bound would cap prices at zero.
-    syms <- list(out, dOut)
+    syms <- list(out, dOut, iOut)
     # priceOptimal is THIS iteration's cost-optimal path, read from the same gdx we
     # were handed. priceReference is the current-policies path and cannot come from
     # here - it is a different scenario - so it is an argument. Without it there is
