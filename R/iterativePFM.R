@@ -334,23 +334,25 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     say(sprintf("phi delta vs previous call: %s (tolerance is enforced in GAMS)",
                 if (is.finite(delta)) sprintf("%.5f", delta) else "first call"))
 
-    # 5. PFM -> REMIND. magclass writes the gdx REMIND's Execute_Loadpoint reads;
-    #    the symbol names must match the presolve statements.
-    out <- .psmGdxParam(magclass::new.magpie(names(phi), NULL, "p45_regiDiff_phi",
-                                             fill = as.numeric(phi)),
-                        "p45_regiDiff_phi")
+    # 5. PFM -> REMIND. The symbol names AND the index structure must match the
+    #    declarations in 45_carbonprice/functionalForm/declarations.gms exactly:
+    #      p45_regiDiff_phi(all_regi)        - ONE dimension
+    #      p45_pfmDelta_aux(all_regi)        - ONE dimension
+    #      p45_pfmPriceBound(ttot,all_regi)  - TWO, and ttot comes FIRST
+    #    See .psmCouplingSym1d() for why this cannot go through magclass.
+    out <- .psmCouplingSym1d("p45_regiDiff_phi", phi)
     # Written over the SAME regions as phi, constant, because the GAMS side loads it
     # into a parameter indexed on regi - a GLO-only symbol would sum to nothing there
     # and read as a delta of 0, i.e. false convergence on the first call.
     # A large finite number rather than Inf: GAMS has no Inf on load, and any value
     # above a sane tolerance keeps the loop running, which is the safe direction.
-    dOut <- .psmGdxParam(magclass::new.magpie(names(phi), NULL, "p45_pfmDelta",
-                                              fill = if (is.finite(delta)) delta else 1e6),
-                         "p45_pfmDelta")
+    dOut <- .psmCouplingSym1d("p45_pfmDelta",
+                              stats::setNames(rep(if (is.finite(delta)) delta else 1e6,
+                                                  length(phi)), names(phi)))
     # Bind mode 2 needs the ABSOLUTE politically feasible price per region-period.
     # Exported unconditionally: it costs one extra symbol, and a mode-2 run that
     # silently found no bound would cap prices at zero.
-    syms <- list(p45_regiDiff_phi = out, p45_pfmDelta = dOut)
+    syms <- list(out, dOut)
     # priceOptimal is THIS iteration's cost-optimal path, read from the same gdx we
     # were handed. priceReference is the current-policies path and cannot come from
     # here - it is a different scenario - so it is an argument. Without it there is
@@ -401,8 +403,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       }
       say(sprintf("mild progression: seed %d, %d regions, capped share %.2f",
                   seedYr, length(unique(mp$region)), cs))
-      mpg <- .psmLongToMagpie(mp, "p45_pfmMPPrice", valueCol = "price")
-      syms$p45_pfmMPPrice <- .psmGdxParam(mpg, "p45_pfmMPPrice")
+      syms[[length(syms) + 1L]] <- .psmCouplingSym2d("p45_pfmMPPrice", mp, "price")
     }
 
     if (identical(bindMode, 2L) && is.null(bnd)) {
@@ -411,14 +412,14 @@ iterativePFM <- function(gdx = "fulldata.gdx",
            "continue - a missing bound would cap every price at zero.")
     }
     if (!is.null(bnd) && all(c("region", "year", "priceBound") %in% names(bnd))) {
-      pb <- .psmLongToMagpie(bnd, "p45_pfmPriceBound", valueCol = "priceBound")
-      syms$p45_pfmPriceBound <- .psmGdxParam(pb, "p45_pfmPriceBound")
+      syms[[length(syms) + 1L]] <-
+        .psmCouplingSym2d("p45_pfmPriceBound", bnd, "priceBound")
       say(sprintf("price bound exported for %d regions x %d periods",
                   length(unique(bnd$region)), length(unique(bnd$year))))
     } else {
       say("NOTE: no price bound exported - bind mode 2 would have nothing to cap on")
     }
-    gdx::writeGDX(syms, outputFile)
+    .psmWriteCouplingGdx(outputFile, syms)
     say("wrote ", outputFile, " in ",
         round(as.numeric(difftime(Sys.time(), t0, units = "secs")), 1), "s")
     TRUE
@@ -439,55 +440,144 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 }
 # nolint end
 
-#' Build a region x year magpie from a long data.frame
+#' Build the coupling gdx exactly as REMIND declares it
 #'
-#' \strong{Do not reach for \code{m[cbind(region, year)] <- value}.} A magpie is a
-#' THREE-dimensional array (region, year, data), so a two-column index matrix is not
-#' a valid matrix subscript for it, and the year labels are \code{"y2030"} rather
-#' than \code{"2030"} anyway. Both mistakes surface as the same unhelpful
-#' \code{subscript out of bounds ("2025", "2030", ...)} — which is exactly how every
-#' coupled REMIND run of 2026-08-12 died on its first coupling call, in every bind
-#' mode, after the expensive part of the work had already been done. Filling the
-#' underlying array by POSITION avoids depending on either label convention.
+#' The symbols REMIND loads are declared in
+#' \code{45_carbonprice/functionalForm/declarations.gms} as
+#' \code{p45_regiDiff_phi(all_regi)}, \code{p45_pfmDelta_aux(all_regi)},
+#' \code{p45_pfmPriceBound(ttot,all_regi)} and \code{p45_pfmMPPrice(ttot,all_regi)}.
+#' Both the RANK and the index ORDER are part of that contract, and both have been got
+#' wrong here before:
+#' \itemize{
+#'   \item Wrong rank - \code{Execute_Loadpoint} reports
+#'     \code{**** GDX ERROR - Dimensions do not match}, loads NOTHING, leaves phi at
+#'     its previous value (1, i.e. uncoupled) and defers the execution error to the
+#'     next solve, hours later, as an unrelated infeasibility.
+#'   \item Wrong order - a region-first symbol has the correct rank, raises
+#'     \strong{no error at all}, and loads as \code{( ALL 0.000 )}. Worse than the
+#'     rank mismatch, because nothing anywhere reports it.
+#' }
 #'
-#' @param df Long data.frame with region, year and a value column.
-#' @param name GAMS symbol name (the magpie's data dimension).
-#' @param valueCol Name of the value column.
-#' @param regionCol,yearCol Names of the index columns.
-#' @return A magpie of dimension regions x years x 1, zero where \code{df} is silent.
+#' \strong{Written with GAMS Transfer}, which is the reason the contract is now
+#' enforceable rather than merely documented: the domain SETS go into the gdx as real
+#' GAMS sets, so records that do not belong to the declared domain are refused at write
+#' time with "Domain violation". The predecessor (\code{gdxrrw::wgdx.lst}) has no domain
+#' concept and writes whatever index matrix it is handed, which is exactly how the
+#' order defect reached a cluster run. \code{magclass} cannot express these symbols at
+#' all: a magpie is inherently three-dimensional (region, year, data), so it produced
+#' rank 2 for phi and rank 3 for the bound.
+#'
+#' Year labels are bare (\code{"2030"}), matching the \code{ttot} set elements -
+#' \strong{not} magclass's \code{"y2030"}, which would drop every record on load.
+#'
+#' @param name GAMS symbol name; must match what presolve.gms loads.
+#' @param v Named numeric vector over regions (1-dimensional symbols).
+#' @param df Long data.frame with \code{region}, \code{year} and a value column.
+#' @param valueCol Name of the value column in \code{df}.
+#' @param regionCol,yearCol Names of the index columns in \code{df}.
+#' @param file Destination gdx.
+#' @param syms List of symbol descriptions built by these helpers.
+#' @param verbose Logical; report the symbols written.
+#' @return The symbol description; \code{.psmWriteCouplingGdx} returns \code{file}.
 #' @keywords internal
 #' @author Renato Rodrigues
-.psmLongToMagpie <- function(df, name, valueCol,
-                             regionCol = "region", yearCol = "year") {
-  regs <- as.character(df[[regionCol]])
-  yrs <- as.integer(df[[yearCol]])
-  if (anyNA(yrs)) {
-    stop(".psmLongToMagpie: non-numeric years in '", name, "'")
+#' @rdname psmCouplingGdx
+.psmCouplingSym1d <- function(name, v) {
+  u <- names(v)
+  if (is.null(u) || anyNA(u) || !all(nzchar(u))) {
+    stop(".psmCouplingSym1d: '", name, "' needs a fully named vector of regions")
   }
-  uReg <- sort(unique(regs))
-  uYr <- sort(unique(yrs))
-  m <- magclass::new.magpie(uReg, uYr, name, fill = 0)
-  a <- as.array(m)
-  a[cbind(match(regs, uReg), match(yrs, uYr), 1L)] <- as.numeric(df[[valueCol]])
-  m[, , ] <- a
-  m
+  list(name = name, domain = "all_regi",
+       records = data.frame(all_regi = u, value = unname(as.numeric(v)),
+                            stringsAsFactors = FALSE))
 }
 
-#' Tag a magpie so gdx::writeGDX can write it
+#' @keywords internal
+#' @rdname psmCouplingGdx
+.psmCouplingSym2d <- function(name, df, valueCol,
+                              regionCol = "region", yearCol = "year") {
+  yrs <- suppressWarnings(as.integer(df[[yearCol]]))
+  if (anyNA(yrs)) stop(".psmCouplingSym2d: non-numeric years in '", name, "'")
+  # ttot FIRST, all_regi second - the declared order, and the column order the
+  # gamstransfer domain is built from.
+  list(name = name, domain = c("ttot", "all_regi"),
+       records = data.frame(ttot = as.character(yrs),
+                            all_regi = as.character(df[[regionCol]]),
+                            value = as.numeric(df[[valueCol]]),
+                            stringsAsFactors = FALSE))
+}
+
+#' @keywords internal
+#' @rdname psmCouplingGdx
+.psmCouplingUels <- function(name, v) {
+  v <- unique(as.character(v))
+  # ttot elements sort NUMERICALLY; "2100" < "255" as text.
+  if (identical(name, "ttot")) as.character(sort(as.integer(v))) else sort(v)
+}
+
+#' @keywords internal
+#' @rdname psmCouplingGdx
+.psmWriteCouplingGdx <- function(file, syms, verbose = FALSE) {
+  if (!requireNamespace("gamstransfer", quietly = TRUE)) {
+    stop(".psmWriteCouplingGdx: the 'gamstransfer' package is required to write the ",
+         "coupling gdx. It ships with GAMS (apifiles/R/gamstransfer) and is on CRAN.")
+  }
+  m <- gamstransfer::Container$new()
+  # Domain sets first, as real GAMS sets - that is what makes the domain check possible.
+  # Elements are the union over every symbol that uses them.
+  uels <- list()
+  for (s in syms) {
+    for (d in s$domain) {
+      uels[[d]] <- union(uels[[d]] %||% character(0), as.character(s$records[[d]]))
+    }
+  }
+  sets <- stats::setNames(
+    lapply(names(uels), function(d) m$addSet(d, records = .psmCouplingUels(d, uels[[d]]))),
+    names(uels))
+  for (s in syms) {
+    m$addParameter(s$name, domain = unname(sets[s$domain]), records = s$records)
+  }
+  # Refuses rather than producing a gdx GAMS would silently read as zero.
+  m$write(file)
+  .psmVerifyCouplingGdx(file, syms)
+  if (isTRUE(verbose)) {
+    message("[iterativePFM] wrote ", length(syms), " symbols and verified their domains")
+  }
+  invisible(file)
+}
+
+#' Read the coupling gdx back and assert what GAMS will see
 #'
-#' \code{gdx::writeGDX} reads its symbol metadata from \code{attr(x, "gdxdata")},
-#' which is populated by \code{readGDX} but is \strong{absent on a freshly
-#' constructed magpie}. Without it the writer dereferences \code{out$type} on a NULL
-#' and dies with "argument is of length zero" - an error that names nothing about the
-#' real cause. Every symbol built here must be tagged before writing.
+#' Cheap (milliseconds) and worth it, because every defect this guards against is
+#' SILENT in production: the run either dies hours later citing something unrelated, or
+#' does not complain at all and reports an uncoupled world as a coupled one. Checking
+#' the FILE rather than the objects that produced it is the point - it is the file GAMS
+#' reads.
 #'
-#' @param x A magpie object.
-#' @param name GAMS symbol name; must match the name the GAMS side loads.
-#' @return \code{x} with the \code{gdxdata} attribute set.
+#' @param file The gdx just written.
+#' @param syms The symbol descriptions it was built from.
+#' @return \code{TRUE} invisibly, or an error naming the symbol and what is wrong.
 #' @keywords internal
 #' @author Renato Rodrigues
-.psmGdxParam <- function(x, name) {
-  magclass::getSets(x)[1] <- "all_regi"
-  attr(x, "gdxdata") <- list(name = name, type = "parameter")
-  x
+#' @rdname psmCouplingGdx
+.psmVerifyCouplingGdx <- function(file, syms) {
+  back <- gamstransfer::Container$new(file)
+  for (s in syms) {
+    if (!length(back$getSymbols(s$name))) {
+      stop(".psmVerifyCouplingGdx: '", s$name, "' is missing from ", file)
+    }
+    got <- back$getSymbols(s$name)[[1]]
+    if (!identical(as.integer(got$dimension), length(s$domain))) {
+      stop(".psmVerifyCouplingGdx: '", s$name, "' was written with rank ",
+           got$dimension, " but REMIND declares rank ", length(s$domain),
+           " - Execute_Loadpoint would load nothing.")
+    }
+    if (!identical(as.character(got$domainNames), s$domain)) {
+      stop(".psmVerifyCouplingGdx: '", s$name, "' is indexed (",
+           paste(got$domainNames, collapse = ", "), ") but REMIND declares (",
+           paste(s$domain, collapse = ", "), "). GAMS would load it as all zeros ",
+           "without reporting anything.")
+    }
+  }
+  invisible(TRUE)
 }

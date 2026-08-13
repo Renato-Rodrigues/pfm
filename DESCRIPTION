@@ -21,6 +21,7 @@ Depends:
     mrpfm
 Imports:
     dplyr,
+    gamstransfer,
     gdx,
     lmtest,
     logistf,

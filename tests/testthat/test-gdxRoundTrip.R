@@ -1,190 +1,246 @@
-# The PFM <-> REMIND gdx round trip.
+# The PFM <-> REMIND gdx interface.
 #
-# This is the interface that has never executed end to end (TODO blocker 2). GAMS
-# cannot run here, so these tests exercise the half we own and pin the CONTRACT the
-# GAMS side depends on: symbol names, index sets, and the guarantee that a failure
-# writes nothing. A mismatch here is silent in production - Execute_Loadpoint simply
-# leaves the parameter untouched, and REMIND carries on with the previous iteration's
-# phi as if the coupling had succeeded.
+# These tests pin the CONTRACT the GAMS side depends on, and the contract is not just
+# "the numbers are right" - it is the index structure REMIND declares in
+# 45_carbonprice/functionalForm/declarations.gms:
+#
+#   p45_regiDiff_phi(all_regi)         rank 1
+#   p45_pfmDelta_aux(all_regi)         rank 1
+#   p45_pfmPriceBound(ttot,all_regi)   rank 2, ttot FIRST
+#   p45_pfmMPPrice(ttot,all_regi)      rank 2, ttot FIRST
+#
+# Getting the VALUES right and the SHAPE wrong is the dangerous case, and both variants
+# have shipped. Wrong rank: Execute_Loadpoint reports "Dimensions do not match", loads
+# nothing, leaves phi at 1 (uncoupled) and kills the run hours later citing an unrelated
+# infeasibility. Wrong ORDER: correct rank, no error anywhere, loads as ( ALL 0.000 ).
+#
+# Assertions go through gamstransfer, which reads the gdx the way GAMS does - rank and
+# real domain names. The version of this file that read back through magclass could not
+# catch either defect, because magclass rebuilds a magpie from any rank.
 
-skip_if_no_gdx <- function() {
-  skip_if_not_installed("gdx")
-  skip_if_not_installed("magclass")
+skip_if_no_gt <- function() skip_if_not_installed("gamstransfer")
+
+# What GAMS sees, straight out of the file.
+symInfo <- function(f, name) {
+  m <- gamstransfer::Container$new(f)
+  if (!length(m$getSymbols(name))) return(NULL)
+  s <- m$getSymbols(name)[[1]]
+  r <- s$records
+  list(dim = as.integer(s$dimension), domains = as.character(s$domainNames),
+       domainType = s$domainType, n = as.integer(s$numberRecords), records = r,
+       value = r$value)
+}
+# Value keyed by the label on each index position - the mapping GAMS will make.
+cells <- function(i) {
+  key <- do.call(paste, lapply(i$domains, function(d) as.character(i$records[[d]])))
+  stats::setNames(i$value, key)
 }
 
-# Symbols MUST be tagged with a gdxdata attribute or writeGDX dies with "argument is
-# of length zero" - see .psmGdxParam(). Building them the same way production does is
-# the point of these tests.
 mkPhi <- function(regs = c("EUR", "USA", "CHA"), v = c(0.7, 0.45, 0.9)) {
-  pfm:::.psmGdxParam(
-    magclass::new.magpie(regs, NULL, "p45_regiDiff_phi", fill = v),
-    "p45_regiDiff_phi")
+  pfm:::.psmCouplingSym1d("p45_regiDiff_phi", stats::setNames(v, regs))
 }
+mkBound <- function() {
+  d <- expand.grid(year = c(2030, 2050), region = c("EUR", "USA"),
+                   stringsAsFactors = FALSE)
+  d$priceBound <- c(50, 120, 60, 140)   # EUR: 50/120, USA: 60/140
+  d
+}
+writeSyms <- function(f, ...) pfm:::.psmWriteCouplingGdx(f, list(...))
 
-test_that("phi survives a write/read cycle with its symbol name and regions intact", {
-  skip_if_no_gdx()
+# --- rank ---------------------------------------------------------------------
+
+test_that("phi is written at rank 1, as all_regi is declared", {
+  skip_if_no_gt()
   f <- withr::local_tempfile(fileext = ".gdx")
-  phi <- mkPhi()
-  gdx::writeGDX(list(p45_regiDiff_phi = phi), f)
-  expect_true(file.exists(f))
-  back <- gdx::readGDX(f, "p45_regiDiff_phi")
-  # The symbol name is the contract: presolve.gms does
-  #   Execute_Loadpoint 'p45_regiDiff_phi' p45_regiDiff_phi_aux = p45_regiDiff_phi;
-  # A renamed symbol loads NOTHING and leaves the previous phi in place silently.
-  # The gdx round trip REORDERS regions alphabetically, so compare BY NAME. This is
-  # harmless in GAMS - Execute_Loadpoint maps by set element, not by position - but
-  # any R-side consumer that indexed positionally would silently swap regions.
-  expect_setequal(magclass::getItems(back, dim = 1), magclass::getItems(phi, dim = 1))
-  for (r in magclass::getItems(phi, dim = 1)) {
-    expect_equal(as.numeric(back[r, , ]), as.numeric(phi[r, , ]), tolerance = 1e-12,
-                 info = r)
-  }
+  writeSyms(f, mkPhi())
+  i <- symInfo(f, "p45_regiDiff_phi")
+  expect_identical(i$dim, 1L)          # 2 = the magpie shape that failed to load
+  expect_identical(i$domains, "all_regi")
+  expect_identical(i$n, 3L)
 })
 
-test_that("all three symbols the coupling needs coexist in one gdx", {
-  skip_if_no_gdx()
+test_that("the delta is rank 1, over regions, and not GLO", {
+  skip_if_no_gt()
+  # GAMS computes sum(regi, aux)/card(regi). A GLO-only symbol sums to nothing there,
+  # reading as delta = 0 - FALSE CONVERGENCE on the first call.
   f <- withr::local_tempfile(fileext = ".gdx")
   regs <- c("EUR", "USA")
-  phi <- mkPhi(regs, c(0.7, 0.45))
-  delta <- pfm:::.psmGdxParam(
-    magclass::new.magpie(regs, NULL, "p45_pfmDelta", fill = 0.004), "p45_pfmDelta")
-  bound <- pfm:::.psmGdxParam(
-    magclass::new.magpie(regs, c(2030, 2050), "p45_pfmPriceBound",
-                         fill = c(50, 60, 120, 140)), "p45_pfmPriceBound")
-  gdx::writeGDX(list(p45_regiDiff_phi = phi, p45_pfmDelta = delta,
-                     p45_pfmPriceBound = bound), f)
-  for (nm in c("p45_regiDiff_phi", "p45_pfmDelta", "p45_pfmPriceBound")) {
-    expect_true(is.null(attr(try(gdx::readGDX(f, nm), silent = TRUE), "condition")),
-                info = nm)
-  }
-  expect_equal(dim(gdx::readGDX(f, "p45_pfmPriceBound"))[2], 2L)
+  writeSyms(f, pfm:::.psmCouplingSym1d("p45_pfmDelta",
+                                       stats::setNames(rep(0.01, 2), regs)))
+  i <- symInfo(f, "p45_pfmDelta")
+  expect_identical(i$dim, 1L)
+  expect_setequal(as.character(i$records$all_regi), regs)
+  expect_false("GLO" %in% as.character(i$records$all_regi))
+  expect_equal(mean(i$value), 0.01, tolerance = 1e-12)
 })
 
-# --- long data.frame -> magpie ------------------------------------------------
-# The step that took down every coupled run of 2026-08-12. The price bound and the
-# mild-progression path arrive as long data.frames and used to be poured into a
-# magpie with m[cbind(region, year)] <- value. That is not a valid subscript for a
-# three-dimensional magpie in any year-label convention, so it threw
-# "subscript out of bounds" on the FIRST coupling call of every bind mode - after
-# phi had already been computed, and with the diagnostic buried under a 315-element
-# vector of years.
-
-test_that("a long data.frame becomes a magpie without matrix indexing", {
-  skip_if_no_gdx()
-  d <- data.frame(region = rep(c("EUR", "USA"), each = 3),
-                  year = rep(c(2025, 2030, 2050), 2),
-                  priceBound = c(10, 20, 30, 40, 50, 60),
-                  stringsAsFactors = FALSE)
-  m <- pfm:::.psmLongToMagpie(d, "p45_pfmPriceBound", valueCol = "priceBound")
-  expect_true(magclass::is.magpie(m))
-  expect_setequal(magclass::getItems(m, dim = 1), c("EUR", "USA"))
-  expect_equal(magclass::getYears(m, as.integer = TRUE), c(2025, 2030, 2050))
-  # Values must land on the right region-year, not merely be present.
-  for (i in seq_len(nrow(d))) {
-    expect_equal(as.numeric(m[d$region[i], d$year[i], ]), d$priceBound[i],
-                 info = paste(d$region[i], d$year[i]))
-  }
+test_that("the price bound is written at rank 2", {
+  skip_if_no_gt()
+  f <- withr::local_tempfile(fileext = ".gdx")
+  writeSyms(f, pfm:::.psmCouplingSym2d("p45_pfmPriceBound", mkBound(), "priceBound"))
+  i <- symInfo(f, "p45_pfmPriceBound")
+  expect_identical(i$dim, 2L)          # 3 = the magpie shape
+  expect_identical(i$n, 4L)
 })
 
-test_that("the bound survives unsorted, ragged input", {
-  skip_if_no_gdx()
-  # Shuffled rows and a region missing a period: the gap must read as 0, not shift
-  # every later value by one slot the way positional filling would.
+# --- index order, domains and labels ------------------------------------------
+
+test_that("the 2-d symbols are indexed (ttot, all_regi), year first", {
+  skip_if_no_gt()
+  f <- withr::local_tempfile(fileext = ".gdx")
+  writeSyms(f, pfm:::.psmCouplingSym2d("p45_pfmPriceBound", mkBound(), "priceBound"))
+  expect_identical(symInfo(f, "p45_pfmPriceBound")$domains, c("ttot", "all_regi"))
+})
+
+test_that("domains are real GAMS sets, not the universe", {
+  skip_if_no_gt()
+  # "regular" is what makes the write-time domain check possible at all; a domain-less
+  # symbol ("none"/*) accepts any record, which is how the order defect got through.
+  f <- withr::local_tempfile(fileext = ".gdx")
+  writeSyms(f, mkPhi(),
+            pfm:::.psmCouplingSym2d("p45_pfmPriceBound", mkBound(), "priceBound"))
+  expect_identical(symInfo(f, "p45_pfmPriceBound")$domainType, "regular")
+  expect_identical(symInfo(f, "p45_regiDiff_phi")$domainType, "regular")
+})
+
+test_that("year labels are bare ttot elements, not magclass 'y2030'", {
+  skip_if_no_gt()
+  # ttot elements are 2030. "y2030" is not in the set, so every record would be
+  # dropped on load and the bound would read as zero everywhere.
+  f <- withr::local_tempfile(fileext = ".gdx")
+  writeSyms(f, pfm:::.psmCouplingSym2d("p45_pfmPriceBound", mkBound(), "priceBound"))
+  u <- unique(as.character(symInfo(f, "p45_pfmPriceBound")$records$ttot))
+  expect_true(all(grepl("^[0-9]{4}$", u)))
+  expect_false(any(startsWith(u, "y")))
+})
+
+test_that("ttot elements are ordered numerically, not as text", {
+  skip_if_no_gt()
+  # "2100" sorts before "255" as text. REMIND's ttot runs to 2150, so a text sort puts
+  # the century boundary in the wrong place.
+  f <- withr::local_tempfile(fileext = ".gdx")
+  d <- data.frame(region = "EUR", year = c(2100, 2030, 2150, 2055),
+                  priceBound = c(4, 1, 5, 2), stringsAsFactors = FALSE)
+  writeSyms(f, pfm:::.psmCouplingSym2d("p45_pfmPriceBound", d, "priceBound"))
+  m <- gamstransfer::Container$new(f)
+  expect_identical(as.character(m$getSymbols("ttot")[[1]]$records[[1]]),
+                   c("2030", "2055", "2100", "2150"))
+})
+
+# --- values -------------------------------------------------------------------
+
+test_that("values land on the right year-region cell", {
+  skip_if_no_gt()
+  f <- withr::local_tempfile(fileext = ".gdx")
+  d <- mkBound()
+  writeSyms(f, pfm:::.psmCouplingSym2d("p45_pfmPriceBound", d, "priceBound"))
+  got <- cells(symInfo(f, "p45_pfmPriceBound"))
+  want <- stats::setNames(d$priceBound, paste(d$year, d$region))
+  expect_equal(got[names(want)], want, tolerance = 1e-12)
+})
+
+test_that("shuffled and ragged input still lands correctly", {
+  skip_if_no_gt()
+  f <- withr::local_tempfile(fileext = ".gdx")
   d <- data.frame(region = c("USA", "EUR", "USA", "EUR"),
                   year = c(2050, 2030, 2030, 2050),
                   priceBound = c(4, 1, 3, 2), stringsAsFactors = FALSE)
-  m <- pfm:::.psmLongToMagpie(d[c(3, 1, 4, 2), ], "p45_pfmPriceBound",
-                              valueCol = "priceBound")
-  expect_equal(as.numeric(m["EUR", 2030, ]), 1)
-  expect_equal(as.numeric(m["EUR", 2050, ]), 2)
-  expect_equal(as.numeric(m["USA", 2030, ]), 3)
-  expect_equal(as.numeric(m["USA", 2050, ]), 4)
+  writeSyms(f, pfm:::.psmCouplingSym2d("p45_pfmPriceBound", d, "priceBound"))
+  got <- cells(symInfo(f, "p45_pfmPriceBound"))
+  expect_equal(unname(got[["2030 EUR"]]), 1)
+  expect_equal(unname(got[["2050 EUR"]]), 2)
+  expect_equal(unname(got[["2030 USA"]]), 3)
+  expect_equal(unname(got[["2050 USA"]]), 4)
 })
 
-test_that("a bound built from a data.frame is writable and reloadable", {
-  skip_if_no_gdx()
-  # The end-to-end shape of what iterativePFM does: build from long, tag, write.
+test_that("phi keeps its values, matched by region name", {
+  skip_if_no_gt()
   f <- withr::local_tempfile(fileext = ".gdx")
-  d <- data.frame(region = rep(c("EUR", "USA"), each = 2),
-                  year = rep(c(2030, 2050), 2),
-                  priceBound = c(50, 120, 60, 140), stringsAsFactors = FALSE)
-  bound <- pfm:::.psmGdxParam(
-    pfm:::.psmLongToMagpie(d, "p45_pfmPriceBound", valueCol = "priceBound"),
-    "p45_pfmPriceBound")
-  gdx::writeGDX(list(p45_pfmPriceBound = bound), f)
-  back <- gdx::readGDX(f, "p45_pfmPriceBound")
-  expect_equal(as.numeric(back["EUR", 2050, ]), 120, tolerance = 1e-12)
-  expect_equal(as.numeric(back["USA", 2030, ]), 60, tolerance = 1e-12)
+  regs <- c("EUR", "USA", "CHA"); v <- c(0.7, 0.45, 0.9)
+  writeSyms(f, mkPhi(regs, v))
+  got <- cells(symInfo(f, "p45_regiDiff_phi"))
+  expect_equal(got[regs], stats::setNames(v, regs), tolerance = 1e-12)
 })
 
-test_that("the delta is written over regions, not GLO", {
-  skip_if_no_gdx()
-  # GAMS loads p45_pfmDelta into a parameter indexed on regi and sums over it. A
-  # GLO-only symbol sums to nothing there, reading as delta = 0 - FALSE CONVERGENCE
-  # on the first call, collapsing the whole coupling to a single PFM evaluation.
+test_that("all symbols the coupling needs coexist with the right ranks", {
+  skip_if_no_gt()
   f <- withr::local_tempfile(fileext = ".gdx")
-  regs <- c("EUR", "USA")
-  delta <- pfm:::.psmGdxParam(
-    magclass::new.magpie(regs, NULL, "p45_pfmDelta", fill = 0.01), "p45_pfmDelta")
-  gdx::writeGDX(list(p45_pfmDelta = delta), f)
-  back <- gdx::readGDX(f, "p45_pfmDelta")
-  expect_setequal(magclass::getItems(back, dim = 1), regs)
-  expect_false("GLO" %in% magclass::getItems(back, dim = 1))
-  # The GAMS side computes sum(regi, aux)/card(regi); constant fill must survive it.
-  expect_equal(mean(as.numeric(back)), 0.01, tolerance = 1e-12)
+  d <- mkBound(); names(d)[names(d) == "priceBound"] <- "price"
+  writeSyms(f,
+            mkPhi(c("EUR", "USA"), c(0.7, 0.45)),
+            pfm:::.psmCouplingSym1d("p45_pfmDelta", c(EUR = 0.004, USA = 0.004)),
+            pfm:::.psmCouplingSym2d("p45_pfmPriceBound", mkBound(), "priceBound"),
+            pfm:::.psmCouplingSym2d("p45_pfmMPPrice", d, "price"))
+  expect_identical(symInfo(f, "p45_regiDiff_phi")$dim, 1L)
+  expect_identical(symInfo(f, "p45_pfmDelta")$dim, 1L)
+  expect_identical(symInfo(f, "p45_pfmPriceBound")$dim, 2L)
+  expect_identical(symInfo(f, "p45_pfmMPPrice")$dim, 2L)
+  expect_identical(symInfo(f, "p45_pfmMPPrice")$domains, c("ttot", "all_regi"))
 })
 
-test_that("a failed coupling writes NO gdx, so REMIND keeps the previous phi", {
-  d <- withr::local_tempdir()
-  outFile <- file.path(d, "p45_regiDiff_phi.gdx")
-  gdxFile <- file.path(d, "fulldata.gdx")
-  file.create(gdxFile)
-  gd <- file.path(d, "grp"); dir.create(gd, recursive = TRUE)
-  writeLines("[]", file.path(gd, "selected-models-psm.yml"))
-  writeLines('{"panel_hash":"nope"}', file.path(gd, "manifest.json"))
-  expect_warning(
-    iterativePFM(gdx = gdxFile, group = "grp", resultsDir = d, modelDir = d,
-                 outputFile = outFile), "FAILED")
-  # This is the property presolve.gms relies on: "if the R side failed to produce the
-  # file the previous iteration's phi is retained rather than silently reverting to 1".
-  expect_false(file.exists(outFile))
-})
+# --- what GAMS Transfer buys over the predecessor -----------------------------
 
-test_that("the phi history accumulates across calls and drives the delta", {
-  d <- withr::local_tempdir()
-  hist <- file.path(d, "pfm-phi-history.rds")
-  # Mirrors the in-function logic; the point is that state persists BETWEEN GAMS
-  # iterations through a file, since each Rscript call is a fresh process.
-  step <- function(phi) {
-    prev <- if (file.exists(hist)) readRDS(hist) else list()
-    delta <- if (length(prev)) {
-      last <- prev[[length(prev)]]$phi
-      cm <- intersect(names(phi), names(last))
-      if (length(cm)) max(abs(phi[cm] - last[cm])) else Inf
-    } else Inf
-    prev[[length(prev) + 1L]] <- list(phi = phi, delta = delta)
-    saveRDS(prev, hist)
-    delta
-  }
-  expect_equal(step(c(EUR = 0.7, USA = 0.5)), Inf)
-  expect_equal(step(c(EUR = 0.6, USA = 0.5)), 0.1, tolerance = 1e-12)
-  expect_equal(step(c(EUR = 0.6, USA = 0.5)), 0)
-  expect_length(readRDS(hist), 3L)
-})
-
-test_that("an untagged magpie is exactly what breaks writeGDX", {
-  skip_if_no_gdx()
-  # Regression guard for the root cause. gdx::writeGDX reads its symbol metadata from
-  # attr(x, "gdxdata"), which readGDX sets but new.magpie does not. Without it the
-  # writer dereferences out$type on a NULL. The error names nothing about the real
-  # cause, and the failure only appears OUTSIDE devtools::load_all - i.e. exactly in
-  # the bare Rscript that GAMS invokes.
+test_that("GAMS Transfer refuses records that violate the declared domain", {
+  skip_if_no_gt()
+  # The defect that reached a cluster run, handed straight to the writer: a
+  # (ttot, all_regi) parameter given region-first records. gdxrrw::wgdx.lst wrote this
+  # happily and GAMS read it as all zeros WITHOUT any error.
+  m <- gamstransfer::Container$new()
+  sr <- m$addSet("all_regi", records = c("EUR", "USA"))
+  st <- m$addSet("ttot", records = c("2030", "2050"))
+  m$addParameter("p", domain = list(st, sr),
+                 records = data.frame(ttot = c("EUR", "USA"),
+                                      all_regi = c("2030", "2050"),
+                                      value = c(1, 2), stringsAsFactors = FALSE))
   f <- withr::local_tempfile(fileext = ".gdx")
-  raw <- magclass::new.magpie(c("EUR", "USA"), NULL, "probe", fill = c(1, 2))
-  magclass::getSets(raw)[1] <- "all_regi"
-  expect_null(attr(raw, "gdxdata"))
-  expect_error(gdx::writeGDX(list(probe = raw), f), "length zero")
-  # Tagged, the same object writes cleanly.
-  expect_silent(gdx::writeGDX(list(probe = pfm:::.psmGdxParam(raw, "probe")), f))
-  expect_true(file.exists(f))
+  expect_error(m$write(f), "[Dd]omain violation")
+})
+
+test_that("the post-write check reads the FILE, not the objects that made it", {
+  skip_if_no_gt()
+  # Cheap insurance that does not depend on the writer's own bookkeeping. Point it at a
+  # file whose symbol is indexed the wrong way round and it must object.
+  f <- withr::local_tempfile(fileext = ".gdx")
+  m <- gamstransfer::Container$new()
+  sr <- m$addSet("all_regi", records = c("EUR", "USA"))
+  st <- m$addSet("ttot", records = c("2030", "2050"))
+  m$addParameter("p45_pfmPriceBound", domain = list(sr, st),   # REVERSED
+                 records = data.frame(all_regi = c("EUR", "USA"),
+                                      ttot = c("2030", "2050"),
+                                      value = c(1, 2), stringsAsFactors = FALSE))
+  m$write(f)
+  expect_error(
+    pfm:::.psmVerifyCouplingGdx(
+      f, list(pfm:::.psmCouplingSym2d("p45_pfmPriceBound", mkBound(), "priceBound"))),
+    "indexed \\(all_regi, ttot\\)")
+})
+
+test_that("the post-write check catches a wrong rank", {
+  skip_if_no_gt()
+  f <- withr::local_tempfile(fileext = ".gdx")
+  m <- gamstransfer::Container$new()
+  sr <- m$addSet("all_regi", records = c("EUR", "USA"))
+  st <- m$addSet("ttot", records = "2030")
+  # phi at rank 2: exactly the magpie shape that shipped.
+  m$addParameter("p45_regiDiff_phi", domain = list(sr, st),
+                 records = data.frame(all_regi = c("EUR", "USA"),
+                                      ttot = c("2030", "2030"),
+                                      value = c(0.2, 0.5), stringsAsFactors = FALSE))
+  m$write(f)
+  expect_error(
+    pfm:::.psmVerifyCouplingGdx(f, list(mkPhi(c("EUR", "USA"), c(0.2, 0.5)))),
+    "rank 2 but REMIND declares rank 1")
+})
+
+# --- guards -------------------------------------------------------------------
+
+test_that("an unnamed phi vector is refused rather than written as junk", {
+  expect_error(pfm:::.psmCouplingSym1d("p45_regiDiff_phi", c(0.1, 0.2)), "fully named")
+})
+
+test_that("non-numeric years are refused", {
+  d <- data.frame(region = "EUR", year = "not-a-year", priceBound = 1,
+                  stringsAsFactors = FALSE)
+  expect_error(pfm:::.psmCouplingSym2d("p45_pfmPriceBound", d, "priceBound"),
+               "non-numeric years")
 })
