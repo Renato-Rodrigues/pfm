@@ -82,6 +82,7 @@ pfmRun <- function(group = NULL,
                    "psm-selection-bootstrap"),
     remind     = "psm-remind-inputs",
     custom     = character(0))
+
   stageSteps$all <- c(stageSteps$sweep, stageSteps$downstream, stageSteps$remind)
   allSteps <- c(stageSteps$sweep, "psm-agreement", "psm-iv", "psm-influence",
                 "psm-replay", stageSteps$downstream, stageSteps$remind)
@@ -283,6 +284,21 @@ pfmRun <- function(group = NULL,
                    remindDir = remindDir, nCores = nCores, resume = resume,
                    clean = clean, config = config)
 
+  # Resolve the registry BEFORE showing the plan. A projection with no scenarios does
+  # not fail — it quietly writes one legacy projection from a generic gdx — so the
+  # scenario count has to be something you SEE before agreeing to the run.
+  rc <- pfmResolveConfig(config, verbose = TRUE)
+  settings$scenarios <- rc$scenarios
+  needsScenarios <- any(c("psm-projection", "psm-coupling-bound") %in% steps)
+  if (needsScenarios && is.null(rc$scenarios)) {
+    message("\nWARNING: no scenario registry resolved, but ",
+            paste(intersect(c("psm-projection", "psm-coupling-bound"), steps),
+                  collapse = " and "), " need one.")
+    message("  The projection would fall back to a single legacy scenario and the ",
+            "coupling bound would skip.")
+    message("  Pass config = \"<path to config.yml>\" with a scenarios: block.")
+  }
+
   # ── plan ────────────────────────────────────────────────────────────────────
   hr("=")
   message("Plan")
@@ -294,7 +310,9 @@ pfmRun <- function(group = NULL,
   message("  resume      : ", resume)
   message("  clean       : ", clean,
           if (identical(clean, "none")) "" else "  (resume disabled)")
-  message("  registry    : ", config %||% "(none)")
+  message("  registry    : ", rc$path %||% "(none)",
+          if (is.null(rc$scenarios)) "  [no scenarios]"
+          else paste0("  [", length(rc$scenarios), " scenario(s)]"))
   if ("psm-remind-inputs" %in% steps) message("  REMIND out  : ", remindDir)
   message("  steps       : ", paste(steps, collapse = ", "))
   hr("=")
@@ -318,11 +336,15 @@ pfmRun <- function(group = NULL,
   # a job to copy seven files. Split it out and run it here, after the rest.
   pipelineSteps <- setdiff(steps, "psm-remind-inputs")
   if (length(pipelineSteps)) {
+    # startRun takes `scenarios`/`gdxFile`, not a config path — passing `config` would
+    # land in ... and be silently ignored, leaving the projection with no registry and
+    # a fallback to one legacy scenario from a generic gdx. Resolve it here instead.
     args <- list(group = group, steps = pipelineSteps, cluster = cluster,
                  resultsDir = resultsDir, modelDir = modelDir, resume = resume,
+                 scenarios = rc$scenarios, cachefolder = rc$cachefolder,
                  outputRegionMappingFile = "country", ...)
+    if (!is.null(rc$gdxFile)) args$gdxFile <- rc$gdxFile
     if (!is.null(nCores)) args$nCores <- nCores
-    if (!is.null(config)) args$config <- config
     do.call(startRun, args)
   }
   if ("psm-remind-inputs" %in% steps) {

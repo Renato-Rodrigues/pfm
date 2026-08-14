@@ -42,6 +42,56 @@ pfmRun(group = "psm-country-v5", stage = "all", dryRun = TRUE)   # plan, run not
 On a cluster it submits with `sbatch` by default (`cluster = "auto"` detects SLURM);
 `cluster = "local"` runs in the current session.
 
+## Do you need a `config.yml`?
+
+Only for the steps that read scenario gdxs — `psm-projection` and
+`psm-coupling-bound`. The estimation stage (`sweep`, `frontier`, `temporal`,
+`sector-speeds`) and the REMIND export need nothing.
+
+It does **not** have to be in the working directory. Pass it from anywhere; relative
+paths inside resolve against **the config file's own folder**, so a config can live
+beside its data:
+
+```r
+pfmRun(group = "psm-country-v5", stage = "downstream",
+       config = "/p/projects/elevate/WP3.4/config.yml")
+```
+
+With no `config` argument, `config.yml` in the working directory is used if present.
+
+What it supplies:
+
+```yaml
+cachefolder: "data/cache"
+scenarios:
+  - id: SSP2-NPi2025-PFMbase
+    gdx: "data/runs/SSP2-EU21-NPi2025-.../fulldata.gdx"
+    gdxRegionMapping: "regionmapping_21_EU11.csv"   # the gdx's OWN resolution
+  - id: SSP2-PkBudg1000-PFMref
+    gdx: "data/runs/SSP2-EU21-PkBudg1000-.../fulldata.gdx"
+    gdxRegionMapping: "regionmapping_21_EU11.csv"
+gatingScenario: SSP2-PkBudg1000-PFMref
+```
+
+`gdxRegionMapping` must match each gdx's own resolution. Getting it wrong mis-assigns
+every region, silently.
+
+Without a registry the projection does not fail — it falls back to a single legacy
+scenario from a generic gdx and writes a projection of the wrong pathway. `pfmRun()`
+therefore resolves the config *before* showing the plan and warns when a step needs a
+registry and none was found:
+
+```
+WARNING: no scenario registry resolved, but psm-projection and
+         psm-coupling-bound need one.
+```
+
+The plan line shows what resolved, so you see it before agreeing to the run:
+
+```
+registry    : /p/projects/elevate/WP3.4/config.yml  [2 scenario(s)]
+```
+
 ## What is reused, and what is recomputed
 
 Two caches sit **outside** the Run-Group and are shared by all of them:

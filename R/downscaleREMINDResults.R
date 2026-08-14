@@ -20,7 +20,7 @@ downscaleREMINDResults <- function(gdxFile = "fulldata.gdx", aggregate = FALSE,
                                    outputRegionMappingFile = "regionmappingH12.csv") {
   outputRegionMappingFile <- resolveRegionMapping(outputRegionMappingFile)
   # REMIND mapping file
-  remindMappingFile <- toolGetMapping(gdxRegionMappingFile, type = "regional", where = "mappingfolder")
+  remindMappingFile <- pfmGetMapping(gdxRegionMappingFile, type = "regional")
 
   # Years
   yearsList <- c(seq(2005, 2060, 5), seq(2070, 2110, 10), 2130, 2150)
@@ -93,7 +93,7 @@ downscaleREMINDResults <- function(gdxFile = "fulldata.gdx", aggregate = FALSE,
   out <- toolCountryFill(out, fill = 0)
 
   if (aggregate) {
-    outMappingFile <- toolGetMapping(outputRegionMappingFile, type = "regional", where = "mappingfolder")
+    outMappingFile <- pfmGetMapping(outputRegionMappingFile, type = "regional")
     out <- toolAggregate(
       x = out, rel = outMappingFile,
       from = "CountryCode", to = "RegionCode", zeroWeight = "setNA"

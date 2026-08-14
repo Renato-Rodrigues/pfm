@@ -330,7 +330,7 @@ aggregateFeasibilityToRegions <- function(path, mapping, weights = NULL,
 #' @keywords internal
 .psmResolveCountryMap <- function(mapping) {
   if (is.character(mapping) && length(mapping) == 1) {
-    mapping <- madrat::toolGetMapping(mapping, type = "regional", where = "mappingfolder")
+    mapping <- pfmGetMapping(mapping, type = "regional")
   }
   if (!is.data.frame(mapping)) {
     stop(".psmResolveCountryMap: 'mapping' must be a data.frame or a mapping file name.")

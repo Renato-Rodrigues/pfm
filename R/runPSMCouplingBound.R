@@ -71,14 +71,29 @@ runPSMCouplingBound <- function(group,
 
   # ── gdx resolution: explicit args win, else the scenario registry ────────────
   if (is.null(refGdx) || is.null(optGdx)) {
-    sc <- scenarios %||% list()
-    pick <- function(pat) {
-      hit <- Filter(function(s) grepl(pat, s$id %||% "", ignore.case = TRUE) &&
-                      nzchar(s$gdx %||% "") && file.exists(s$gdx), sc)
-      if (length(hit)) hit[[1]]$gdx else NULL
+    sc <- Filter(function(s) nzchar(s$gdx %||% "") && file.exists(s$gdx),
+                 scenarios %||% list())
+    usable <- function(s) s$gdx
+    # The AMBITIOUS pathway is the GATING scenario — that is what `gating` means, and
+    # it is already declared in the registry. Guessing it from the id (matching
+    # "pkbudg", say) silently picks whichever budget happens to be listed first, so a
+    # registry carrying both PkBudg750 and PkBudg1000 would define the bound against
+    # an arbitrary one of them.
+    gate <- Filter(function(s) isTRUE(s$gating), sc)
+    optGdx <- optGdx %||% (if (length(gate)) usable(gate[[1]]) else NULL)
+    # The REFERENCE is current policy: the non-gating scenario, preferring an
+    # explicitly NPi/base-looking id when several remain.
+    if (is.null(refGdx)) {
+      rest <- Filter(function(s) !isTRUE(s$gating), sc)
+      named <- Filter(function(s) grepl("npi|base|ref|current",
+                                        s$id %||% "", ignore.case = TRUE), rest)
+      pool <- if (length(named)) named else rest
+      refGdx <- if (length(pool)) usable(pool[[1]]) else NULL
     }
-    refGdx <- refGdx %||% pick("npi|base|ref")
-    optGdx <- optGdx %||% pick("pkbudg|budg|opt|ambiti")
+    if (length(sc) > 2 && (is.null(refGdx) || is.null(optGdx))) {
+      say("registry has ", length(sc), " usable scenarios — pass refGdx=/optGdx= ",
+          "explicitly if the automatic choice is not what you want.")
+    }
   }
   for (nm in c("refGdx", "optGdx")) {
     v <- get(nm)
@@ -147,7 +162,7 @@ runPSMCouplingBound <- function(group,
   say("country-level paths: ", nrow(paths$Bulk), " rows, ", nCov, " in-coverage countries")
 
   # ── 2. aggregate to REMIND regions ──────────────────────────────────────────
-  map <- madrat::toolGetMapping(gdxRegionMapping, type = "regional", where = "mappingfolder")
+  map <- pfmGetMapping(gdxRegionMapping, type = "regional")
   # Emission weights are the intended production input (EDGAR). Absent an emissions
   # series in the training panel, GDP x energy intensity is a documented proxy: the
   # closest available correlate of combustion emissions, flagged as such on export.

@@ -17,7 +17,7 @@ iamHistoricalData(
 
 \item{gdxRegionMappingFile}{string with path to the REMIND region mapping file used to define
 the country universe. Defaults to \code{"regionmappingH12.csv"}. Set to the same mapping
-used in the REMIND GDX (e.g. \code{"regionmappingEU21.csv"}) so that the returned country
+used in the REMIND GDX (e.g. \code{"regionmapping_21_EU11.csv"}) so that the returned country
 set is consistent with the disaggregation target.}
 }
 \value{

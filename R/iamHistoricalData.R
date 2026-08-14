@@ -6,7 +6,7 @@
 #' @param outputRegionMappingFile string with path to output mapping file
 #' @param gdxRegionMappingFile string with path to the REMIND region mapping file used to define
 #'   the country universe. Defaults to \code{"regionmappingH12.csv"}. Set to the same mapping
-#'   used in the REMIND GDX (e.g. \code{"regionmappingEU21.csv"}) so that the returned country
+#'   used in the REMIND GDX (e.g. \code{"regionmapping_21_EU11.csv"}) so that the returned country
 #'   set is consistent with the disaggregation target.
 #'
 #' @return A list with historical [`magpie`][magclass::magclass] objects.
@@ -76,7 +76,7 @@ iamHistoricalData <- function(aggregate = FALSE, outputRegionMappingFile = "regi
     getYears(histFe, as.integer = TRUE)
   )))
 
-  countries <- toolGetMapping(gdxRegionMappingFile, type = "regional", where = "mappingfolder")$CountryCode
+  countries <- pfmGetMapping(gdxRegionMappingFile, type = "regional")$CountryCode
   histData <- new.magpie(cells_and_regions = countries, years = histYears, names = vars)
   histData[, getYears(histPe), peVars] <- histPe[, getYears(histPe), peVars]
   histData[, getYears(genEmber), seVars] <- genEmber[, getYears(genEmber), seVars]
@@ -87,7 +87,7 @@ iamHistoricalData <- function(aggregate = FALSE, outputRegionMappingFile = "regi
   histData[, liqYrs, "fe_liqtran"] <- pmax(feLiqbioTran[, liqYrs, ] + feLiqfosTran[, liqYrs, ], 0)
 
   if (aggregate) {
-    outMappingFile <- toolGetMapping(outputRegionMappingFile, type = "regional", where = "mappingfolder")
+    outMappingFile <- pfmGetMapping(outputRegionMappingFile, type = "regional")
     histData <- toolAggregate(
       x = histData, rel = outMappingFile,
       from = "CountryCode", to = "RegionCode", zeroWeight = "setNA"

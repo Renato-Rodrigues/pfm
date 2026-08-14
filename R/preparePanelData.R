@@ -358,10 +358,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
     # resolution. Never a swept candidate (ADR 0011); estimator-agreement rung only.
     df$regionFE <- factor(df$region)
   } else if (!is.null(regionMappingFixedEffects) && !isTRUE(useMundlak)) {
-    mapping <- madrat::toolGetMapping(regionMappingFixedEffects,
-      type = "regional",
-      where = "mappingfolder"
-    )
+    mapping <- pfmGetMapping(regionMappingFixedEffects, type = "regional")
     regionLookup <- stats::setNames(mapping$RegionCode, mapping$CountryCode)
     # If data regions are already region codes, use directly as FE grouping
     regFE <- if (all(df$region %in% mapping$RegionCode)) {

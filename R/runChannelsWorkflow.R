@@ -470,8 +470,7 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
 #' @keywords internal
 .h12RegionBlocks <- function() {
   tryCatch({
-    mp <- madrat::toolGetMapping("regionmappingH12.csv", type = "regional",
-                                 where = "mappingfolder")
+    mp <- pfmGetMapping("regionmappingH12.csv", type = "regional")
     data.frame(region = mp$CountryCode, block = mp$RegionCode, stringsAsFactors = FALSE)
   }, error = function(e) NULL)
 }

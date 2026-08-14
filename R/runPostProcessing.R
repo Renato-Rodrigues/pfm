@@ -423,8 +423,13 @@ runSubnational <- function(group, resultsDir = getOption("pfm.resultsDir", "outp
   comparison <- lapply(c("bulk", "diffuse"), cmp); names(comparison) <- c("bulk", "diffuse")
   for (cc in comparison) say(cc$sector, ": ", cc$nFlipRegionYears, " new adopter region-years (", cc$nFlipRegions, " regions)")
 
-  mapping <- tryCatch(madrat::toolGetMapping(outputRegionMappingFile, type = "regional", where = "mappingfolder"),
-                      error = function(e) madrat::toolGetMapping(outputRegionMappingFile, type = "regional"))
+  # pfmGetMapping falls back to pfm's OWN bundled copy, which is byte-verified against
+  # the REMIND input data. The previous fallback dropped where = "mappingfolder" and so
+  # resolved from whichever package happened to bundle that name — and those are not
+  # interchangeable: madrat's regionmappingH12.csv assigns 15 countries to different
+  # regions than the input data (UKR/GEO/MDA between REF and NEU, MNG/PRK between OAS
+  # and REF, GRL, and four Sahel states between SSA and MEA).
+  mapping <- pfmGetMapping(outputRegionMappingFile, type = "regional")
   ccol <- intersect(c("CountryCode", "countryCode"), names(mapping))[1]
   rcol <- intersect(c("RegionCode", "regionCode"), names(mapping))[1]
   agg54 <- function(sub, wt) { v <- intersect(getYears(sub), getYears(wt)); g <- intersect(getItems(sub, 1), getItems(wt, 1))
