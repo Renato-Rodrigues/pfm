@@ -777,7 +777,7 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                 "psm-sweep", "psm-projection", "psm-agreement", "psm-temporal",
                 "psm-frontier", "psm-iv", "psm-influence", "psm-sector-speeds",
                 "psm-selection-bootstrap", "psm-replay",
-                "psm-donor", "psm-coupling-bound")
+                "psm-donor", "psm-coupling-bound", "psm-remind-inputs")
   # Aliases expand to an ORDERED step list, so the whole downstream build is one
   # argument instead of a bash script that re-implements ordering, resume and
   # artifact checks outside the package. Everything downstream of the sweep needs
@@ -799,23 +799,15 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
   # re-paying expensive steps, esp. the multi-hour selection-bootstrap). The caller asserts the
   # existing artifacts are current; use forceRefit / a fresh group to force a clean recompute.
   groupDir <- file.path(resultsDir, group)
-  stepArtifact <- c(sweep = "sweep.rds", robustness = "robustness.rds",
-                    temporal = "temporal-split.rds", subnational = "subnational.rds",
-                    "difference-first" = "difference-first.rds",
-                    "projection" = "projection.rds",
-                    "selection-bootstrap" = "selection-bootstrap.rds",
-                    "psm-sweep" = "selected-models-psm.yml",
-                    "psm-projection" = "projection.rds",
-                    "psm-agreement" = "estimator-agreement.rds",
-                    "psm-temporal" = "temporal-validation.rds",
-                    "psm-frontier" = "frontier.rds",
-                    "psm-iv" = "iv.rds",
-                    "psm-influence" = "influence.rds",
-                    "psm-sector-speeds" = "sector-speeds.rds",
-                    "psm-selection-bootstrap" = "selection-bootstrap.rds",
-                    "psm-replay" = "historical-replay.rds",
-                    "psm-donor" = "donor-assignment-band-Bulk.rds",
-                    "psm-coupling-bound" = file.path("coupling", "coupling-summary.rds"))
+  # The step -> artifact map lives in psmStepArtifacts() because pfmRun()'s `clean`
+  # needs the same map to decide what to DELETE. Two copies would eventually
+  # disagree, and a step listed in one and not the other either re-runs forever or
+  # is skipped on the strength of a stale file.
+  # resume asks only the FIRST artifact whether the step finished; clean removes all.
+  stepArtifact <- vapply(psmStepArtifacts(), function(a)
+    if (length(a)) a[1] else NA_character_, character(1))
+  stepArtifact <- stepArtifact[!is.na(stepArtifact)]
+  stepArtifact["psm-coupling-bound"] <- file.path("coupling", "coupling-summary.rds")
   # A step counts as "already done" (resume-skippable) only when ALL its expected artifacts exist.
   # For the projection step (ADR 0035) that means one projections/<id>.rds per configured scenario
   # PLUS the legacy projection.rds — so a stale single-scenario projection.rds no longer masks
@@ -956,6 +948,17 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                                               c("group", "resultsDir", "modelDir",
                                                 "cachefolder", "scenarios", "verbose"))])
     do.call(runPSMCouplingBound, cbArgs)
+  }
+  # Last: hand the finished Run-Group to REMIND as a self-contained folder.
+  if (doStep("psm-remind-inputs")) {
+    say("step: psm-remind-inputs")
+    dots <- list(...)
+    riArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
+                     cachefolder = cachefolder, verbose = verbose),
+                dots[names(dots) %in% setdiff(names(formals(runPSMExportREMINDInputs)),
+                                              c("group", "resultsDir", "modelDir",
+                                                "cachefolder", "verbose"))])
+    do.call(runPSMExportREMINDInputs, riArgs)
   }
 
   if (doStep("psm-selection-bootstrap")) {

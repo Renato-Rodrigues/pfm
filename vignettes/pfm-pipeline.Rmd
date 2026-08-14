@@ -1,0 +1,177 @@
+---
+title: "From data to a REMIND-coupled PFM run"
+author: "Renato Rodrigues"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{From data to a REMIND-coupled PFM run}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+Everything between raw data and the folder REMIND reads runs through one function.
+
+```r
+pfm::pfmRun()
+```
+
+Called with no arguments in an interactive session it asks for each setting, shows
+the options, and takes Enter for the default. Called with arguments it runs straight
+through — so the same function serves a person at a prompt and a SLURM job.
+
+## The five stages
+
+| stage | what it does | writes |
+|---|---|---|
+| `sweep` | estimate and select: model sweep, frontier, temporal validation, sector speeds | `selected-models-psm.yml`, `frontier.rds`, … |
+| `downstream` | donor assumptions, projection fan-out, coupling bound, selection bootstrap | `projection.rds`, `coupling/`, … |
+| `remind` | assemble the self-contained folder REMIND consumes | `pfm-data/<group>/` |
+| `all` | all three, in dependency order | everything |
+| `custom` | pick individual steps | — |
+
+```r
+pfmRun(group = "psm-country-v5", stage = "all")            # data -> REMIND inputs
+pfmRun(group = "psm-country-v5", stage = "downstream")     # from a finished sweep
+pfmRun(group = "psm-country-v5", stage = "remind")         # export only
+pfmRun(group = "psm-country-v5", stage = "all", dryRun = TRUE)   # plan, run nothing
+```
+
+On a cluster it submits with `sbatch` by default (`cluster = "auto"` detects SLURM);
+`cluster = "local"` runs in the current session.
+
+## What is reused, and what is recomputed
+
+Two caches sit **outside** the Run-Group and are shared by all of them:
+
+- `<resultsDir>/models/` — fitted models, keyed by specification **and** panel hash
+- `<resultsDir>/panels/` — the panels themselves, content-addressed
+
+So a new Run-Group over an unchanged panel re-uses every fit it has seen before: the
+sweep still enumerates specifications, but each one is a cache lookup rather than an
+estimation. This is why a fresh group is usually far cheaper than the first one.
+
+Indicative single-run timings (country resolution, ~2500 specifications):
+
+```
+sweep-psm            2306 s   <- dominated by first-time fits; near-instant when cached
+projection            276 s
+selection-bootstrap   199 s
+psm-coupling-bound    100 s
+psm-donor              10 s
+frontier / temporal / speeds / iv / influence   4-16 s each
+psm-remind-inputs       0 s
+```
+
+A cache lookup requires the **panel hash to match**. Rebuilding the panel — new source
+data, a changed mapping — produces a new hash and therefore a full re-estimation. That
+is correct: those are different fits.
+
+## Stale artifacts, and how to avoid trusting them
+
+`resume = TRUE` skips a step when its artifact exists. That is a good answer to *did
+this finish?* and a bad answer to *is this still valid?* A Run-Group carried across a
+code change, a panel rebuild or a new gdx keeps artifacts that look complete and are
+wrong.
+
+This is not hypothetical: a projection covering 33 countries once sat beside a model
+fitted on 48, and nothing complained, because the file existed.
+
+Delete before rebuilding whenever the inputs moved underneath the group:
+
+```r
+pfmRun(group = "psm-country-v4", stage = "downstream", clean = "steps")
+pfmRun(group = "psm-country-v4", stage = "all",        clean = "group")
+```
+
+- `clean = "steps"` — remove what the steps about to run write
+- `clean = "group"` — remove every step artifact in the group
+- `clean` always shows what it will delete and disables `resume` (deleting a file and
+  then skipping the step for want of that file is worse than either alone)
+
+Neither ever touches `models/` or `panels/`: those are content-addressed, shared, and
+clearing them turns a short re-run into a multi-hour one. To force re-estimation of a
+specific fit use `forceRefit`, not deletion.
+
+Inspect without acting:
+
+```r
+psmStepArtifacts()                                  # step -> artifacts it writes
+psmCleanSteps("psm-country-v4", "psm-projection", dryRun = TRUE)
+```
+
+### When to clean
+
+| you changed | do |
+|---|---|
+| pfm source code | reinstall, then `clean = "steps"` for affected steps |
+| the panel / source data | new hash, so nothing stale is reused — `clean` optional |
+| the scenario gdx or registry | `clean = "steps"` on `psm-projection`, `psm-coupling-bound` |
+| the deployed specification | `clean = "group"` |
+| nothing | leave `clean = "none"` and let `resume` skip |
+
+**Reinstall after editing the package.** `pfm-reports/start.R` and the steps load the
+*installed* pfm, not your working tree — source edits do nothing until
+`devtools::install("pfm")`. This has silently cost real debugging time.
+
+## Handing the model to REMIND
+
+`stage = "remind"` copies only what the coupling opens — six artifacts plus the one
+panel named by `manifest.json:panel_hash` — into a self-contained folder, and refuses
+to write a partial one:
+
+```
+pfm-data/<group>/
+  selected-models-psm.yml   manifest.json   frontier.rds
+  temporal-validation.rds   donor-assignment-band-{Bulk,Diffuse}.rds
+  panels/panel_<hash>.rds
+```
+
+It then prints the lines to paste into your REMIND config:
+
+```r
+cfg$pfm$source <- "/path/to/pfm-data"
+cfg$pfm$group  <- "psm-country-v4"   # omit if it is the only group there
+```
+
+and set `cm_taxCO2_regiDiff = 11` on the scenarios that should couple. REMIND's
+`preparePFM.R` copies the folder into each run, so the run stays self-contained and
+archivable.
+
+At coupling time GAMS calls `pfm::iterativePFM()` from the run folder at each Nash
+iteration from `c_pfmIter` onward. Nothing outside the run folder is read.
+
+## Example: a scenario end to end
+
+```r
+options(pfm.resultsDir = "output", pfm.modelDir = "output")
+
+# 1. estimate, project, bound — submits to SLURM on a cluster
+pfmRun(group = "psm-country-v5", stage = "all",
+       config = "config.yml", remindDir = "../pfm-data")
+
+# 2. when the job finishes, export (a submitted job has not written its
+#    inputs yet, so pfmRun tells you to run this separately)
+pfmRun(group = "psm-country-v5", stage = "remind", remindDir = "../pfm-data")
+
+# 3. check what the coupling will see
+s <- readRDS("output/psm-country-v5/coupling/coupling-summary.rds")
+s$thetaSweep
+```
+
+Then, in REMIND, set `cm_taxCO2_regiDiff = 11` and `c_pfmIter` on the scenario and
+start it as usual. After the run:
+
+```r
+# gdx-authoritative check of what the coupling actually did
+# pm_pfmConverged, p45_pfmCallCount, p45_pfmDelta, p45_pfmIterSeen
+```
+
+## A note on resolution
+
+The PFM model is estimated and projected at **country** resolution, always.
+Aggregation to REMIND regions (EU21, H12) happens only at the coupling boundary, in
+`aggregateFeasibilityToRegions()`. The gdx supplies scenario drivers, which are
+downscaled to countries; it does not set the model's resolution.

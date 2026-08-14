@@ -9,9 +9,14 @@ Authors@R: c(
     person("Elmar", "Kriegler", , "kriegler@pik-potsdam.de", role = "aut",
            comment = c(ORCID = "0000-0002-3307-2647"))
   )
-Description: Econometric model for the political feasibility of carbon pricing in integrated
-    assessment models. Implements the two-stage hurdle model (adoption + stringency) for
-    Bulk and Diffuse sectors. Consumes magpie objects from mrpfm.
+Description: Econometric model for the political feasibility of climate policy in
+    integrated assessment models. The deployed model is the Policy Stringency Model
+    (PSM): a single-stage bounded index estimated on OECD CAPMF stringency scores for
+    the Bulk and Diffuse sectors, with a stochastic-frontier feasibility ceiling and an
+    error-correction adjustment speed. Projects a politically feasible carbon-price
+    bound and couples iteratively with REMIND. The earlier two-stage hurdle price model
+    (adoption + stringency) is retained for comparison. Consumes magpie objects from
+    mrpfm.
 License: MIT + file LICENSE
 URL: https://github.com/pik-piam/pfm
 Depends:
@@ -46,7 +51,10 @@ Suggests:
     betareg,
     lme4,
     frontier,
-    AER
+    AER,
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 Config/roxygen2/version: 8.0.0

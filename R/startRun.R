@@ -83,7 +83,7 @@ startRun <- function(group,
                   "psm-temporal", "psm-frontier", "psm-iv", "psm-influence",
                   "psm-sector-speeds", "psm-selection-bootstrap",
                   "psm-replay",   # ADR 0036 PSM pipeline
-                  "psm-donor", "psm-coupling-bound",
+                  "psm-donor", "psm-coupling-bound", "psm-remind-inputs",
                   # aliases — expanded to ordered step lists inside runModelGroup
                   "psm-downstream", "psm-all")
   steps <- intersect(validSteps, steps)
@@ -317,7 +317,8 @@ startRun <- function(group,
   psmSteps <- c("psm-sweep", "psm-projection", "psm-agreement", "psm-temporal",
                 "psm-frontier", "psm-iv", "psm-influence", "psm-sector-speeds",
                 "psm-selection-bootstrap", "psm-replay",
-                "psm-donor", "psm-coupling-bound", "psm-downstream", "psm-all")
+                "psm-donor", "psm-coupling-bound", "psm-remind-inputs",
+                "psm-downstream", "psm-all")
   reps <- if (all(steps %in% psmSteps)) character(0) else
     c("selection", "model-selection", "results-adoption", "results-stringency", "publication")
   if (any(c("robustness", "temporal", "difference-first") %in% steps)) reps <- c(reps, "robustness")

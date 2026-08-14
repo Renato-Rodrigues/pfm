@@ -6,7 +6,7 @@
 \alias{pfm-package}
 \title{pfm: Political Feasibility Module (PFM) for IAMs}
 \description{
-Econometric model for the political feasibility of carbon pricing in integrated assessment models. Implements the two-stage hurdle model (adoption + stringency) for Bulk and Diffuse sectors. Consumes magpie objects from mrpfm.
+Econometric model for the political feasibility of climate policy in integrated assessment models. The deployed model is the Policy Stringency Model (PSM): a single-stage bounded index estimated on OECD CAPMF stringency scores for the Bulk and Diffuse sectors, with a stochastic-frontier feasibility ceiling and an error-correction adjustment speed. Projects a politically feasible carbon-price bound and couples iteratively with REMIND. The earlier two-stage hurdle price model (adoption + stringency) is retained for comparison. Consumes magpie objects from mrpfm.
 }
 \seealso{
 Useful links:
