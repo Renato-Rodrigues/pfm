@@ -776,8 +776,22 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                 # (e.g. group = "psm-exhaustive"), never mixed into a price-model group.
                 "psm-sweep", "psm-projection", "psm-agreement", "psm-temporal",
                 "psm-frontier", "psm-iv", "psm-influence", "psm-sector-speeds",
-                "psm-selection-bootstrap", "psm-replay")
-  steps <- intersect(allSteps, steps)
+                "psm-selection-bootstrap", "psm-replay",
+                "psm-donor", "psm-coupling-bound")
+  # Aliases expand to an ORDERED step list, so the whole downstream build is one
+  # argument instead of a bash script that re-implements ordering, resume and
+  # artifact checks outside the package. Everything downstream of the sweep needs
+  # the donor table before the bound, and the bound before anything consumes it.
+  stepAliases <- list(
+    "psm-downstream" = c("psm-donor", "psm-projection", "psm-coupling-bound",
+                         "psm-selection-bootstrap"),
+    "psm-all" = c("psm-sweep", "psm-frontier", "psm-temporal", "psm-sector-speeds",
+                  "psm-donor", "psm-projection", "psm-coupling-bound",
+                  "psm-selection-bootstrap"))
+  for (a in names(stepAliases)) {
+    if (a %in% steps) steps <- c(setdiff(steps, a), stepAliases[[a]])
+  }
+  steps <- intersect(allSteps, unique(steps))
   if (length(steps) == 0) stop("runModelGroup: no valid steps. Choose from ",
                                paste(allSteps, collapse = ", "), ".", call. = FALSE)
   say <- function(...) if (isTRUE(verbose)) message("[runModelGroup:", group, "] ", ...)
@@ -799,7 +813,9 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                     "psm-influence" = "influence.rds",
                     "psm-sector-speeds" = "sector-speeds.rds",
                     "psm-selection-bootstrap" = "selection-bootstrap.rds",
-                    "psm-replay" = "historical-replay.rds")
+                    "psm-replay" = "historical-replay.rds",
+                    "psm-donor" = "donor-assignment-band-Bulk.rds",
+                    "psm-coupling-bound" = file.path("coupling", "coupling-summary.rds"))
   # A step counts as "already done" (resume-skippable) only when ALL its expected artifacts exist.
   # For the projection step (ADR 0035) that means one projections/<id>.rds per configured scenario
   # PLUS the legacy projection.rds — so a stale single-scenario projection.rds no longer masks
@@ -854,18 +870,6 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
   # -frontier / -sector-speeds / -selection-bootstrap). Without it there was no way
   # to reach `outputRegionMappingFile` from the launcher, so a country-resolution
   # Run-Group silently projected at R54 — see the guard in runPSMProjection().
-  if (doStep("psm-projection")) {
-    say("step: psm-projection")
-    dots <- list(...)
-    pjArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
-                     cachefolder = cachefolder, gdxFile = gdxFile,
-                     scenarios = scenarios, verbose = verbose),
-                dots[names(dots) %in% setdiff(names(formals(runPSMProjection)),
-                                              c("group", "resultsDir", "modelDir",
-                                                "cachefolder", "gdxFile", "scenarios",
-                                                "verbose"))])
-    do.call(runPSMProjection, pjArgs)
-  }
   if (doStep("psm-agreement")) {
     say("step: psm-agreement")
     dots <- list(...)
@@ -910,6 +914,50 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                 dots[names(dots) %in% names(formals(runPSMSectorSpeeds))])
     do.call(runPSMSectorSpeeds, ssArgs)
   }
+
+  # ── the coupling chain, in dependency order ────────────────────────────────
+  # It sits HERE, after frontier/temporal/sector-speeds, because every link reads
+  # their artifacts: the donor table needs frontier.rds, and the bound needs
+  # frontier.rds plus temporal-validation.rds for lambda. Run earlier (where the
+  # projection block used to live) a fresh `psm-all` group would skip both with
+  # "missing frontier.rds" and produce a coupling with no donor assumptions at all.
+  #
+  # Dots are forwarded to all three. Without that there was no way to reach
+  # `outputRegionMappingFile` from the launcher, so a country-resolution Run-Group
+  # silently projected at R54 — see the guard in runPSMProjection().
+  if (doStep("psm-donor")) {
+    say("step: psm-donor")
+    dots <- list(...)
+    dnArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
+                     cachefolder = cachefolder, verbose = verbose),
+                dots[names(dots) %in% setdiff(names(formals(runPSMDonorAssumptions)),
+                                              c("group", "resultsDir", "modelDir",
+                                                "cachefolder", "verbose"))])
+    do.call(runPSMDonorAssumptions, dnArgs)
+  }
+  if (doStep("psm-projection")) {
+    say("step: psm-projection")
+    dots <- list(...)
+    pjArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
+                     cachefolder = cachefolder, gdxFile = gdxFile,
+                     scenarios = scenarios, verbose = verbose),
+                dots[names(dots) %in% setdiff(names(formals(runPSMProjection)),
+                                              c("group", "resultsDir", "modelDir",
+                                                "cachefolder", "gdxFile", "scenarios",
+                                                "verbose"))])
+    do.call(runPSMProjection, pjArgs)
+  }
+  if (doStep("psm-coupling-bound")) {
+    say("step: psm-coupling-bound")
+    dots <- list(...)
+    cbArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
+                     cachefolder = cachefolder, scenarios = scenarios, verbose = verbose),
+                dots[names(dots) %in% setdiff(names(formals(runPSMCouplingBound)),
+                                              c("group", "resultsDir", "modelDir",
+                                                "cachefolder", "scenarios", "verbose"))])
+    do.call(runPSMCouplingBound, cbArgs)
+  }
+
   if (doStep("psm-selection-bootstrap")) {
     say("step: psm-selection-bootstrap")
     dots <- list(...)

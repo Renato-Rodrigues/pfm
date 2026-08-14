@@ -24,6 +24,7 @@ iterativePFM(
   weightYear = getOption("pfm.couplingWeightYear", 2050),
   weightScenario = getOption("pfm.couplingWeightScenario", "SSP2"),
   runtimeConfig = getOption("pfm.couplingRuntimeConfig", "pfm-coupling-runtime.yml"),
+  tierYear = getOption("pfm.couplingTierYear", NULL),
   verbose = TRUE
 )
 }
