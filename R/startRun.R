@@ -222,7 +222,18 @@ startRun <- function(group,
                          render, forceRefit, resume = FALSE, renderCores = NULL,
                          bootstrapResamples = 200L,
                          bootstrapDetail = "channel", bootstrapTopK = 40L, say, dots) {
-  abspath <- function(p) if (is.null(p)) NULL else normalizePath(p, winslash = "/", mustWork = FALSE)
+  # normalizePath(mustWork = FALSE) returns a NON-EXISTENT path unchanged, so a
+  # relative resultsDir stayed relative whenever the directory had not been created
+  # yet — which is the normal case for a new Run-Group, since dir.create() runs below.
+  # That made `--chdir` relative too, and SLURM then resolved the job-script path
+  # against the directory it had just changed into: `Rscript output/<g>/job.R` run from
+  # inside `output/<g>` looks for `output/<g>/output/<g>/job.R` and the job dies at
+  # once with "cannot open file". Anchor to getwd() FIRST, then normalise.
+  abspath <- function(p) {
+    if (is.null(p) || !length(p) || !nzchar(p)) return(p)
+    if (!grepl("^([A-Za-z]:|/|\\\\)", p)) p <- file.path(getwd(), p)
+    normalizePath(p, winslash = "/", mustWork = FALSE)
+  }
   resultsDir <- abspath(resultsDir); modelDir <- abspath(modelDir)
   cachefolder <- abspath(cachefolder); gdxFile <- abspath(gdxFile); outputDir <- abspath(outputDir)
   user <- Sys.getenv("USER", Sys.getenv("USERNAME", "user"))

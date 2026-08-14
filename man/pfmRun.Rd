@@ -15,6 +15,7 @@ pfmRun(
   nCores = NULL,
   resume = NULL,
   clean = NULL,
+  priority = NULL,
   config = NULL,
   ask = NULL,
   dryRun = FALSE,
@@ -49,6 +50,14 @@ different gdx — because \code{resume} only asks whether a file exists, not
 whether it is still valid. Never touches \code{models/} or \code{panels/}: those
 are content-addressed caches shared across groups, and clearing them is what
 turns a 20-minute re-run into a multi-hour one.}
+
+\item{priority}{Logical or \code{NULL}. On a SLURM submit host, schedule on the
+high-priority QOS and auto-size cores/memory/walltime to the detected allowance
+(ADR 0031). \code{NULL} (default) asks interactively, and takes it when available
+otherwise; \code{FALSE} keeps the ordinary queue. Passing an explicit \code{qos}
+through \code{...} disables it. A large job on the default \code{short} QOS
+queues behind everything — this is usually the difference between starting now
+and starting tomorrow.}
 
 \item{config}{Path to the scenario-registry YAML.}
 

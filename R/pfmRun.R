@@ -44,6 +44,13 @@
 #'   whether it is still valid. Never touches \code{models/} or \code{panels/}: those
 #'   are content-addressed caches shared across groups, and clearing them is what
 #'   turns a 20-minute re-run into a multi-hour one.
+#' @param priority Logical or \code{NULL}. On a SLURM submit host, schedule on the
+#'   high-priority QOS and auto-size cores/memory/walltime to the detected allowance
+#'   (ADR 0031). \code{NULL} (default) asks interactively, and takes it when available
+#'   otherwise; \code{FALSE} keeps the ordinary queue. Passing an explicit \code{qos}
+#'   through \code{...} disables it. A large job on the default \code{short} QOS
+#'   queues behind everything — this is usually the difference between starting now
+#'   and starting tomorrow.
 #' @param config Path to the scenario-registry YAML.
 #' @param ask Force the interactive wizard on (\code{TRUE}) or off (\code{FALSE}).
 #'   Default: interactive sessions ask only for what was not supplied.
@@ -71,6 +78,7 @@ pfmRun <- function(group = NULL,
                    nCores = NULL,
                    resume = NULL,
                    clean = NULL,
+                   priority = NULL,
                    config = NULL,
                    ask = NULL,
                    dryRun = FALSE,
@@ -180,6 +188,16 @@ pfmRun <- function(group = NULL,
   }
 
   # ── output folder ───────────────────────────────────────────────────────────
+  # Resolve the config FIRST so its resultsDir can be the prompt's default. Without
+  # this the prompt offered the hardcoded "output" on a project whose config says
+  # "_output": pressing Enter found no Run-Groups, reported "No existing Run-Group",
+  # and started a fresh one beside the real results instead of continuing them.
+  rc <- pfmResolveConfig(config, verbose = FALSE)
+  if (missing(resultsDir) && is.null(getOption("pfm.resultsDir")) &&
+      !is.null(rc$resultsDir) && nzchar(rc$resultsDir)) {
+    resultsDir <- rc$resultsDir
+    if (missing(modelDir)) modelDir <- rc$modelDir %||% rc$resultsDir
+  }
   if (interactiveRun && is.null(getOption("pfm.resultsDir"))) {
     resultsDir <- askText("Output folder (Run-Groups live here)", resultsDir)
   }
@@ -283,8 +301,40 @@ pfmRun <- function(group = NULL,
     cluster <- "local"
   }
 
+  # ── priority QOS (ADR 0031) ─────────────────────────────────────────────────
+  # This logic used to live only in pfm-reports/start.R, so pfmRun — which calls
+  # startRun directly — submitted on the default `short` QOS. A 127-core job on
+  # `short` sits behind everything; the priority QOS exists precisely so a job this
+  # size starts now rather than tomorrow. Detection is best-effort and never throws:
+  # a hiccup falls back to the ordinary defaults rather than blocking the submission.
+  prio <- NULL
+  if (identical(cluster, "slurm") && is.null(list(...)$qos) && !identical(priority, FALSE)) {
+    ps <- tryCatch(prioritySizing(qos = "priority",
+                                  partition = list(...)$partition %||% "standard"),
+                   error = function(e) NULL)
+    if (!is.null(ps)) {
+      wanted <- priority %||% TRUE
+      if (interactiveRun && is.null(priority)) {
+        wanted <- askYesNo(sprintf(
+          paste0("\nPriority QOS is available (%s cores, %s, %s on partition '%s').",
+                 "\n  It schedules ahead of the default 'short' queue. Use it?"),
+          ps$nCores, ps$mem, ps$time, ps$partition), TRUE)
+      }
+      if (isTRUE(wanted)) {
+        prio <- ps
+        if (!isTRUE(ps$partitionOk)) {
+          message("  NOTE: could not confirm a partition allowing qos='priority' — ",
+                  "the submission may be rejected. Check with\n",
+                  "    scontrol show partition | grep -iE 'PartitionName|AllowQos'")
+        }
+      }
+    } else if (interactiveRun) {
+      message("\n(priority QOS not detected on this host — using the default queue)")
+    }
+  }
+
   if (interactiveRun) {
-    if (is.null(nCores)) {
+    if (is.null(nCores) && is.null(prio)) {
       v <- askText("Cores (Enter lets the launcher size the job)", "auto")
       nCores <- if (identical(v, "auto")) NULL else suppressWarnings(as.integer(v))
     }
@@ -321,10 +371,15 @@ pfmRun <- function(group = NULL,
                    remindDir = remindDir, nCores = nCores, resume = resume,
                    clean = clean, config = config)
 
-  # Resolve the registry BEFORE showing the plan. A projection with no scenarios does
-  # not fail — it quietly writes one legacy projection from a generic gdx — so the
-  # scenario count has to be something you SEE before agreeing to the run.
-  rc <- pfmResolveConfig(config, verbose = TRUE)
+  # `rc` was resolved above (quietly, for the resultsDir default). Report it here,
+  # BEFORE the plan: a projection with no scenarios does not fail — it quietly writes
+  # one legacy projection from a generic gdx — so the scenario count has to be
+  # something you SEE before agreeing to the run.
+  if (!is.null(rc$path)) message("[config] using ", rc$path)
+  if (!is.null(rc$scenarios)) {
+    message("[config] scenario registry: ", length(rc$scenarios), " scenario(s) [",
+            paste(names(rc$scenarios), collapse = ", "), "]")
+  }
   settings$scenarios <- rc$scenarios
   needsScenarios <- any(c("psm-projection", "psm-coupling-bound") %in% steps)
   if (needsScenarios && is.null(rc$scenarios)) {
@@ -343,6 +398,13 @@ pfmRun <- function(group = NULL,
   message("  group       : ", group)
   message("  output      : ", normalizePath(resultsDir, winslash = "/", mustWork = FALSE))
   message("  run on      : ", cluster, if (identical(cluster, "local")) " (this session)" else " (sbatch)")
+  if (!is.null(prio)) {
+    message("  queue       : qos=priority partition=", prio$partition,
+            "  [", prio$detail, "]")
+    message("  sized       : ", prio$nCores, " cores, ", prio$mem, ", ", prio$time)
+  } else if (identical(cluster, "slurm")) {
+    message("  queue       : default (", list(...)$qos %||% "short", ")")
+  }
   message("  cores       : ", nCores %||% "auto")
   message("  resume      : ", resume)
   message("  clean       : ", clean,
@@ -381,6 +443,15 @@ pfmRun <- function(group = NULL,
                  scenarios = rc$scenarios, cachefolder = rc$cachefolder,
                  outputRegionMappingFile = "country", ...)
     if (!is.null(rc$gdxFile)) args$gdxFile <- rc$gdxFile
+    # Each axis is set only when the caller did NOT pass it, so an explicit
+    # nCores/mem/time/partition still wins over the auto-sizing.
+    if (!is.null(prio)) {
+      args$qos <- "priority"
+      if (is.null(list(...)$partition)) args$partition <- prio$partition
+      if (is.null(list(...)$mem))       args$mem       <- prio$mem
+      if (is.null(list(...)$time))      args$time      <- prio$time
+      if (is.null(nCores))              nCores         <- prio$nCores
+    }
     if (!is.null(nCores)) args$nCores <- nCores
     do.call(startRun, args)
   }
