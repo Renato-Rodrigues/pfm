@@ -74,9 +74,7 @@ runPSMProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "ou
   }
   if (is.null(panel)) {
     panel <- tryCatch(
-      panelDataHistorical(aggregate = TRUE, y = y,
-                          outputRegionMappingFile = outputRegionMappingFile,
-                          includePolicyStringency = TRUE),
+      .psmHistPanel(groupDir, y = y, outputRegionMappingFile = outputRegionMappingFile, verbose = verbose),
       error = function(e) {
         say("historical panel build FAILED: ", conditionMessage(e))
         NULL
@@ -223,9 +221,38 @@ runPSMProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "ou
     return(invisible(NULL))
   }
   combined <- do.call(rbind, results)
+
+  # Coverage must equal the number of countries the deployed spec was ESTIMATED on.
+  # If it is smaller, the projection ran against a different (usually silently
+  # degraded) historical panel than the fit — the psm-country-v4 failure mode, where
+  # a projection built from an incomplete madrat source folder reported 33 countries
+  # for a model fitted on 48. Every implementability and phi number downstream would
+  # be computed over the wrong country set, and nothing else in the pipeline notices.
+  nCov <- length(unique(combined$region[!combined$outOfCoverage %in% TRUE]))
+  nFit <- tryCatch(length(unique(as.character(
+    estimatePolicyStringencyModel(
+      data = panel, sector = sectors[1], estimator = "satP", form = "ecm",
+      indexMax = cfg[[sectors[1]]]$indexMax %||% 10,
+      actorPowerDrivers = unlist(cfg[[sectors[1]]]$actorPowerDrivers),
+      actorPowerIndex = unlist(cfg[[sectors[1]]]$actorPowerIndex),
+      instQualityDrivers = unlist(cfg[[sectors[1]]]$instQualityDrivers),
+      controlDrivers = unlist(cfg[[sectors[1]]]$controlDrivers),
+      regionMappingFixedEffects = cfg[[sectors[1]]]$regionMappingFixedEffects,
+      modelDir = modelDir, updateIndex = FALSE, verbose = FALSE
+    )$data$region))), error = function(e) NA_integer_)
+  if (is.finite(nFit) && nCov < nFit) {
+    stop("runPSMProjection: the projection covers ", nCov, " countries but the deployed ",
+         "spec was estimated on ", nFit, ". The projection is using a different historical ",
+         "panel than the fit — check manifest.json:panel_hash against ",
+         file.path(dirname(groupDir), "panels"), ", and look for a '[panel] rebuilding' ",
+         "warning above (an incomplete madrat source folder silently returns fewer ",
+         "countries). Refusing to write a projection over the wrong country set.")
+  }
+  say("coverage check: ", nCov, " countries in coverage, ", nFit, " in the fit.")
+
   .recordStep(groupDir, group, "projection", t0, metrics = list(
     scenarios = paste(names(results), collapse = "/"), gatingScenario = gatingId,
-    rows = nrow(combined),
+    rows = nrow(combined), coveredCountries = nCov, fittedCountries = nFit,
     outOfCoverageShare = round(mean(combined$outOfCoverage, na.rm = TRUE), 3)
   ))
   say("Projection fan-out complete: ", length(results), " scenario(s).")
@@ -282,9 +309,7 @@ runPSMEstimatorAgreement <- function(group, resultsDir = getOption("pfm.resultsD
   }
   if (is.null(panel)) {
     panel <- tryCatch(
-      panelDataHistorical(aggregate = TRUE, y = y,
-                          outputRegionMappingFile = outputRegionMappingFile,
-                          includePolicyStringency = TRUE),
+      .psmHistPanel(groupDir, y = y, outputRegionMappingFile = outputRegionMappingFile, verbose = verbose),
       error = function(e) NULL
     )
   }

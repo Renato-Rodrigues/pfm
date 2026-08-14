@@ -52,9 +52,7 @@ runPSMIV <- function(group,
   }
   if (is.null(panel)) {
     panel <- tryCatch(
-      panelDataHistorical(aggregate = TRUE, y = y,
-                          outputRegionMappingFile = outputRegionMappingFile,
-                          includePolicyStringency = TRUE),
+      .psmHistPanel(groupDir, y = y, outputRegionMappingFile = outputRegionMappingFile, verbose = verbose),
       error = function(e) NULL
     )
   }
