@@ -893,15 +893,29 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                 dots[names(dots) %in% names(formals(runPSMFrontier))])
     do.call(runPSMFrontier, frArgs)
   }
+  # These two forward dots for the same reason psm-agreement does: without it
+  # `outputRegionMappingFile` cannot be reached from the launcher, so a
+  # country-resolution Run-Group is diagnosed at R54. That is what happened in v1 —
+  # influence clustered on 36 R54 regions (ANZ, BELUX, ...) rather than 48 countries.
   if (doStep("psm-iv")) {
     say("step: psm-iv")
-    runPSMIV(group, resultsDir = resultsDir, modelDir = modelDir,
-             cachefolder = cachefolder, verbose = verbose)
+    dots <- list(...)
+    ivArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
+                     cachefolder = cachefolder, verbose = verbose),
+                dots[names(dots) %in% setdiff(names(formals(runPSMIV)),
+                                              c("group", "resultsDir", "modelDir",
+                                                "cachefolder", "verbose"))])
+    do.call(runPSMIV, ivArgs)
   }
   if (doStep("psm-influence")) {
     say("step: psm-influence")
-    runPSMInfluence(group, resultsDir = resultsDir, modelDir = modelDir,
-                    cachefolder = cachefolder, verbose = verbose)
+    dots <- list(...)
+    infArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
+                      cachefolder = cachefolder, verbose = verbose),
+                 dots[names(dots) %in% setdiff(names(formals(runPSMInfluence)),
+                                               c("group", "resultsDir", "modelDir",
+                                                 "cachefolder", "verbose"))])
+    do.call(runPSMInfluence, infArgs)
   }
   if (doStep("psm-sector-speeds")) {
     say("step: psm-sector-speeds")

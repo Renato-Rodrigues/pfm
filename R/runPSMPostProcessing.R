@@ -332,18 +332,14 @@ runPSMEstimatorAgreement <- function(group, resultsDir = getOption("pfm.resultsD
     out$spec <- out$spec %||% cfg$name
     say("estimator agreement for '", cfg$name, "' (", sec, ") ...")
     out$bySector[[sec]] <- tryCatch(
-      computeEstimatorAgreement(
-        data = panel, sector = sec, estimators = estimators, indexMax = indexMax,
-        verbose = FALSE,
-        actorPowerDrivers = cfg$actorPowerDrivers, actorPowerIndex = cfg$actorPowerIndex,
-        instQualityDrivers = cfg$instQualityDrivers, controlDrivers = cfg$controlDrivers,
-        regionMappingFixedEffects = cfg$regionMappingFixedEffects,
-        logisticTimeTrend = isTRUE(cfg$logisticTimeTrend),
-        interactRegionFE = isTRUE(cfg$interactRegionFE),
-        useMundlak = isTRUE(cfg$useMundlak),
-        gdpGovInteraction = isTRUE(cfg$gdpGovInteraction),
-        includeLaggedPS = isTRUE(cfg$includeLaggedPS)
-      ),
+      do.call(computeEstimatorAgreement, c(
+        list(data = panel, sector = sec, estimators = estimators,
+             indexMax = indexMax, verbose = FALSE),
+        # Every spec field the estimator accepts, derived from its formals. Do NOT
+        # go back to hand-listing these: apTransform was missing from the old list,
+        # so this exhibit was fitted on linear actor power while carrying the
+        # deployed spec's satAP name. See .psmSpecArgs().
+        .psmSpecArgs(cfg))),
       error = function(e) {
         say("  ", sec, " failed: ", conditionMessage(e))
         NULL

@@ -239,18 +239,12 @@ runPSMInfluence <- function(group,
     out$spec <- out$spec %||% cfg$name
     say("deployed satP refit (", sec, ") ...")
     fit <- tryCatch(
-      estimatePolicyStringencyModel(
-        data = panel, sector = sec, estimator = "satP", indexMax = indexMax,
-        actorPowerDrivers = cfg$actorPowerDrivers, actorPowerIndex = cfg$actorPowerIndex,
-        instQualityDrivers = cfg$instQualityDrivers, controlDrivers = cfg$controlDrivers,
-        regionMappingFixedEffects = cfg$regionMappingFixedEffects,
-        logisticTimeTrend = isTRUE(cfg$logisticTimeTrend),
-        interactRegionFE = isTRUE(cfg$interactRegionFE),
-        useMundlak = isTRUE(cfg$useMundlak),
-        gdpGovInteraction = isTRUE(cfg$gdpGovInteraction),
-        includeLaggedPS = isTRUE(cfg$includeLaggedPS),
-        modelDir = NULL, verbose = FALSE
-      ),
+      do.call(estimatePolicyStringencyModel, c(
+        list(data = panel, sector = sec, estimator = "satP", indexMax = indexMax,
+             modelDir = NULL, verbose = FALSE),
+        # See .psmSpecArgs(): hand-listing these dropped apTransform, so the
+        # "deployed satP refit" was not the deployed spec.
+        .psmSpecArgs(cfg))),
       error = function(e) { say("  ", sec, " refit failed: ", conditionMessage(e)); NULL }
     )
     if (is.null(fit)) next

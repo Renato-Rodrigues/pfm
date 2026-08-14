@@ -98,7 +98,7 @@ and Estonia consumes them without producing any), so the clamp turns its coal sh
 into 0.0 - a \emph{clean} reading for one of Europe's most carbon-intensive systems.
 A wrong-but-plausible value biases the fit invisibly; a dropped country is visible
 in the sample size. Set to \code{character(0)} once the upstream issue is resolved -
-see \code{docs/psm-pecoal-estonia-issue.md}.}
+see \code{docs/reference/psm-pecoal-estonia-issue.md}.}
 }
 \value{
 data.frame with columns: region, year, timeTrend, regionFE (unless

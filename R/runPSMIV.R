@@ -73,17 +73,20 @@ runPSMIV <- function(group,
       lab <- paste0(sec, ".", variant)
       say("IV fit ", lab, " ...")
       fit <- tryCatch(
-        estimatePolicyStringencyModel(
-          data = panel, sector = sec, estimator = "satP-iv", indexMax = indexMax,
-          actorPowerDrivers = "Incumbent Power", actorPowerIndex = "Incumbent Power",
-          instQualityDrivers = cfg$instQualityDrivers, controlDrivers = cfg$controlDrivers,
-          regionMappingFixedEffects = cfg$regionMappingFixedEffects,
-          timeTrend = identical(variant, "trend"),
-          logisticTimeTrend = identical(variant, "trend") && isTRUE(cfg$logisticTimeTrend),
-          useMundlak = isTRUE(cfg$useMundlak),
-          gdpGovInteraction = isTRUE(cfg$gdpGovInteraction),
-          modelDir = NULL, verbose = FALSE
-        ),
+        do.call(estimatePolicyStringencyModel, c(
+          list(data = panel, sector = sec, estimator = "satP-iv", indexMax = indexMax,
+               # The IV rung instruments incumbency alone — that override is by
+               # design and must win over the spec's actor-power block.
+               actorPowerDrivers = "Incumbent Power",
+               actorPowerIndex = "Incumbent Power",
+               timeTrend = identical(variant, "trend"),
+               logisticTimeTrend = identical(variant, "trend") &&
+                 isTRUE(cfg$logisticTimeTrend),
+               modelDir = NULL, verbose = FALSE),
+          # Everything else comes from the deployed spec — including apTransform,
+          # whose omission fitted this rung on linear actor power. See .psmSpecArgs().
+          .psmSpecArgs(cfg, exclude = c("actorPowerDrivers", "actorPowerIndex",
+                                        "logisticTimeTrend")))),
         error = function(e) {
           say("  ", lab, " failed: ", conditionMessage(e))
           NULL

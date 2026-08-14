@@ -55,7 +55,7 @@
 #'   into 0.0 - a \emph{clean} reading for one of Europe's most carbon-intensive systems.
 #'   A wrong-but-plausible value biases the fit invisibly; a dropped country is visible
 #'   in the sample size. Set to \code{character(0)} once the upstream issue is resolved -
-#'   see \code{docs/psm-pecoal-estonia-issue.md}.
+#'   see \code{docs/reference/psm-pecoal-estonia-issue.md}.
 #' @param apTransform Character. Functional form of the actor-power drivers
 #'   (ADR 0040). \code{"linear"} (default) uses the raw share. \code{"saturating"}
 #'   applies the parameter-free diminishing-returns map \code{x / (x + xBar)} with
@@ -262,7 +262,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
     df <- as.data.frame(cols, stringsAsFactors = FALSE)
   }
 
-  # --- countries excluded from estimation (docs/psm-pecoal-estonia-issue.md) ---
+  # --- countries excluded from estimation (docs/reference/psm-pecoal-estonia-issue.md) ---
   # EST by default: its PE|Coal is NEGATIVE upstream (derived coal gases and coke are
   # counted as primary coal, and Estonia consumes them without producing any), so the
   # clamp turns its coal share into 0.0 - reading as a CLEAN system for one of Europe's
@@ -275,7 +275,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
       message("[preparePanelData] excluding ", sum(drop), " row(s) for ",
               paste(intersect(excludeCountries, unique(as.character(df$region))),
                     collapse = ", "),
-              " - see docs/psm-pecoal-estonia-issue.md")
+              " - see docs/reference/psm-pecoal-estonia-issue.md")
       df <- df[!drop, , drop = FALSE]
     }
   }
