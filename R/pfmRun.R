@@ -87,8 +87,34 @@ pfmRun <- function(group = NULL,
   allSteps <- c(stageSteps$sweep, "psm-agreement", "psm-iv", "psm-influence",
                 "psm-replay", stageSteps$downstream, stageSteps$remind)
 
-  interactiveRun <- ask %||% (interactive() && is.null(steps) &&
-                                (is.null(group) || is.null(stage)))
+  # Testing isatty() would exclude piped answers, which is a legitimate way to drive
+  # this. So: always ATTEMPT to prompt when arguments are missing, and let end-of-input
+  # be the signal that nobody is there — readIn() returns NA, and the prompt turns that
+  # into an error naming the arguments to pass instead. A SLURM job therefore fails
+  # with instructions rather than hanging on a read that will never be answered.
+  interactiveRun <- ask %||% (is.null(steps) && (is.null(group) || is.null(stage)))
+  # ONE connection, opened lazily and reused. readLines(con = "stdin") opens a fresh
+  # connection per call, so the second question read EOF no matter how many answers
+  # were waiting — the wizard could ask exactly one thing and then give up.
+  stdinCon <- NULL
+  on.exit(if (!is.null(stdinCon)) try(close(stdinCon), silent = TRUE), add = TRUE)
+  readIn <- function() {
+    if (interactive()) return(trimws(readline()))
+    if (is.null(stdinCon)) {
+      stdinCon <<- tryCatch(file("stdin", "r"), error = function(e) NULL)
+      if (is.null(stdinCon)) return(NA_character_)
+    }
+    ln <- tryCatch(readLines(stdinCon, n = 1L), error = function(e) character(0))
+    if (!length(ln)) return(NA_character_)
+    trimws(ln[[1]])
+  }
+  noInput <- function() {
+    stop("pfmRun: needs an answer but stdin is empty (not a terminal).\n",
+         "  Pass the settings instead, e.g.\n",
+         "    pfmRun(group = \"<run-group>\", stage = \"downstream\", ",
+         "config = \"config.yml\")\n",
+         "  Stages: all | sweep | downstream | remind | custom", call. = FALSE)
+  }
 
   # ── prompt helpers ──────────────────────────────────────────────────────────
   hr <- function(ch = "-") message(strrep(ch, 66))
@@ -99,7 +125,8 @@ pfmRun <- function(group = NULL,
       paste0(" [", default, "]") else ""
     repeat {
       cat(prompt, d, ": ", sep = "")
-      v <- trimws(readline())
+      v <- readIn()
+      if (is.na(v)) noInput()
       if (!nzchar(v) && !is.null(default)) return(default)
       if (nzchar(v)) return(v)
       message("  (a value is required)")
@@ -116,7 +143,8 @@ pfmRun <- function(group = NULL,
     if (allowFree) message("      (or type a value not listed)")
     repeat {
       cat("  choice [", default, "]: ", sep = "")
-      v <- trimws(readline())
+      v <- readIn()
+      if (is.na(v)) noInput()
       if (!nzchar(v)) return(options[default])
       idx <- suppressWarnings(as.integer(v))
       if (!is.na(idx) && idx >= 1 && idx <= length(options)) return(options[idx])
@@ -128,7 +156,7 @@ pfmRun <- function(group = NULL,
   askYesNo <- function(prompt, default = TRUE) {
     d <- if (default) "Y/n" else "y/N"
     cat(prompt, " [", d, "]: ", sep = "")
-    v <- tolower(trimws(readline()))
+    v <- readIn(); if (is.na(v)) noInput(); v <- tolower(v)
     if (!nzchar(v)) return(default)
     substr(v, 1, 1) == "y"
   }
@@ -136,7 +164,8 @@ pfmRun <- function(group = NULL,
     message(""); message(prompt)
     for (i in seq_along(options)) message(sprintf("  %2d) %s", i, options[i]))
     cat("  numbers, comma-separated, or Enter for all: ")
-    v <- trimws(readline())
+    v <- readIn()
+    if (is.na(v)) noInput()
     if (!nzchar(v)) return(default)
     idx <- suppressWarnings(as.integer(strsplit(v, "[ ,]+")[[1]]))
     idx <- idx[!is.na(idx) & idx >= 1 & idx <= length(options)]
@@ -175,8 +204,16 @@ pfmRun <- function(group = NULL,
         existing <- existing[order(mt, decreasing = TRUE)]
       }
     }
-    if (!interactiveRun) stop("pfmRun: 'group' is required in a non-interactive run.",
-                              call. = FALSE)
+    if (!interactiveRun) {
+      stop("pfmRun: 'group' is required when there is nothing to prompt.\n",
+           if (length(existing))
+             paste0("  Run-Groups under '", resultsDir, "': ",
+                    paste(utils::head(existing, 8), collapse = ", "), "\n") else "",
+           "  e.g. pfmRun(group = \"",
+           if (length(existing)) existing[1] else "psm-country-v1",
+           "\", stage = \"downstream\", config = \"config.yml\")\n",
+           "  Stages: all | sweep | downstream | remind | custom", call. = FALSE)
+    }
     if (length(existing)) {
       group <- askChoice(
         "Which Run-Group?", c(existing, "<new>"),
