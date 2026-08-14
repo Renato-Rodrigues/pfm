@@ -1,7 +1,7 @@
 # Tutorial 2 — Running on the PIK cluster (SLURM)
 
 How to run the exhaustive sweep as a SLURM job on the PIK HPC2024 cluster, and how to
-confirm it's healthy. Reference: `docs/utils/HPC2024 User Guide.pdf`.
+confirm it's healthy. Reference: `docs/reference/HPC2024 User Guide.pdf`.
 
 ## What the cluster looks like
 

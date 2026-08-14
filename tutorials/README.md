@@ -46,5 +46,5 @@ Read 01 → 07 in order the first time; 08–09 are reference deep-dives.
 
 - **`CONTEXT.md`** (repo root) — the glossary of domain terms.
 - **`docs/adr/`** — architecture decisions: `0018` (compute/report layering + Run-Group), `0019` (parallel sweep + cache concurrency), `0020` (run entry point + SLURM + run record), and the model-design ADRs `0004`–`0017`.
-- **`docs/utils/HPC2024 User Guide.pdf`** — the PIK cluster reference.
+- **`docs/reference/HPC2024 User Guide.pdf`** — the PIK cluster reference.
 - **`pfm-reports/tutorials/`** — how to render and **interpret** the results.

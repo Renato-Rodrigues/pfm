@@ -17,18 +17,23 @@
 #' \describe{
 #'   \item{\code{sweep}}{Estimate and select: the model selection sweep, frontier,
 #'     temporal validation and sector speeds. Produces the deployed spec.}
+#'   \item{\code{diagnostics}}{Inference and validation of that spec: estimator
+#'     agreement and wild-cluster p-values, the shift-share IV, leave-one-country-out
+#'     influence, and the historical-replay gate. Needed before any number from the
+#'     Run-Group is quotable, and before any coupled claim.}
 #'   \item{\code{downstream}}{Everything the coupling needs from a finished sweep:
 #'     donor assumptions, projection fan-out, coupling bound, selection bootstrap.}
 #'   \item{\code{remind}}{Assemble the self-contained \code{pfm-data} folder REMIND's
 #'     \code{preparePFM.R} consumes.}
-#'   \item{\code{all}}{All three, in order — raw data to REMIND inputs.}
+#'   \item{\code{all}}{Every step above, in dependency order — raw data to REMIND
+#'     inputs.}
 #'   \item{\code{custom}}{Choose individual steps.}
 #' }
 #'
 #' @param group Run-Group name. Interactively: offered from the existing groups under
 #'   \code{resultsDir}, or type a new name to start a fresh one.
-#' @param stage One of \code{"all"}, \code{"sweep"}, \code{"downstream"},
-#'   \code{"remind"}, \code{"custom"}.
+#' @param stage One of \code{"all"}, \code{"sweep"}, \code{"diagnostics"},
+#'   \code{"downstream"}, \code{"remind"}, \code{"custom"}.
 #' @param steps Explicit step vector. Overrides \code{stage} when given.
 #' @param cluster \code{"auto"} (SLURM when \code{sbatch} is on PATH), \code{"slurm"}
 #'   or \code{"local"}.
@@ -62,9 +67,10 @@
 #' @examples
 #' \dontrun{
 #' pfmRun()                                          # ask for everything
-#' pfmRun(group = "psm-country-v4", stage = "downstream")
-#' pfmRun(group = "psm-country-v4", stage = "all", cluster = "slurm")
-#' pfmRun(group = "psm-country-v4", stage = "remind", remindDir = "../pfm-data")
+#' pfmRun(group = "v1", stage = "downstream")
+#' pfmRun(group = "v1", stage = "diagnostics", cluster = "slurm")
+#' pfmRun(group = "v1", stage = "all", cluster = "slurm")
+#' pfmRun(group = "v1", stage = "remind", remindDir = "../pfm-data")
 #' }
 #' @author Renato Rodrigues
 #' @export
@@ -85,15 +91,23 @@ pfmRun <- function(group = NULL,
                    ...) {
 
   stageSteps <- list(
-    sweep      = c("psm-sweep", "psm-frontier", "psm-temporal", "psm-sector-speeds"),
-    downstream = c("psm-donor", "psm-projection", "psm-coupling-bound",
-                   "psm-selection-bootstrap"),
-    remind     = "psm-remind-inputs",
-    custom     = character(0))
+    sweep       = c("psm-sweep", "psm-frontier", "psm-temporal", "psm-sector-speeds"),
+    # Inference and validation of the SELECTED spec. Not optional extras: the
+    # wild-cluster p-values in `estimator-agreement.rds` are the only quotable
+    # inference at this cluster count, and `psm-replay` is the gate a coupled claim
+    # depends on. They ran only via `custom` until 2026-08-14, which is how
+    # Run-Group v1 came to be complete-looking and unciteable.
+    diagnostics = c("psm-agreement", "psm-iv", "psm-influence", "psm-replay"),
+    downstream  = c("psm-donor", "psm-projection", "psm-coupling-bound",
+                    "psm-selection-bootstrap"),
+    remind      = "psm-remind-inputs",
+    custom      = character(0))
 
-  stageSteps$all <- c(stageSteps$sweep, stageSteps$downstream, stageSteps$remind)
-  allSteps <- c(stageSteps$sweep, "psm-agreement", "psm-iv", "psm-influence",
-                "psm-replay", stageSteps$downstream, stageSteps$remind)
+  # "all" means every step, in dependency order — not "every stage I happened to
+  # list first". Diagnostics sit after the sweep because they read the selected spec.
+  stageSteps$all <- c(stageSteps$sweep, stageSteps$diagnostics,
+                      stageSteps$downstream, stageSteps$remind)
+  allSteps <- stageSteps$all
 
   # Testing isatty() would exclude piped answers, which is a legitimate way to drive
   # this. So: always ATTEMPT to prompt when arguments are missing, and let end-of-input
@@ -121,7 +135,8 @@ pfmRun <- function(group = NULL,
          "  Pass the settings instead, e.g.\n",
          "    pfmRun(group = \"<run-group>\", stage = \"downstream\", ",
          "config = \"config.yml\")\n",
-         "  Stages: all | sweep | downstream | remind | custom", call. = FALSE)
+         "  Stages: all | sweep | diagnostics | downstream | remind | custom",
+         call. = FALSE)
   }
 
   # ── prompt helpers ──────────────────────────────────────────────────────────
@@ -251,9 +266,10 @@ pfmRun <- function(group = NULL,
   if (is.null(steps)) {
     if (is.null(stage)) {
       if (!interactiveRun) stop("pfmRun: supply 'stage' or 'steps'.", call. = FALSE)
-      opts <- c("all", "sweep", "downstream", "remind", "custom")
-      labs <- c("data -> model -> REMIND inputs",
+      opts <- c("all", "sweep", "diagnostics", "downstream", "remind", "custom")
+      labs <- c("data -> model -> REMIND inputs (every step)",
                 "estimate and select the model",
+                "agreement/p-values, IV, influence, replay gate",
                 "donor, projection, coupling bound, bootstrap",
                 "assemble the REMIND pfm-data folder",
                 "pick individual steps")
@@ -262,7 +278,8 @@ pfmRun <- function(group = NULL,
       stage <- askChoice("What do you want to run?", opts, labs,
                          default = if (hasSpec) 3L else 1L)
     }
-    stage <- match.arg(stage, c("all", "sweep", "downstream", "remind", "custom"))
+    stage <- match.arg(stage, c("all", "sweep", "diagnostics", "downstream",
+                                "remind", "custom"))
     steps <- if (identical(stage, "custom")) {
       if (!interactiveRun) stop("pfmRun: stage = 'custom' needs 'steps'.", call. = FALSE)
       askMulti("Which steps?", allSteps)
@@ -270,9 +287,10 @@ pfmRun <- function(group = NULL,
   }
   steps <- unique(steps)
 
-  if (!hasSpec && any(steps %in% stageSteps$downstream)) {
+  needsSpec <- c(stageSteps$diagnostics, stageSteps$downstream)
+  if (!hasSpec && any(steps %in% needsSpec)) {
     msg <- paste0("Run-Group '", group, "' has no selected-models-psm.yml, so the ",
-                  "downstream steps have no deployed spec to work from.")
+                  "diagnostics and downstream steps have no deployed spec to work from.")
     if (!any(steps %in% stageSteps$sweep)) {
       if (interactiveRun) {
         message("\nNOTE: ", msg)

@@ -26,8 +26,8 @@ pfmRun(
 \item{group}{Run-Group name. Interactively: offered from the existing groups under
 \code{resultsDir}, or type a new name to start a fresh one.}
 
-\item{stage}{One of \code{"all"}, \code{"sweep"}, \code{"downstream"},
-\code{"remind"}, \code{"custom"}.}
+\item{stage}{One of \code{"all"}, \code{"sweep"}, \code{"diagnostics"},
+\code{"downstream"}, \code{"remind"}, \code{"custom"}.}
 
 \item{steps}{Explicit step vector. Overrides \code{stage} when given.}
 
@@ -88,11 +88,16 @@ from the package. Anything worth doing twice belongs in a function.
 \describe{
 \item{\code{sweep}}{Estimate and select: the model selection sweep, frontier,
 temporal validation and sector speeds. Produces the deployed spec.}
+\item{\code{diagnostics}}{Inference and validation of that spec: estimator
+agreement and wild-cluster p-values, the shift-share IV, leave-one-country-out
+influence, and the historical-replay gate. Needed before any number from the
+Run-Group is quotable, and before any coupled claim.}
 \item{\code{downstream}}{Everything the coupling needs from a finished sweep:
 donor assumptions, projection fan-out, coupling bound, selection bootstrap.}
 \item{\code{remind}}{Assemble the self-contained \code{pfm-data} folder REMIND's
 \code{preparePFM.R} consumes.}
-\item{\code{all}}{All three, in order — raw data to REMIND inputs.}
+\item{\code{all}}{Every step above, in dependency order — raw data to REMIND
+inputs.}
 \item{\code{custom}}{Choose individual steps.}
 }
 }
@@ -100,9 +105,10 @@ donor assumptions, projection fan-out, coupling bound, selection bootstrap.}
 \examples{
 \dontrun{
 pfmRun()                                          # ask for everything
-pfmRun(group = "psm-country-v4", stage = "downstream")
-pfmRun(group = "psm-country-v4", stage = "all", cluster = "slurm")
-pfmRun(group = "psm-country-v4", stage = "remind", remindDir = "../pfm-data")
+pfmRun(group = "v1", stage = "downstream")
+pfmRun(group = "v1", stage = "diagnostics", cluster = "slurm")
+pfmRun(group = "v1", stage = "all", cluster = "slurm")
+pfmRun(group = "v1", stage = "remind", remindDir = "../pfm-data")
 }
 }
 \author{

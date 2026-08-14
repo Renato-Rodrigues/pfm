@@ -112,11 +112,32 @@ test_that("a group without a deployed spec skips cleanly", {
 })
 
 test_that("psm-replay is a recognised pipeline step", {
-  # It is in the ALLOWED set (allSteps) and has an artifact mapping, not in the
-  # short default `steps` argument.
+  # It is in the ALLOWED set and has an artifact mapping, not in the short default
+  # `steps` argument.
   body <- paste(deparse(runModelGroup), collapse = " ")
   expect_true(grepl('"psm-replay"', body, fixed = TRUE))
-  expect_true(grepl("historical-replay.rds", body, fixed = TRUE))
+  # The step -> artifact map used to be inlined in runModelGroup and now lives in
+  # psmStepArtifacts(), which runModelGroup reads for `resume` and pfmRun() reads for
+  # `clean`. Assert the contract where it actually lives, or this passes/fails for
+  # reasons unrelated to whether the step is wired up.
+  expect_identical(psmStepArtifacts("psm-replay")[["psm-replay"]],
+                   "historical-replay.rds")
   expect_true(grepl('"psm-replay"', paste(deparse(startRun), collapse = " "),
                     fixed = TRUE))
+})
+
+test_that("psm-replay is reachable from a stage, not only from `steps`", {
+  # The gate must be runnable without knowing its step name: it was reachable only
+  # through pfmRun()'s interactive `custom` menu until 2026-08-14, which is how a
+  # Run-Group was produced with no replay artifact and no warning.
+  res <- withr::local_tempdir()
+  dir.create(file.path(res, "g"), recursive = TRUE, showWarnings = FALSE)
+  writeLines("- name: dummy", file.path(res, "g", "selected-models-psm.yml"))
+  plan <- function(stage) {
+    suppressMessages(pfmRun(group = "g", stage = stage, cluster = "local",
+                            resultsDir = res, modelDir = res, ask = FALSE,
+                            dryRun = TRUE))$steps
+  }
+  expect_true("psm-replay" %in% plan("diagnostics"))
+  expect_true("psm-replay" %in% plan("all"))
 })
