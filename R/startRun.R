@@ -261,6 +261,24 @@ startRun <- function(group,
   jobR <- file.path(chdir, paste0("pfm-", group, "-job.R"))
   writeLines(c("suppressMessages(library(pfm))", call), jobR)
 
+  # sbatch --chdir changes the working directory BEFORE the payload runs, so every
+  # path in the script must be absolute or the job dies on the node with "cannot open
+  # file" — a failure you only see minutes or hours later, after the queue wait.
+  # Fail here, at submit time, where it is cheap and the message can say why.
+  isAbs <- function(p) grepl("^([A-Za-z]:|/|\\\\)", p)
+  bad <- c(chdir = chdir, jobScript = jobR, resultsDir = resultsDir,
+           modelDir = modelDir)
+  bad <- bad[!vapply(bad, isAbs, logical(1))]
+  if (length(bad)) {
+    stop(".submitSlurm: these must be absolute paths but are relative:\n",
+         paste0("    ", names(bad), " = ", bad, collapse = "\n"), "\n",
+         "  With --chdir set, a relative path resolves against the job's new working\n",
+         "  directory, so the job would fail immediately. This usually means an OLD\n",
+         "  installed build of pfm is being used: reinstall with\n",
+         "    Rscript -e 'devtools::install(\"pfm\", upgrade=\"never\", quick=TRUE)'",
+         call. = FALSE)
+  }
+
   sbatchLines <- c(
     "#!/bin/bash",
     sprintf("#SBATCH --job-name=pfm-%s", group),
