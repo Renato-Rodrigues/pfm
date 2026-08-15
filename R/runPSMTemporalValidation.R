@@ -107,18 +107,12 @@ runPSMTemporalValidation <- function(group,
     say("refit on <= ", trainEnd, " and score ", trainEnd + 1, "+ ('", cfg$name, "', ", sec, ") ...")
 
     fit <- tryCatch(
-      estimatePolicyStringencyModel(
-        data = trainPanel, sector = sec, estimator = "satP", indexMax = indexMax,
-        actorPowerDrivers = cfg$actorPowerDrivers, actorPowerIndex = cfg$actorPowerIndex,
-        instQualityDrivers = cfg$instQualityDrivers, controlDrivers = cfg$controlDrivers,
-        regionMappingFixedEffects = cfg$regionMappingFixedEffects,
-        logisticTimeTrend = isTRUE(cfg$logisticTimeTrend),
-        interactRegionFE = isTRUE(cfg$interactRegionFE),
-        useMundlak = isTRUE(cfg$useMundlak),
-        gdpGovInteraction = isTRUE(cfg$gdpGovInteraction),
-        includeLaggedPS = isTRUE(cfg$includeLaggedPS),
-        modelDir = NULL, verbose = FALSE
-      ),
+      do.call(estimatePolicyStringencyModel, c(
+        list(data = trainPanel, sector = sec, estimator = "satP", indexMax = indexMax,
+             modelDir = NULL, verbose = FALSE),
+        # See .psmSpecArgs(): hand-listing dropped apTransform, so the out-of-time
+        # validation scored a different specification from the deployed one.
+        .psmSpecArgs(cfg))),
       error = function(e) {
         say("  ", sec, " train-window fit failed: ", conditionMessage(e))
         NULL
@@ -279,17 +273,11 @@ runPSMTemporalValidation <- function(group,
 # speed -> 0 reduces to a drifting random walk), so beating persistence is a
 # fair fight the static level spec cannot offer.
 .psmValidateECMSector <- function(cfg, sec, panel, trainPanel, trainEnd, indexMax, lastObs) {
-  fit <- estimatePolicyStringencyModel(
-    data = trainPanel, sector = sec, estimator = "satP", form = "ecm", indexMax = indexMax,
-    actorPowerDrivers = cfg$actorPowerDrivers, actorPowerIndex = cfg$actorPowerIndex,
-    instQualityDrivers = cfg$instQualityDrivers, controlDrivers = cfg$controlDrivers,
-    regionMappingFixedEffects = cfg$regionMappingFixedEffects,
-    logisticTimeTrend = isTRUE(cfg$logisticTimeTrend),
-    interactRegionFE = isTRUE(cfg$interactRegionFE),
-    useMundlak = isTRUE(cfg$useMundlak),
-    gdpGovInteraction = isTRUE(cfg$gdpGovInteraction),
-    modelDir = NULL, verbose = FALSE
-  )
+  # The ECM that yields lambda, the coupling's speed limit. See .psmSpecArgs().
+  fit <- do.call(estimatePolicyStringencyModel, c(
+    list(data = trainPanel, sector = sec, estimator = "satP", form = "ecm",
+         indexMax = indexMax, modelDir = NULL, verbose = FALSE),
+    .psmSpecArgs(cfg)))
   vDf <- preparePanelData(
     data = panel, sector = sec,
     actorPowerDrivers = cfg$actorPowerDrivers, actorPowerIndex = cfg$actorPowerIndex,

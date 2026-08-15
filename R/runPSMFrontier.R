@@ -77,18 +77,13 @@ runPSMFrontier <- function(group,
     out$spec <- out$spec %||% cfg$name
     say("frontier fit for '", cfg$name, "' (", sec, ") ...")
     fit <- tryCatch(
-      estimatePolicyStringencyModel(
-        data = panel, sector = sec, estimator = "frontier", indexMax = indexMax,
-        actorPowerDrivers = cfg$actorPowerDrivers, actorPowerIndex = cfg$actorPowerIndex,
-        instQualityDrivers = cfg$instQualityDrivers, controlDrivers = cfg$controlDrivers,
-        regionMappingFixedEffects = cfg$regionMappingFixedEffects,
-        logisticTimeTrend = isTRUE(cfg$logisticTimeTrend),
-        interactRegionFE = isTRUE(cfg$interactRegionFE),
-        useMundlak = isTRUE(cfg$useMundlak),
-        gdpGovInteraction = isTRUE(cfg$gdpGovInteraction),
-        includeLaggedPS = isTRUE(cfg$includeLaggedPS),
-        modelDir = NULL, verbose = FALSE
-      ),
+      do.call(estimatePolicyStringencyModel, c(
+        list(data = panel, sector = sec, estimator = "frontier", indexMax = indexMax,
+             modelDir = NULL, verbose = FALSE),
+        # See .psmSpecArgs(). Hand-listing these dropped apTransform, so the frontier
+        # — the ceiling, the efficiency ratio, every gap and tier downstream of it —
+        # was estimated on linear actor power while the deployed spec is satAP.
+        .psmSpecArgs(cfg))),
       error = function(e) {
         say("  ", sec, " frontier fit failed: ", conditionMessage(e))
         NULL
