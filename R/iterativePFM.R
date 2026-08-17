@@ -379,17 +379,34 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     # Exported unconditionally: it costs one extra symbol, and a mode-2 run that
     # silently found no bound would cap prices at zero.
     syms <- list(out, dOut, iOut)
-    # priceOptimal is THIS iteration's cost-optimal path, read from the same gdx we
-    # were handed. priceReference is the current-policies path and cannot come from
-    # here - it is a different scenario - so it is an argument. Without it there is
-    # no bound, and under bind mode 2 that would cap every price at zero, so mode 2
-    # refuses to continue rather than producing a silently wrong run.
+    # priceOptimal is the COST-OPTIMAL path the political layer discounts. It must be
+    # a path the cap cannot touch.
+    #
+    # It used to be read straight from the run's own pm_taxCO2eq, and that made bind
+    # mode 2 a DOWNWARD RATCHET: under mode 2 pm_taxCO2eq has already been capped by
+    # the previous iteration's bound, so each call computed
+    #     bound(i+1) = P_ref + phi * (bound(i) - P_ref)
+    # - a contraction that multiplies the distance above P_ref by phi every call. At
+    # phi = 0.21 the gap fell to 21%, then 4%, then 0.9%: the bound collapsed onto the
+    # current-policy price within three or four calls whatever the politics said. In
+    # the 2026-08-16 batch every non-EU 2050 bound had landed within a whisker of its
+    # NPi reference (USA 0 -> $0.06, SSA 1.34 -> 1.64, REF 4.05 -> 4.11), and the $0.06
+    # US price was the ratchet's fixed point, not a political finding.
+    #
+    # p45_taxCO2eq_anchor is the uncapped global anchor - the cost-optimal price path
+    # the module builds every regional price from, and exactly the object intended. It
+    # is a ttot-only symbol, so it is broadcast across the regions of P_ref.
+    #
+    # priceReference is the current-policies path and cannot come from here - it is a
+    # different scenario - so it is an argument. Without it there is no bound, and
+    # under bind mode 2 that would cap every price at zero, so mode 2 refuses to
+    # continue rather than producing a silently wrong run.
     bnd <- NULL
     if (!is.null(refGdx)) {
       bnd <- tryCatch({
         TCO2 <- 1000 / (44 / 12)
-        pO <- gdx::readGDX(gdx, "pm_taxCO2eq") * TCO2
         pR <- gdx::readGDX(refGdx, "pm_taxCO2eq") * TCO2
+        pO <- .psmCouplingOptimalPath(gdx, pR, TCO2, say)
         exportFeasibilityBound(feas, priceOptimal = pO, priceReference = pR,
                                lambda = lambda, sectorRule = "min", file = NULL)
       }, error = function(e) { say("price bound failed: ", conditionMessage(e)); NULL })
@@ -505,6 +522,53 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 #' @param syms List of symbol descriptions built by these helpers.
 #' @param verbose Logical; report the symbols written.
 #' @return The symbol description; \code{.psmWriteCouplingGdx} returns \code{file}.
+#' The cost-optimal price path for the mode-2 bound, taken from a symbol the cap
+#' cannot touch.
+#'
+#' \code{p45_taxCO2eq_anchor(ttot)} is the uncapped global anchor every regional price
+#' is built from, so it is the cost-optimal counterfactual the political share is meant
+#' to discount. It carries no region dimension, so it is broadcast across the regions of
+#' the reference path. Falling back to the run's own \code{pm_taxCO2eq} restores the
+#' ratchet documented at the call site, so the fallback WARNS rather than passing
+#' quietly - a run that takes it is not quotable.
+#'
+#' @param gdx The run's own gdx.
+#' @param pR The reference price path (magpie), used for the region list.
+#' @param TCO2 Unit conversion from T$/GtC to US$/tCO2.
+#' @param say Progress reporter.
+#' @return A long data.frame of \code{region, year, value} in US$/tCO2.
+#' @keywords internal
+#' @author Renato Rodrigues
+.psmCouplingOptimalPath <- function(gdx, pR, TCO2, say = function(...) NULL) {
+  regs <- magclass::getItems(pR, dim = 1)
+  anc <- tryCatch(gdx::readGDX(gdx, "p45_taxCO2eq_anchor", react = "silent"),
+                  error = function(e) NULL)
+  av <- NULL
+  if (!is.null(anc) && magclass::is.magpie(anc) && length(anc)) {
+    yrs <- magclass::getYears(anc, as.integer = TRUE)
+    # ttot-only symbols come back with a single (GLO) region; guard anyway so a
+    # region-indexed anchor cannot silently recycle values onto the wrong years.
+    v <- as.numeric(anc)
+    if (length(v) == length(yrs)) av <- stats::setNames(v, yrs)
+  }
+  if (!is.null(av)) av <- av[is.finite(av)]
+  if (!is.null(av) && length(av) && any(av > 0)) {
+    say("bind mode 2: P_opt from p45_taxCO2eq_anchor (uncapped), ",
+        length(av), " periods x ", length(regs), " regions")
+    return(data.frame(
+      region = rep(regs, times = length(av)),
+      year   = rep(as.integer(names(av)), each = length(regs)),
+      value  = rep(as.numeric(av) * TCO2, each = length(regs)),
+      stringsAsFactors = FALSE))
+  }
+  warning("iterativePFM: p45_taxCO2eq_anchor is missing or all-zero, so P_opt falls ",
+          "back to the run's own pm_taxCO2eq - which under bind mode 2 is ALREADY ",
+          "CAPPED and makes the bound ratchet down onto the reference price. Do not ",
+          "quote a price level from this run.", call. = FALSE)
+  say("bind mode 2: WARNING - P_opt fell back to the capped pm_taxCO2eq")
+  gdx::readGDX(gdx, "pm_taxCO2eq") * TCO2
+}
+
 #' @keywords internal
 #' @author Renato Rodrigues
 #' @rdname psmCouplingGdx
