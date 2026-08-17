@@ -278,11 +278,25 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       ct <- fr$bySector[[sec]]$coefTable
       fb <- stats::setNames(ct$estimate, ct$term)
       fb <- fb[!names(fb) %in% c("sigmaSq", "gamma")]
-      # The ECM fit depends only on the historical panel and the spec - neither
-      # changes across the coupling loop - so it is fitted ONCE and cached in the run
-      # folder. Every later iteration reads it back. This was the dominant cost:
-      # two refits per call, ~20 calls per run, all producing the identical object.
-      fitCache <- file.path(resultsDir, paste0("ecm-fit-", sec, ".rds"))
+      # The ECM fit depends only on the historical panel and the spec - neither changes
+      # across the coupling loop - so it is fitted ONCE and cached. Every later iteration
+      # reads it back. This was the dominant cost: two refits per call, ~20 calls per run,
+      # all producing the identical object.
+      #
+      # CONTENT-ADDRESSED, not named by sector alone (fixed 2026-08-17). In a coupled run
+      # resultsDir is "pfm", RELATIVE to the REMIND run folder (preparePFM.R), so the cache
+      # is per-run and a FRESH run folder always starts without one - preparePFM.R stages
+      # six named artifacts and the panel, never this. The exposure was a REUSED or
+      # restarted run folder: the staged artifacts are overwritten, a stale ecm-fit-<sec>.rds
+      # is not, and keyed on the sector alone nothing could notice that the spec or the panel
+      # had moved under it - PITFALLS.md 14, on the coupling's hot path. The key covers the
+      # spec fields that reach the estimator plus a hash of the panel, so a mismatch refits
+      # instead of being silently wrong. Offline callers passing a shared resultsDir get the
+      # same protection, which is where a shared cache would actually bite.
+      fitKey <- substr(digest::digest(
+        list("ecm", sec, .psmSpecArgs(cfg), digest::digest(panel, algo = "sha256")),
+        algo = "sha256"), 1, 16)
+      fitCache <- file.path(resultsDir, paste0("ecm-fit-", sec, "-", fitKey, ".rds"))
       ecm <- if (file.exists(fitCache)) {
         tryCatch(readRDS(fitCache), error = function(e) NULL)
       } else NULL
@@ -302,10 +316,10 @@ iterativePFM <- function(gdx = "fulldata.gdx",
           apTransform = cfg$apTransform %||% "linear",
           modelDir = modelDir, updateIndex = FALSE, verbose = FALSE)
         saveRDS(ecm, fitCache)
-        say(sprintf("%s ECM fitted and cached in %.0fs - later iterations reuse it",
-                    sec, as.numeric(difftime(Sys.time(), t1, units = "secs"))))
+        say(sprintf("%s ECM fitted and cached in %.0fs [key %s] - later iterations reuse it",
+                    sec, as.numeric(difftime(Sys.time(), t1, units = "secs")), fitKey))
       } else {
-        say(sec, " ECM read from cache")
+        say(sec, " ECM read from cache [key ", fitKey, "]")
       }
       p <- projectFeasiblePath(cfg, sec, histData = panel, scenarioData = scen,
                                rule = "speed-limited", frontierBeta = fb, fit = ecm,
