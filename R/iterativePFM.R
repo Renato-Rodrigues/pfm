@@ -332,32 +332,43 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     say(sprintf("phi over %d regions: median %.3f, min %.3f, uncoupled (phi=1) %d",
                 length(phi), stats::median(phi), min(phi), sum(phi >= 1 - 1e-12)))
 
-    # 3b. The Bulk share on its own, for the ETS markup (ADR 0042). REMIND prices ETS
-    #     and ES separately through pm_taxemiMkt, and ETS ~ Bulk (electricity +
-    #     industry), ES + other ~ Diffuse. Delivering min() alone throws away the Bulk
-    #     estimate in the 94% of countries where Diffuse is the binding sector, and
-    #     min() of two noisy estimates is biased low - in the direction that INFLATES
-    #     the paper's headline. So the collapsed share above stays the economy-wide
-    #     floor and this one carries the increment ETS can bear on top.
-    #     Exported unconditionally: GAMS decides whether to use it (cm_pfmSectorMarkup),
-    #     and a symbol that is present but ignored costs nothing.
-    phiETS <- phi
-    if ("sector" %in% names(feas)) {
-      b <- feas[as.character(feas$sector) == "Bulk", , drop = FALSE]
-      if (nrow(b)) {
-        v <- vapply(split(b$phi, as.character(b$region)), function(x) {
-          x <- x[is.finite(x)]
-          if (!length(x)) NA_real_ else min(x)
-        }, numeric(1))
-        v <- pmin(pmax(v, 0), 1)
-        common <- intersect(names(phiETS), names(v))
-        # Never below the floor: the markup is max(ETS - floor, 0) on the GAMS side and
-        # a Bulk share under the floor would otherwise just be silently clipped there.
-        phiETS[common] <- pmax(v[common], phi[common])
+    # 3b. Each sector's share on its own, for the per-market markups (ADR 0042).
+    #     REMIND prices ETS and ES separately through pm_taxemiMkt; the map is in
+    #     .psmSectorMarkets(). Delivering min() alone throws away whichever sector is
+    #     NOT binding, and min() of two noisy estimates is biased low - in the direction
+    #     that INFLATES the paper's headline.
+    #
+    #     SYMMETRIC since 2026-08-17. The first version carried Bulk only, which capped
+    #     the demand side at the Bulk price wherever BULK was the worse sector (14 of 48
+    #     countries on the deployed frontier) - reintroducing the same information loss
+    #     on the other sector. Every sector now carries its own share, and floor +
+    #     markup reproduces that sector's own price exactly.
+    #
+    #     Exported unconditionally: GAMS decides whether to use them
+    #     (cm_pfmSectorMarkup), and symbols that are present but ignored cost nothing.
+    phiSector <- stats::setNames(lapply(names(.psmSectorMarkets()), function(sec) {
+      v <- phi
+      if ("sector" %in% names(feas)) {
+        s <- feas[as.character(feas$sector) == sec, , drop = FALSE]
+        if (nrow(s)) {
+          w <- vapply(split(s$phi, as.character(s$region)), function(x) {
+            x <- x[is.finite(x)]
+            if (!length(x)) NA_real_ else min(x)
+          }, numeric(1))
+          w <- pmin(pmax(w, 0), 1)
+          common <- intersect(names(v), names(w))
+          # Never below the floor: the markup is max(sector - floor, 0) on the GAMS side,
+          # so a share under the floor would just be silently clipped to zero there.
+          v[common] <- pmax(w[common], phi[common])
+        }
       }
+      v
+    }), names(.psmSectorMarkets()))
+    for (sec in names(phiSector)) {
+      say(sprintf("phi(%s): median %.3f, above the floor in %d of %d regions",
+                  sec, stats::median(phiSector[[sec]]),
+                  sum(phiSector[[sec]] > phi + 1e-12), length(phi)))
     }
-    say(sprintf("phi(ETS/Bulk): median %.3f, above the floor in %d of %d regions",
-                stats::median(phiETS), sum(phiETS > phi + 1e-12), length(phi)))
 
     # 4. Convergence. The loop is a fixed point in phi: REMIND's energy system moves
     #    the ambition gaps, which move phi, which moves the price, which moves the
@@ -429,7 +440,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     # under bind mode 2 that would cap every price at zero, so mode 2 refuses to
     # continue rather than producing a silently wrong run.
     bnd <- NULL
-    bndETS <- NULL
+    bndSector <- NULL
     if (!is.null(refGdx)) {
       prices <- tryCatch({
         TCO2 <- 1000 / (44 / 12)
@@ -444,16 +455,21 @@ iterativePFM <- function(gdx = "fulldata.gdx",
                                  priceReference = prices$pR, lambda = lambda,
                                  sectorRule = "min", file = NULL),
           error = function(e) { say("price bound failed: ", conditionMessage(e)); NULL })
-        # The Bulk-only bound, for the ETS markup (ADR 0042). Same inputs and the same
-        # speed-limit machinery - only the sector reconciliation differs - so the two
-        # are directly comparable and their difference IS the markup. Its failure is
-        # not fatal: without it GAMS simply falls back to the floor everywhere, which
-        # is the pre-ADR-0042 behaviour.
-        bndETS <- tryCatch(
-          exportFeasibilityBound(feas, priceOptimal = prices$pO,
-                                 priceReference = prices$pR, lambda = lambda,
-                                 sectorRule = "Bulk", file = NULL),
-          error = function(e) { say("ETS bound failed: ", conditionMessage(e)); NULL })
+        # One bound per sector, for the per-market markups (ADR 0042). Same inputs and
+        # the same speed-limit machinery - only the sector reconciliation differs - so
+        # each is directly comparable to the floor and their difference IS that market's
+        # markup. Failure is not fatal for a sector: without it GAMS falls back to the
+        # floor on that market, which is the pre-ADR-0042 behaviour.
+        bndSector <- Filter(Negate(is.null), stats::setNames(
+          lapply(names(.psmSectorMarkets()), function(sec) {
+            tryCatch(
+              exportFeasibilityBound(feas, priceOptimal = prices$pO,
+                                     priceReference = prices$pR, lambda = lambda,
+                                     sectorRule = sec, file = NULL),
+              error = function(e) {
+                say(sec, " bound failed: ", conditionMessage(e)); NULL })
+          }), names(.psmSectorMarkets())))
+        if (!length(bndSector)) bndSector <- NULL
       }
     }
     # --- bind mode 3: the mild-progression price path (Elmar variant) ------------
@@ -493,27 +509,33 @@ iterativePFM <- function(gdx = "fulldata.gdx",
                   seedYr, length(unique(mp$region)), cs))
       syms[[length(syms) + 1L]] <- .psmCouplingSym2d("p45_pfmMPPrice", mp, "price")
 
-      # The Bulk-only path, for the ETS markup (ADR 0042). Same seed and the same
-      # recursion; only the sector selected differs. lambda is Bulk's own speed limit
-      # where one was supplied per sector - Bulk moves faster (0.1023 vs 0.0757/yr),
-      # and using the pooled mean here would understate exactly the headroom the
+      # One path per sector, for the per-market markups (ADR 0042). Same seed and the
+      # same recursion; only the sector selected differs. lambda is that sector's own
+      # speed limit where one was supplied per sector - Bulk moves faster (0.1023 vs
+      # 0.0770/yr) - and using the pooled mean would understate exactly the headroom the
       # markup is meant to express.
       if ("sector" %in% names(feas)) {
-        oneB <- feas[as.character(feas$sector) == "Bulk", , drop = FALSE]
-        lamB <- if (!is.null(names(lambda)) && "Bulk" %in% names(lambda)) {
-          unname(lambda[["Bulk"]])
-        } else mean(lambda, na.rm = TRUE)
-        if (nrow(oneB)) {
-          mpETS <- tryCatch(projectMildProgressionPrice(
-            oneB[, c("region", "year", "feasibleIndex", "ceilingIndex")],
-            priceSeed = seed, lambda = lamB, seedYear = seedYr),
-            error = function(e) { say("ETS mild path failed: ", conditionMessage(e)); NULL })
-          if (!is.null(mpETS)) {
-            syms[[length(syms) + 1L]] <-
-              .psmCouplingSym2d("p45_pfmMPPriceETS", mpETS, "price")
-            say(sprintf("ETS mild path exported (lambda %.4f); median 2050 markup: %s",
-                        lamB, .psmFmtMarkup(mp, mpETS, valueCol = "price")))
-          }
+        mpSector <- Filter(Negate(is.null), stats::setNames(
+          lapply(names(.psmSectorMarkets()), function(sec) {
+            oneS <- feas[as.character(feas$sector) == sec, , drop = FALSE]
+            if (!nrow(oneS)) return(NULL)
+            lamS <- if (!is.null(names(lambda)) && sec %in% names(lambda)) {
+              unname(lambda[[sec]])
+            } else mean(lambda, na.rm = TRUE)
+            out <- tryCatch(projectMildProgressionPrice(
+              oneS[, c("region", "year", "feasibleIndex", "ceilingIndex")],
+              priceSeed = seed, lambda = lamS, seedYear = seedYr),
+              error = function(e) {
+                say(sec, " mild path failed: ", conditionMessage(e)); NULL })
+            if (!is.null(out)) {
+              say(sprintf("%s mild path built (lambda %.4f); median 2050 markup: %s",
+                          sec, lamS, .psmFmtMarkup(mp, out, valueCol = "price")))
+            }
+            out
+          }), names(.psmSectorMarkets())))
+        if (length(mpSector)) {
+          syms[[length(syms) + 1L]] <-
+            .psmCouplingSymMkt2d("p45_pfmMPPriceMkt", mpSector, "price")
         }
       }
     }
@@ -532,19 +554,49 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       say("NOTE: no price bound exported - bind mode 2 would have nothing to cap on")
     }
 
-    # --- the ETS companions (ADR 0042) -------------------------------------------
-    # Written at shapes that ALREADY exist - rank 1 over all_regi, rank 2 over
-    # (ttot, all_regi) with the year first. A rank-3 (ttot, all_regi, all_emiMkt)
-    # symbol was rejected deliberately: defect 4 was a rank/order failure on rank 2,
-    # and a new rank with a new domain set is that same trap one dimension up.
+    # --- the per-market companions (ADR 0042) ------------------------------------
+    # Indexed over all_emiMkt rather than one parameter per market. The ADR originally
+    # rejected the market dimension because defect 4 was a rank/order failure and a new
+    # rank is that trap one dimension up "for no gain" - but the symmetric markup needs
+    # BOTH sectors delivered, so the alternative is eight flat parameters against four
+    # indexed ones and the gain is now real. The trap is answered by the rank/domain
+    # assertions in .psmVerifyCouplingGdx() and by test-gdxRoundTrip.R.
+    #
     # GAMS decides whether to use these (cm_pfmSectorMarkup); with the switch off they
     # are inert, so exporting them unconditionally cannot change an existing run.
-    syms[[length(syms) + 1L]] <- .psmCouplingSym1d("p45_pfmPhiETS", phiETS)
-    if (!is.null(bndETS) && all(c("region", "year", "priceBound") %in% names(bndETS))) {
-      syms[[length(syms) + 1L]] <-
-        .psmCouplingSym2d("p45_pfmPriceBoundETS", bndETS, "priceBound")
-      say(sprintf("ETS price bound exported; median 2050 markup over the floor: %s",
-                  .psmFmtMarkup(bnd, bndETS)))
+    syms[[length(syms) + 1L]] <- .psmCouplingSymMkt1d("p45_pfmPhiMkt", phiSector)
+    # Each sector's own closure rate. Modes 2 and 3 carry it inside the price paths they
+    # receive from here; mode 1 rebuilds its path in GAMS from phi and a rate, and
+    # without this symbol it falls back to p45_regiDiff_lambda - which, having come
+    # through sectorRule = "min", is the SLOWER sector's speed. Bulk 0.1023/yr vs
+    # Diffuse 0.0770/yr, so the faster market would close on the anchor about a third
+    # too slowly. Broadcast over the same regions as phi: lambda is estimated per
+    # SECTOR, not per region, exactly as exportFeasibilityRegiDiff() broadcasts the
+    # economy-wide rate. A zero is GAMS's "not supplied" default there, so a non-finite
+    # or absent sector speed is written as 0 and GAMS keeps the floor rate.
+    lamSector <- stats::setNames(lapply(names(phiSector), function(sec) {
+      l <- if (!is.null(names(lambda)) && sec %in% names(lambda)) {
+        unname(lambda[[sec]])
+      } else suppressWarnings(mean(lambda, na.rm = TRUE))
+      if (!is.finite(l) || l < 0) l <- 0
+      stats::setNames(rep(l, length(phiSector[[sec]])), names(phiSector[[sec]]))
+    }), names(phiSector))
+    syms[[length(syms) + 1L]] <- .psmCouplingSymMkt1d("p45_pfmLambdaMkt", lamSector)
+    say(sprintf("lambda per sector exported: %s",
+                paste(sprintf("%s %.4f", names(lamSector),
+                              vapply(lamSector, function(x) x[[1]], numeric(1))),
+                      collapse = " | ")))
+    if (!is.null(bndSector) && length(bndSector)) {
+      ok <- vapply(bndSector, function(d)
+        all(c("region", "year", "priceBound") %in% names(d)), logical(1))
+      if (any(ok)) {
+        syms[[length(syms) + 1L]] <-
+          .psmCouplingSymMkt2d("p45_pfmPriceBoundMkt", bndSector[ok], "priceBound")
+        for (sec in names(bndSector)[ok]) {
+          say(sprintf("%s price bound exported; median 2050 markup over the floor: %s",
+                      sec, .psmFmtMarkup(bnd, bndSector[[sec]])))
+        }
+      }
     }
     .psmWriteCouplingGdx(outputFile, syms)
     say("wrote ", outputFile, " in ",
@@ -703,6 +755,78 @@ iterativePFM <- function(gdx = "fulldata.gdx",
                             all_regi = as.character(df[[regionCol]]),
                             value = as.numeric(df[[valueCol]]),
                             stringsAsFactors = FALSE))
+}
+
+#' The PFM sector to REMIND emission-market map (ADR 0042)
+#'
+#' The single place this mapping is written down. Bulk is the ETS sector (electricity +
+#' industry); Diffuse covers effort sharing and everything not otherwise assigned.
+#' \code{"other"} follows \code{"ES"} deliberately - it is REMIND's own convention
+#' (\code{47_regipol/regiCarbonPrice/postsolve.gms:409} does \code{other = ES}) and it
+#' matches the mapping ADR 0042 states, "ETS ~ Bulk, ES + other ~ Diffuse".
+#'
+#' @keywords internal
+#' @rdname psmCouplingGdx
+.psmSectorMarkets <- function() {
+  list(Bulk = "ETS", Diffuse = c("ES", "other"))
+}
+
+#' Region x market (rank 2) and year x region x market (rank 3) symbols
+#'
+#' The market dimension is a real set rather than one parameter per market: the
+#' symmetric markup needs BOTH sectors delivered, which would otherwise be eight flat
+#' parameters. ADR 0042 originally rejected the extra rank because defect 4 was a
+#' rank/order failure; the answer is the rank/domain assertion in
+#' \code{.psmVerifyCouplingGdx()} plus \code{test-gdxRoundTrip.R}, not avoiding the rank.
+#'
+#' \code{bySector} is a named list of per-sector values, fanned out to that sector's
+#' markets via \code{.psmSectorMarkets()}.
+#'
+#' @keywords internal
+#' @rdname psmCouplingGdx
+.psmCouplingSymMkt1d <- function(name, bySector) {
+  map <- .psmSectorMarkets()
+  rows <- do.call(rbind, lapply(names(bySector), function(sec) {
+    v <- bySector[[sec]]
+    u <- names(v)
+    if (is.null(u) || anyNA(u) || !all(nzchar(u))) {
+      stop(".psmCouplingSymMkt1d: '", name, "' sector '", sec,
+           "' needs a fully named vector of regions")
+    }
+    mkts <- map[[sec]]
+    if (is.null(mkts)) stop(".psmCouplingSymMkt1d: no market maps to sector '", sec, "'")
+    do.call(rbind, lapply(mkts, function(mk) {
+      data.frame(all_regi = u, all_emiMkt = mk, value = unname(as.numeric(v)),
+                 stringsAsFactors = FALSE)
+    }))
+  }))
+  # all_regi FIRST, all_emiMkt second - the declared order in declarations.gms.
+  list(name = name, domain = c("all_regi", "all_emiMkt"), records = rows)
+}
+
+#' @keywords internal
+#' @rdname psmCouplingGdx
+.psmCouplingSymMkt2d <- function(name, bySector, valueCol,
+                                 regionCol = "region", yearCol = "year") {
+  map <- .psmSectorMarkets()
+  rows <- do.call(rbind, lapply(names(bySector), function(sec) {
+    df <- bySector[[sec]]
+    yrs <- suppressWarnings(as.integer(df[[yearCol]]))
+    if (anyNA(yrs)) {
+      stop(".psmCouplingSymMkt2d: non-numeric years in '", name, "' sector '", sec, "'")
+    }
+    mkts <- map[[sec]]
+    if (is.null(mkts)) stop(".psmCouplingSymMkt2d: no market maps to sector '", sec, "'")
+    do.call(rbind, lapply(mkts, function(mk) {
+      data.frame(ttot = as.character(yrs),
+                 all_regi = as.character(df[[regionCol]]),
+                 all_emiMkt = mk,
+                 value = as.numeric(df[[valueCol]]),
+                 stringsAsFactors = FALSE)
+    }))
+  }))
+  # ttot, all_regi, all_emiMkt - the declared order, and the order pm_taxemiMkt uses.
+  list(name = name, domain = c("ttot", "all_regi", "all_emiMkt"), records = rows)
 }
 
 #' @keywords internal

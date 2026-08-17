@@ -33,10 +33,20 @@
 #'   it). Used to resolve \code{refGdx}/\code{optGdx} when those are not given.
 #' @param gdxRegionMapping Region mapping matching the gdxs' OWN resolution. Getting
 #'   this wrong mis-assigns every region, silently.
-#' @param thetas Numeric vector of \eqn{\theta} values to sweep. The default
-#'   includes 0.79, the efficiency anchor (ADR 0041).
+#' @param thetas Numeric vector of \eqn{\theta} values to sweep. The default carries
+#'   \strong{both} anchor candidates: \strong{0.74}, the efficiency anchor re-derived on the
+#'   regenerated \code{satAP} frontier for \strong{Diffuse} -- the sector that sets the
+#'   economy-wide floor under ADR 0042 -- and 0.79, the value ADR 0041 derived on the
+#'   pre-\code{satAP} frontier for Bulk and which every batch up to 2026-08-17 was run at.
+#'   0.79 is kept so those runs stay comparable; it is a swept point, \strong{not} "the
+#'   efficiency anchor" any more.
 #' @param anchorTheta The \eqn{\theta} whose per-region detail is reported and stored
-#'   as \code{boundAnchor}.
+#'   as \code{boundAnchor}. Snapped to the nearest swept value.
+#' @param recordAnchorDerivation Derive the efficiency anchor from this run's own
+#'   region-level aggregation with \code{\link{computeEfficiencyAnchor}} and store it as
+#'   \code{anchorDerivation}. On by default: a swept \eqn{\theta} whose provenance is a
+#'   constant in a function signature cannot be re-checked, and this one has already moved
+#'   twice (spec regeneration, then sector).
 #' @param panelData Optional pre-built historical panel.
 #' @param verbose Logical.
 #'
@@ -49,8 +59,9 @@ runPSMCouplingBound <- function(group,
                                 cachefolder = NULL,
                                 refGdx = NULL, optGdx = NULL, scenarios = NULL,
                                 gdxRegionMapping = "regionmapping_21_EU11.csv",
-                                thetas = c(0, 0.25, 0.50, 0.79),
-                                anchorTheta = 0.79,
+                                thetas = c(0, 0.25, 0.50, 0.74, 0.79),
+                                anchorTheta = 0.74,
+                                recordAnchorDerivation = TRUE,
                                 panelData = NULL,
                                 verbose = TRUE) {
   groupDir <- .resolveGroupDir(group, resultsDir, modelDir, cachefolder)
@@ -224,8 +235,31 @@ runPSMCouplingBound <- function(group,
   ancKey <- as.character(thetas[which.min(abs(thetas - anchorTheta))])
   bAnchor <- exportFeasibilityBound(feasByTheta[[ancKey]], pOpt, pRef, lambda = lambda,
                                     sectorRule = "min")
+
+  # Where the anchor comes from, recorded next to the number it justifies. theta does not
+  # enter the gaps, so any swept frame gives the same answer; `base` is used. Derived at
+  # REGION resolution - the level the coupling normalises on - which need not equal the
+  # country-level figure quoted in MODEL.md 5.3.
+  anchorDeriv <- NULL
+  if (isTRUE(recordAnchorDerivation)) {
+    anchorDeriv <- tryCatch(
+      computeEfficiencyAnchor(base, resolution = "region"),
+      error = function(e) { say("anchor derivation failed: ", conditionMessage(e)); NULL })
+    if (!is.null(anchorDeriv) && isTRUE(verbose)) {
+      message("=== efficiency anchor, derived at REGION resolution ===")
+      print(anchorDeriv, row.names = FALSE, digits = 4)
+      bad <- anchorDeriv$sector[!anchorDeriv$inRange %in% TRUE]
+      if (length(bad)) {
+        message("NOTE: no admissible theta reproduces median efficiency for: ",
+                paste(bad, collapse = ", "),
+                " - the gap distribution is too compressed. Report it, do not chase it.")
+      }
+    }
+  }
+
   out <- list(thetaSweep = summ, tiers = tierTab, lambda = lambda,
               boundAnchor = bAnchor, thetas = thetas, anchorTheta = as.numeric(ancKey),
+              anchorDerivation = anchorDeriv,
               refGdx = refGdx, optGdx = optGdx, inCoverageCountries = nCov)
   saveRDS(out, file.path(outDir, "coupling-summary.rds"))
   say("wrote ", outDir, "/{feasibility-bound-theta*.csv, coupling-summary.rds}")

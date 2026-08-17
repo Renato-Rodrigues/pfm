@@ -13,8 +13,9 @@ runPSMCouplingBound(
   optGdx = NULL,
   scenarios = NULL,
   gdxRegionMapping = "regionmapping_21_EU11.csv",
-  thetas = c(0, 0.25, 0.5, 0.79),
-  anchorTheta = 0.79,
+  thetas = c(0, 0.25, 0.5, 0.74, 0.79),
+  anchorTheta = 0.74,
+  recordAnchorDerivation = TRUE,
   panelData = NULL,
   verbose = TRUE
 )
@@ -34,11 +35,22 @@ it). Used to resolve \code{refGdx}/\code{optGdx} when those are not given.}
 \item{gdxRegionMapping}{Region mapping matching the gdxs' OWN resolution. Getting
 this wrong mis-assigns every region, silently.}
 
-\item{thetas}{Numeric vector of \eqn{\theta} values to sweep. The default
-includes 0.79, the efficiency anchor (ADR 0041).}
+\item{thetas}{Numeric vector of \eqn{\theta} values to sweep. The default carries
+\strong{both} anchor candidates: \strong{0.74}, the efficiency anchor re-derived on the
+regenerated \code{satAP} frontier for \strong{Diffuse} -- the sector that sets the
+economy-wide floor under ADR 0042 -- and 0.79, the value ADR 0041 derived on the
+pre-\code{satAP} frontier for Bulk and which every batch up to 2026-08-17 was run at.
+0.79 is kept so those runs stay comparable; it is a swept point, \strong{not} "the
+efficiency anchor" any more.}
 
 \item{anchorTheta}{The \eqn{\theta} whose per-region detail is reported and stored
-as \code{boundAnchor}.}
+as \code{boundAnchor}. Snapped to the nearest swept value.}
+
+\item{recordAnchorDerivation}{Derive the efficiency anchor from this run's own
+region-level aggregation with \code{\link{computeEfficiencyAnchor}} and store it as
+\code{anchorDerivation}. On by default: a swept \eqn{\theta} whose provenance is a
+constant in a function signature cannot be re-checked, and this one has already moved
+twice (spec regeneration, then sector).}
 
 \item{panelData}{Optional pre-built historical panel.}
 

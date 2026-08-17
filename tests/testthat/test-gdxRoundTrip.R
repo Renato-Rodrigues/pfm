@@ -4,10 +4,20 @@
 # "the numbers are right" - it is the index structure REMIND declares in
 # 45_carbonprice/functionalForm/declarations.gms:
 #
-#   p45_regiDiff_phi(all_regi)         rank 1
-#   p45_pfmDelta_aux(all_regi)         rank 1
-#   p45_pfmPriceBound(ttot,all_regi)   rank 2, ttot FIRST
-#   p45_pfmMPPrice(ttot,all_regi)      rank 2, ttot FIRST
+#   p45_regiDiff_phi(all_regi)                     rank 1
+#   p45_pfmDelta_aux(all_regi)                     rank 1
+#   p45_pfmPriceBound(ttot,all_regi)               rank 2, ttot FIRST
+#   p45_pfmMPPrice(ttot,all_regi)                  rank 2, ttot FIRST
+#   p45_pfmPhiMkt(all_regi,all_emiMkt)             rank 2, all_regi FIRST
+#   p45_pfmLambdaMkt(all_regi,all_emiMkt)          rank 2, all_regi FIRST
+#   p45_pfmPriceBoundMkt(ttot,all_regi,all_emiMkt) rank 3
+#   p45_pfmMPPriceMkt(ttot,all_regi,all_emiMkt)    rank 3
+#
+# The rank-3 symbols are ADR 0042's market dimension, added 2026-08-17 when the markup
+# became symmetric. The ADR originally rejected the extra rank as "that trap one
+# dimension up"; these tests are the reason it is now safe to carry. Note the two rank-2
+# families have OPPOSITE leading indices - (ttot, all_regi) versus (all_regi, all_emiMkt)
+# - which is exactly the confusion the order defect was made of, so both are pinned.
 #
 # Getting the VALUES right and the SHAPE wrong is the dangerous case, and both variants
 # have shipped. Wrong rank: Execute_Loadpoint reports "Dimensions do not match", loads
@@ -232,10 +242,165 @@ test_that("the post-write check catches a wrong rank", {
     "rank 2 but REMIND declares rank 1")
 })
 
+# --- the market dimension (ADR 0042, symmetric markup) ------------------------
+
+mkPhiSector <- function() {
+  list(Bulk    = c(EUR = 0.80, USA = 0.60),
+       Diffuse = c(EUR = 0.50, USA = 0.95))
+}
+mkBndSector <- function() {
+  d <- function(v) data.frame(region = c("EUR", "EUR", "USA", "USA"),
+                              year = c(2030, 2050, 2030, 2050),
+                              priceBound = v, stringsAsFactors = FALSE)
+  list(Bulk = d(c(10, 20, 30, 40)), Diffuse = d(c(11, 21, 31, 41)))
+}
+
+test_that("the sector-to-market map covers every market exactly once", {
+  # If a market were missing, GAMS would leave it at the datainput default and that
+  # market would silently keep the floor. If one appeared twice, the last sector written
+  # would win and the fan-out would be order-dependent.
+  m <- pfm:::.psmSectorMarkets()
+  expect_setequal(unlist(m, use.names = FALSE), c("ETS", "ES", "other"))
+  expect_identical(anyDuplicated(unlist(m, use.names = FALSE)), 0L)
+  expect_identical(m$Bulk, "ETS")
+  expect_true(all(c("ES", "other") %in% m$Diffuse))
+})
+
+test_that("phi per market is rank 2, indexed (all_regi, all_emiMkt)", {
+  skip_if_no_gt()
+  f <- withr::local_tempfile(fileext = ".gdx")
+  writeSyms(f, pfm:::.psmCouplingSymMkt1d("p45_pfmPhiMkt", mkPhiSector()))
+  i <- symInfo(f, "p45_pfmPhiMkt")
+  expect_identical(i$dim, 2L)
+  expect_identical(i$domains, c("all_regi", "all_emiMkt"))
+  expect_identical(i$domainType, "regular")
+  expect_identical(i$n, 6L)            # 2 regions x 3 markets
+})
+
+test_that("Diffuse fans out to BOTH ES and other, with the same value", {
+  skip_if_no_gt()
+  # "other = ES" is the decision recorded in .psmSectorMarkets(): REMIND's own
+  # convention (47_regipol postsolve) and ADR 0042's stated mapping. Before the
+  # symmetric markup, "other" silently kept the floor.
+  f <- withr::local_tempfile(fileext = ".gdx")
+  writeSyms(f, pfm:::.psmCouplingSymMkt1d("p45_pfmPhiMkt", mkPhiSector()))
+  got <- cells(symInfo(f, "p45_pfmPhiMkt"))
+  expect_equal(unname(got[["EUR ETS"]]), 0.80)
+  expect_equal(unname(got[["EUR ES"]]), 0.50)
+  expect_equal(unname(got[["EUR other"]]), 0.50)
+  expect_equal(unname(got[["USA ETS"]]), 0.60)
+  expect_equal(unname(got[["USA ES"]]), 0.95)
+  expect_equal(unname(got[["USA other"]]), 0.95)
+})
+
+test_that("the per-market bound is rank 3, indexed (ttot, all_regi, all_emiMkt)", {
+  skip_if_no_gt()
+  f <- withr::local_tempfile(fileext = ".gdx")
+  writeSyms(f, pfm:::.psmCouplingSymMkt2d("p45_pfmPriceBoundMkt", mkBndSector(),
+                                          "priceBound"))
+  i <- symInfo(f, "p45_pfmPriceBoundMkt")
+  expect_identical(i$dim, 3L)
+  expect_identical(i$domains, c("ttot", "all_regi", "all_emiMkt"))
+  expect_identical(i$domainType, "regular")
+  expect_identical(i$n, 12L)           # 2 years x 2 regions x 3 markets
+})
+
+test_that("rank-3 values land on the right year-region-market cell", {
+  skip_if_no_gt()
+  f <- withr::local_tempfile(fileext = ".gdx")
+  writeSyms(f, pfm:::.psmCouplingSymMkt2d("p45_pfmPriceBoundMkt", mkBndSector(),
+                                          "priceBound"))
+  got <- cells(symInfo(f, "p45_pfmPriceBoundMkt"))
+  expect_equal(unname(got[["2030 EUR ETS"]]), 10)   # Bulk
+  expect_equal(unname(got[["2050 USA ETS"]]), 40)   # Bulk
+  expect_equal(unname(got[["2030 EUR ES"]]), 11)    # Diffuse
+  expect_equal(unname(got[["2050 USA other"]]), 41) # Diffuse, fanned out
+})
+
+test_that("rank-3 year labels stay bare and sort numerically", {
+  skip_if_no_gt()
+  f <- withr::local_tempfile(fileext = ".gdx")
+  b <- list(Bulk = data.frame(region = "EUR", year = c(2100, 2030, 2150),
+                              priceBound = c(2, 1, 3), stringsAsFactors = FALSE))
+  writeSyms(f, pfm:::.psmCouplingSymMkt2d("p45_pfmPriceBoundMkt", b, "priceBound"))
+  u <- unique(as.character(symInfo(f, "p45_pfmPriceBoundMkt")$records$ttot))
+  expect_true(all(grepl("^[0-9]{4}$", u)))
+  m <- gamstransfer::Container$new(f)
+  expect_identical(as.character(m$getSymbols("ttot")[[1]]$records[[1]]),
+                   c("2030", "2100", "2150"))
+})
+
+test_that("the post-write check catches a transposed rank-3 symbol", {
+  skip_if_no_gt()
+  # The order defect, one dimension up: correct rank, no GAMS error, all zeros on load.
+  f <- withr::local_tempfile(fileext = ".gdx")
+  m <- gamstransfer::Container$new()
+  sr <- m$addSet("all_regi", records = "EUR")
+  st <- m$addSet("ttot", records = "2030")
+  sm <- m$addSet("all_emiMkt", records = "ETS")
+  m$addParameter("p45_pfmPriceBoundMkt", domain = list(sr, st, sm),   # ttot NOT first
+                 records = data.frame(all_regi = "EUR", ttot = "2030",
+                                      all_emiMkt = "ETS", value = 1,
+                                      stringsAsFactors = FALSE))
+  m$write(f)
+  expect_error(
+    pfm:::.psmVerifyCouplingGdx(f, list(pfm:::.psmCouplingSymMkt2d(
+      "p45_pfmPriceBoundMkt", mkBndSector(), "priceBound"))),
+    "indexed \\(all_regi, ttot, all_emiMkt\\)")
+})
+
+test_that("all coupling symbols coexist at their declared ranks", {
+  skip_if_no_gt()
+  f <- withr::local_tempfile(fileext = ".gdx")
+  d <- mkBound(); names(d)[names(d) == "priceBound"] <- "price"
+  mp <- lapply(mkBndSector(), function(x) {
+    names(x)[names(x) == "priceBound"] <- "price"; x })
+  writeSyms(f,
+            mkPhi(c("EUR", "USA"), c(0.7, 0.45)),
+            pfm:::.psmCouplingSym1d("p45_pfmDelta", c(EUR = 0.004, USA = 0.004)),
+            pfm:::.psmCouplingSym2d("p45_pfmPriceBound", mkBound(), "priceBound"),
+            pfm:::.psmCouplingSym2d("p45_pfmMPPrice", d, "price"),
+            pfm:::.psmCouplingSymMkt1d("p45_pfmPhiMkt", mkPhiSector()),
+            pfm:::.psmCouplingSymMkt1d("p45_pfmLambdaMkt", mkPhiSector()),
+            pfm:::.psmCouplingSymMkt2d("p45_pfmPriceBoundMkt", mkBndSector(),
+                                       "priceBound"),
+            pfm:::.psmCouplingSymMkt2d("p45_pfmMPPriceMkt", mp, "price"))
+  expect_identical(symInfo(f, "p45_regiDiff_phi")$dim, 1L)
+  expect_identical(symInfo(f, "p45_pfmPriceBound")$domains, c("ttot", "all_regi"))
+  expect_identical(symInfo(f, "p45_pfmPhiMkt")$domains, c("all_regi", "all_emiMkt"))
+  expect_identical(symInfo(f, "p45_pfmLambdaMkt")$domains, c("all_regi", "all_emiMkt"))
+  expect_identical(symInfo(f, "p45_pfmPriceBoundMkt")$domains,
+                   c("ttot", "all_regi", "all_emiMkt"))
+  expect_identical(symInfo(f, "p45_pfmMPPriceMkt")$domains,
+                   c("ttot", "all_regi", "all_emiMkt"))
+})
+
 # --- guards -------------------------------------------------------------------
 
 test_that("an unnamed phi vector is refused rather than written as junk", {
   expect_error(pfm:::.psmCouplingSym1d("p45_regiDiff_phi", c(0.1, 0.2)), "fully named")
+})
+
+test_that("the market helpers refuse unnamed vectors and bad years", {
+  expect_error(
+    pfm:::.psmCouplingSymMkt1d("p45_pfmPhiMkt", list(Bulk = c(0.1, 0.2))),
+    "fully named")
+  expect_error(
+    pfm:::.psmCouplingSymMkt2d("p45_pfmPriceBoundMkt",
+                               list(Bulk = data.frame(region = "EUR",
+                                                      year = "not-a-year",
+                                                      priceBound = 1,
+                                                      stringsAsFactors = FALSE)),
+                               "priceBound"),
+    "non-numeric years")
+})
+
+test_that("a sector with no market mapping is refused, not silently dropped", {
+  # A typo'd or renamed sector must not vanish from the gdx leaving that market on the
+  # floor - that is the failure the symmetric markup exists to remove.
+  expect_error(
+    pfm:::.psmCouplingSymMkt1d("p45_pfmPhiMkt", list(Nonsense = c(EUR = 0.5))),
+    "no market maps to sector")
 })
 
 test_that("non-numeric years are refused", {

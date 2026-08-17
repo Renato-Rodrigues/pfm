@@ -3,14 +3,29 @@
 \name{.psmCouplingSym1d}
 \alias{.psmCouplingSym1d}
 \alias{.psmCouplingSym2d}
+\alias{.psmSectorMarkets}
+\alias{.psmCouplingSymMkt1d}
+\alias{.psmCouplingSymMkt2d}
 \alias{.psmCouplingUels}
 \alias{.psmWriteCouplingGdx}
 \alias{.psmVerifyCouplingGdx}
-\title{Build the coupling gdx exactly as REMIND declares it}
+\title{The PFM sector to REMIND emission-market map (ADR 0042)}
 \usage{
 .psmCouplingSym1d(name, v)
 
 .psmCouplingSym2d(name, df, valueCol, regionCol = "region", yearCol = "year")
+
+.psmSectorMarkets()
+
+.psmCouplingSymMkt1d(name, bySector)
+
+.psmCouplingSymMkt2d(
+  name,
+  bySector,
+  valueCol,
+  regionCol = "region",
+  yearCol = "year"
+)
 
 .psmCouplingUels(name, v)
 
@@ -19,43 +34,25 @@
 .psmVerifyCouplingGdx(file, syms)
 }
 \arguments{
-\item{name}{GAMS symbol name; must match what presolve.gms loads.}
-
-\item{v}{Named numeric vector over regions (1-dimensional symbols).}
-
-\item{df}{Long data.frame with \code{region}, \code{year} and a value column.}
-
-\item{valueCol}{Name of the value column in \code{df}.}
-
-\item{regionCol, yearCol}{Names of the index columns in \code{df}.}
-
 \item{file}{The gdx just written.}
 
 \item{syms}{The symbol descriptions it was built from.}
-
-\item{verbose}{Logical; report the symbols written.}
 }
 \value{
-The symbol description; \code{.psmWriteCouplingGdx} returns \code{file}.
-
 \code{TRUE} invisibly, or an error naming the symbol and what is wrong.
 }
 \description{
-The symbols REMIND loads are declared in
-\code{45_carbonprice/functionalForm/declarations.gms} as
-\code{p45_regiDiff_phi(all_regi)}, \code{p45_pfmDelta_aux(all_regi)},
-\code{p45_pfmPriceBound(ttot,all_regi)} and \code{p45_pfmMPPrice(ttot,all_regi)}.
-Both the RANK and the index ORDER are part of that contract, and both have been got
-wrong here before:
-\itemize{
-\item Wrong rank - \code{Execute_Loadpoint} reports
-\code{**** GDX ERROR - Dimensions do not match}, loads NOTHING, leaves phi at
-its previous value (1, i.e. uncoupled) and defers the execution error to the
-next solve, hours later, as an unrelated infeasibility.
-\item Wrong order - a region-first symbol has the correct rank, raises
-\strong{no error at all}, and loads as \code{( ALL 0.000 )}. Worse than the
-rank mismatch, because nothing anywhere reports it.
-}
+The single place this mapping is written down. Bulk is the ETS sector (electricity +
+industry); Diffuse covers effort sharing and everything not otherwise assigned.
+\code{"other"} follows \code{"ES"} deliberately - it is REMIND's own convention
+(\code{47_regipol/regiCarbonPrice/postsolve.gms:409} does \code{other = ES}) and it
+matches the mapping ADR 0042 states, "ETS ~ Bulk, ES + other ~ Diffuse".
+
+The market dimension is a real set rather than one parameter per market: the
+symmetric markup needs BOTH sectors delivered, which would otherwise be eight flat
+parameters. ADR 0042 originally rejected the extra rank because defect 4 was a
+rank/order failure; the answer is the rank/domain assertion in
+\code{.psmVerifyCouplingGdx()} plus \code{test-gdxRoundTrip.R}, not avoiding the rank.
 
 Cheap (milliseconds) and worth it, because every defect this guards against is
 SILENT in production: the run either dies hours later citing something unrelated, or
@@ -64,17 +61,8 @@ the FILE rather than the objects that produced it is the point - it is the file 
 reads.
 }
 \details{
-\strong{Written with GAMS Transfer}, which is the reason the contract is now
-enforceable rather than merely documented: the domain SETS go into the gdx as real
-GAMS sets, so records that do not belong to the declared domain are refused at write
-time with "Domain violation". The predecessor (\code{gdxrrw::wgdx.lst}) has no domain
-concept and writes whatever index matrix it is handed, which is exactly how the
-order defect reached a cluster run. \code{magclass} cannot express these symbols at
-all: a magpie is inherently three-dimensional (region, year, data), so it produced
-rank 2 for phi and rank 3 for the bound.
-
-Year labels are bare (\code{"2030"}), matching the \code{ttot} set elements -
-\strong{not} magclass's \code{"y2030"}, which would drop every record on load.
+\code{bySector} is a named list of per-sector values, fanned out to that sector's
+markets via \code{.psmSectorMarkets()}.
 }
 \author{
 Renato Rodrigues

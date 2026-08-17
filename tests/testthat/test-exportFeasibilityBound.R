@@ -172,3 +172,102 @@ test_that("the reported tier matches the selected phi, and stays NA when uncoupl
   expect_true(all(is.na(b2$tier)))
   expect_false(any(is.infinite(b2$tier)))
 })
+
+# --- the symmetric markup invariant (ADR 0042, 2026-08-17) --------------------
+#
+# The per-market markup is max(P_sector - P_floor, 0) on the GAMS side, with the floor
+# from sectorRule = "min". Two things have to hold for that to be a faithful delivery of
+# both sectors rather than a cap on one of them.
+
+test_that("every per-sector bound sits at or above the min floor", {
+  # If a sector bound could fall BELOW the floor, GAMS would clamp its markup to zero
+  # and that sector would silently be delivered at the other sector's price - the exact
+  # information loss the symmetric markup removes.
+  f <- feasFix(theta = 0.5)
+  args <- list(f, pricePath(100, 1.4), pricePath(10),
+               lambda = c(Bulk = 0.10, Diffuse = 0.08))
+  floorB <- do.call(exportFeasibilityBound, c(args, list(sectorRule = "min")))
+  key <- function(d) paste(d$region, d$year)
+  for (sec in c("Bulk", "Diffuse")) {
+    s <- do.call(exportFeasibilityBound, c(args, list(sectorRule = sec)))
+    m <- merge(floorB[, c("region", "year", "priceBound")],
+               s[, c("region", "year", "priceBound")],
+               by = c("region", "year"), suffixes = c(".floor", ".sec"))
+    expect_true(all(m$priceBound.sec >= m$priceBound.floor - 1e-8),
+                info = paste(sec, "bound dipped below the min floor"))
+  }
+})
+
+test_that("floor + markup reproduces each sector's own price exactly", {
+  # THE invariant the whole design rests on. Whatever the floor is, the markup is
+  # defined as the difference, so each market ends up at its own sector's price and
+  # neither sector is capped by the other. This is what makes min() arithmetic rather
+  # than a modelling step that discards a sector.
+  f <- feasFix(theta = 0.5)
+  args <- list(f, pricePath(100, 1.4), pricePath(10),
+               lambda = c(Bulk = 0.10, Diffuse = 0.08))
+  fl <- do.call(exportFeasibilityBound, c(args, list(sectorRule = "min")))
+  bk <- do.call(exportFeasibilityBound, c(args, list(sectorRule = "Bulk")))
+  df <- do.call(exportFeasibilityBound, c(args, list(sectorRule = "Diffuse")))
+  m <- Reduce(function(a, b) merge(a, b, by = c("region", "year")),
+              list(setNames(fl[, c("region", "year", "priceBound")],
+                            c("region", "year", "floor")),
+                   setNames(bk[, c("region", "year", "priceBound")],
+                            c("region", "year", "bulk")),
+                   setNames(df[, c("region", "year", "priceBound")],
+                            c("region", "year", "diffuse"))))
+  mkUpB <- pmax(m$bulk - m$floor, 0)
+  mkUpD <- pmax(m$diffuse - m$floor, 0)
+  expect_true(all(mkUpB >= 0) && all(mkUpD >= 0))       # never a subsidy
+  expect_equal(m$floor + mkUpB, m$bulk, tolerance = 1e-8)
+  expect_equal(m$floor + mkUpD, m$diffuse, tolerance = 1e-8)
+})
+
+test_that("the min floor can sit BELOW both sector prices - it mixes phi and lambda", {
+  # Documented, not accidental, and easy to get wrong when reasoning about the markup.
+  # sectorRule = "min" takes the worse SHARE *and* the slower SPEED (pinned by the
+  # "takes the worse share and the slower speed" test above), and those can come from
+  # DIFFERENT sectors. The floor is then the most-constrained combination, belonging to
+  # neither sector, and strictly below both - so BOTH markups can be positive at once.
+  #
+  # Consequences worth remembering:
+  #  - "exactly one markup is positive" is FALSE; only non-negativity is guaranteed.
+  #  - pm_taxCO2eq is then a price no market actually faces, and everything reading
+  #    pm_taxCO2eqSum (MAC curves, land-use tax, trade tariffs, net-negative penalty)
+  #    sees it. That is the conservative direction, but it is a real distortion.
+  f <- feasFix(theta = 0.5)
+  args <- list(f, pricePath(100, 1.4), pricePath(10),
+               lambda = c(Bulk = 0.10, Diffuse = 0.08))
+  fl <- do.call(exportFeasibilityBound, c(args, list(sectorRule = "min")))
+  bk <- do.call(exportFeasibilityBound, c(args, list(sectorRule = "Bulk")))
+  df <- do.call(exportFeasibilityBound, c(args, list(sectorRule = "Diffuse")))
+  # the floor takes the SLOWER speed, which here is Diffuse's
+  expect_equal(unique(fl$lambda), 0.08)
+  expect_equal(unique(bk$lambda), 0.10)
+  m <- Reduce(function(a, b) merge(a, b, by = c("region", "year")),
+              list(setNames(fl[, c("region", "year", "priceBound")],
+                            c("region", "year", "floor")),
+                   setNames(bk[, c("region", "year", "priceBound")],
+                            c("region", "year", "bulk")),
+                   setNames(df[, c("region", "year", "priceBound")],
+                            c("region", "year", "diffuse"))))
+  # never above either sector, so no markup is ever negative ...
+  expect_true(all(m$floor <= pmin(m$bulk, m$diffuse) + 1e-8))
+  # ... but strictly below both somewhere, so both markups are positive there
+  expect_gt(sum(m$floor < pmin(m$bulk, m$diffuse) - 1e-8), 0)
+})
+
+test_that("the Diffuse markup is non-zero somewhere when Bulk is the worse sector", {
+  # The fixture makes Diffuse LESS constrained, so Bulk is the floor and the Diffuse
+  # markup must carry the difference. Under the pre-2026-08-17 asymmetric code this was
+  # structurally zero - the bug this test exists to prevent recurring.
+  f <- feasFix(theta = 0.5)
+  args <- list(f, pricePath(100, 1.4), pricePath(10),
+               lambda = c(Bulk = 0.10, Diffuse = 0.08))
+  fl <- do.call(exportFeasibilityBound, c(args, list(sectorRule = "min")))
+  df <- do.call(exportFeasibilityBound, c(args, list(sectorRule = "Diffuse")))
+  m <- merge(fl[, c("region", "year", "priceBound")],
+             df[, c("region", "year", "priceBound")],
+             by = c("region", "year"), suffixes = c(".floor", ".diffuse"))
+  expect_gt(max(m$priceBound.diffuse - m$priceBound.floor), 0)
+})
