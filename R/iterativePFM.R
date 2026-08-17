@@ -332,6 +332,33 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     say(sprintf("phi over %d regions: median %.3f, min %.3f, uncoupled (phi=1) %d",
                 length(phi), stats::median(phi), min(phi), sum(phi >= 1 - 1e-12)))
 
+    # 3b. The Bulk share on its own, for the ETS markup (ADR 0042). REMIND prices ETS
+    #     and ES separately through pm_taxemiMkt, and ETS ~ Bulk (electricity +
+    #     industry), ES + other ~ Diffuse. Delivering min() alone throws away the Bulk
+    #     estimate in the 94% of countries where Diffuse is the binding sector, and
+    #     min() of two noisy estimates is biased low - in the direction that INFLATES
+    #     the paper's headline. So the collapsed share above stays the economy-wide
+    #     floor and this one carries the increment ETS can bear on top.
+    #     Exported unconditionally: GAMS decides whether to use it (cm_pfmSectorMarkup),
+    #     and a symbol that is present but ignored costs nothing.
+    phiETS <- phi
+    if ("sector" %in% names(feas)) {
+      b <- feas[as.character(feas$sector) == "Bulk", , drop = FALSE]
+      if (nrow(b)) {
+        v <- vapply(split(b$phi, as.character(b$region)), function(x) {
+          x <- x[is.finite(x)]
+          if (!length(x)) NA_real_ else min(x)
+        }, numeric(1))
+        v <- pmin(pmax(v, 0), 1)
+        common <- intersect(names(phiETS), names(v))
+        # Never below the floor: the markup is max(ETS - floor, 0) on the GAMS side and
+        # a Bulk share under the floor would otherwise just be silently clipped there.
+        phiETS[common] <- pmax(v[common], phi[common])
+      }
+    }
+    say(sprintf("phi(ETS/Bulk): median %.3f, above the floor in %d of %d regions",
+                stats::median(phiETS), sum(phiETS > phi + 1e-12), length(phi)))
+
     # 4. Convergence. The loop is a fixed point in phi: REMIND's energy system moves
     #    the ambition gaps, which move phi, which moves the price, which moves the
     #    energy system. It has converged when a further PFM call stops changing phi.
@@ -402,14 +429,32 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     # under bind mode 2 that would cap every price at zero, so mode 2 refuses to
     # continue rather than producing a silently wrong run.
     bnd <- NULL
+    bndETS <- NULL
     if (!is.null(refGdx)) {
-      bnd <- tryCatch({
+      prices <- tryCatch({
         TCO2 <- 1000 / (44 / 12)
         pR <- gdx::readGDX(refGdx, "pm_taxCO2eq") * TCO2
-        pO <- .psmCouplingOptimalPath(gdx, pR, TCO2, say)
-        exportFeasibilityBound(feas, priceOptimal = pO, priceReference = pR,
-                               lambda = lambda, sectorRule = "min", file = NULL)
-      }, error = function(e) { say("price bound failed: ", conditionMessage(e)); NULL })
+        list(pR = pR, pO = .psmCouplingOptimalPath(gdx, pR, TCO2, say))
+      }, error = function(e) { say("price paths failed: ", conditionMessage(e)); NULL })
+
+      if (!is.null(prices)) {
+        # The economy-wide floor: the worse sector, as before.
+        bnd <- tryCatch(
+          exportFeasibilityBound(feas, priceOptimal = prices$pO,
+                                 priceReference = prices$pR, lambda = lambda,
+                                 sectorRule = "min", file = NULL),
+          error = function(e) { say("price bound failed: ", conditionMessage(e)); NULL })
+        # The Bulk-only bound, for the ETS markup (ADR 0042). Same inputs and the same
+        # speed-limit machinery - only the sector reconciliation differs - so the two
+        # are directly comparable and their difference IS the markup. Its failure is
+        # not fatal: without it GAMS simply falls back to the floor everywhere, which
+        # is the pre-ADR-0042 behaviour.
+        bndETS <- tryCatch(
+          exportFeasibilityBound(feas, priceOptimal = prices$pO,
+                                 priceReference = prices$pR, lambda = lambda,
+                                 sectorRule = "Bulk", file = NULL),
+          error = function(e) { say("ETS bound failed: ", conditionMessage(e)); NULL })
+      }
     }
     # --- bind mode 3: the mild-progression price path (Elmar variant) ------------
     # Generated bottom-up from the political gap rather than constraining the
@@ -447,6 +492,30 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       say(sprintf("mild progression: seed %d, %d regions, capped share %.2f",
                   seedYr, length(unique(mp$region)), cs))
       syms[[length(syms) + 1L]] <- .psmCouplingSym2d("p45_pfmMPPrice", mp, "price")
+
+      # The Bulk-only path, for the ETS markup (ADR 0042). Same seed and the same
+      # recursion; only the sector selected differs. lambda is Bulk's own speed limit
+      # where one was supplied per sector - Bulk moves faster (0.1023 vs 0.0757/yr),
+      # and using the pooled mean here would understate exactly the headroom the
+      # markup is meant to express.
+      if ("sector" %in% names(feas)) {
+        oneB <- feas[as.character(feas$sector) == "Bulk", , drop = FALSE]
+        lamB <- if (!is.null(names(lambda)) && "Bulk" %in% names(lambda)) {
+          unname(lambda[["Bulk"]])
+        } else mean(lambda, na.rm = TRUE)
+        if (nrow(oneB)) {
+          mpETS <- tryCatch(projectMildProgressionPrice(
+            oneB[, c("region", "year", "feasibleIndex", "ceilingIndex")],
+            priceSeed = seed, lambda = lamB, seedYear = seedYr),
+            error = function(e) { say("ETS mild path failed: ", conditionMessage(e)); NULL })
+          if (!is.null(mpETS)) {
+            syms[[length(syms) + 1L]] <-
+              .psmCouplingSym2d("p45_pfmMPPriceETS", mpETS, "price")
+            say(sprintf("ETS mild path exported (lambda %.4f); median 2050 markup: %s",
+                        lamB, .psmFmtMarkup(mp, mpETS, valueCol = "price")))
+          }
+        }
+      }
     }
 
     if (identical(bindMode, 2L) && is.null(bnd)) {
@@ -461,6 +530,21 @@ iterativePFM <- function(gdx = "fulldata.gdx",
                   length(unique(bnd$region)), length(unique(bnd$year))))
     } else {
       say("NOTE: no price bound exported - bind mode 2 would have nothing to cap on")
+    }
+
+    # --- the ETS companions (ADR 0042) -------------------------------------------
+    # Written at shapes that ALREADY exist - rank 1 over all_regi, rank 2 over
+    # (ttot, all_regi) with the year first. A rank-3 (ttot, all_regi, all_emiMkt)
+    # symbol was rejected deliberately: defect 4 was a rank/order failure on rank 2,
+    # and a new rank with a new domain set is that same trap one dimension up.
+    # GAMS decides whether to use these (cm_pfmSectorMarkup); with the switch off they
+    # are inert, so exporting them unconditionally cannot change an existing run.
+    syms[[length(syms) + 1L]] <- .psmCouplingSym1d("p45_pfmPhiETS", phiETS)
+    if (!is.null(bndETS) && all(c("region", "year", "priceBound") %in% names(bndETS))) {
+      syms[[length(syms) + 1L]] <-
+        .psmCouplingSym2d("p45_pfmPriceBoundETS", bndETS, "priceBound")
+      say(sprintf("ETS price bound exported; median 2050 markup over the floor: %s",
+                  .psmFmtMarkup(bnd, bndETS)))
     }
     .psmWriteCouplingGdx(outputFile, syms)
     say("wrote ", outputFile, " in ",
@@ -522,6 +606,30 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 #' @param syms List of symbol descriptions built by these helpers.
 #' @param verbose Logical; report the symbols written.
 #' @return The symbol description; \code{.psmWriteCouplingGdx} returns \code{file}.
+#' Median 2050 markup of the ETS path over the economy-wide floor, for the log.
+#'
+#' Purely diagnostic: it is the one number that says at a glance whether the sector
+#' split is doing anything this iteration. A markup of zero everywhere means Bulk is
+#' never the easier sector, which would make ADR 0042 inert and is worth seeing.
+#'
+#' @param floorDF,etsDF Long data.frames with \code{region, year} and the value column.
+#' @param valueCol Name of the value column.
+#' @param year Year to report.
+#' @return A formatted string.
+#' @keywords internal
+#' @author Renato Rodrigues
+.psmFmtMarkup <- function(floorDF, etsDF, valueCol = "priceBound", year = 2050) {
+  if (is.null(floorDF) || is.null(etsDF)) return("n/a")
+  k <- function(d) paste(d$region, d$year)
+  a <- stats::setNames(floorDF[[valueCol]], k(floorDF))
+  b <- stats::setNames(etsDF[[valueCol]], k(etsDF))
+  sel <- grep(paste0(" ", year, "$"), names(a), value = TRUE)
+  sel <- intersect(sel, names(b))
+  if (!length(sel)) return("n/a")
+  d <- pmax(b[sel] - a[sel], 0)
+  sprintf("$%.1f (max $%.1f over %d regions)", stats::median(d), max(d), length(d))
+}
+
 #' The cost-optimal price path for the mode-2 bound, taken from a symbol the cap
 #' cannot touch.
 #'
