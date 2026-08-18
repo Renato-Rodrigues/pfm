@@ -40,7 +40,12 @@
 #'   \describe{
 #'     \item{byTerm}{One row per tracked term: full-sample \code{estimate, se, t, p},
 #'       the fold p range (\code{pMin, pMax}), \code{nPivotal} and
-#'       \code{pivotalClusters}, the \code{topInfluencer} (largest |dBeta|) and the
+#'       \code{pivotalClusters} (the union), the same split into
+#'       \code{nPivotalLoss}/\code{pivotalLossClusters} (significant on the full sample,
+#'       destroyed by dropping that cluster) and \code{nPivotalGain}/
+#'       \code{pivotalGainClusters} (not significant, created by dropping it) --
+#'       \strong{these mean opposite things and must not be reported as one number} --
+#'       the \code{topInfluencer} (largest |dBeta|) and the
 #'       \code{tChangeDriver} decomposition (\code{"coefficient"} / \code{"se"}) at the
 #'       fold that moves p farthest.}
 #'     \item{path}{Long data.frame term x cluster: fold \code{estimate, se, t, p},
@@ -146,7 +151,16 @@ computeInfluenceDiagnostics <- function(fit, terms = NULL, alpha = 0.05,
   byTerm <- do.call(rbind, lapply(terms, function(tm) {
     sub <- path[path$term == tm & is.finite(path$p), , drop = FALSE]
     fp <- full$p[[tm]]
-    piv <- sub$cluster[sub$crossing %in% c("gain", "loss")]
+    # A "pivotal" cluster means two opposite things depending on where the term started,
+    # and collapsing them hides that. LOSS: the term is significant on the full sample and
+    # dropping this one country destroys it - a finding that cannot be claimed. GAIN: the
+    # term is NOT significant and dropping this country would create significance - not a
+    # fragile finding at all, but evidence that one country is suppressing a signal.
+    # Reporting a single count invites reading a gain as a loss, which inverts the
+    # conclusion. nPivotal / pivotalClusters are kept as the union for compatibility.
+    pivLoss <- sub$cluster[sub$crossing %in% "loss"]
+    pivGain <- sub$cluster[sub$crossing %in% "gain"]
+    piv <- c(pivLoss, pivGain)
     topInf <- if (nrow(sub)) sub$cluster[which.max(abs(sub$dBeta))] else NA_character_
     # beta-vs-SE decomposition of the t change at the fold moving p farthest:
     #   dT = (b_g - b)/se_g  (coefficient component)  +  b*(1/se_g - 1/se)  (SE component)
@@ -163,6 +177,10 @@ computeInfluenceDiagnostics <- function(fit, terms = NULL, alpha = 0.05,
       pMax = if (nrow(sub)) max(sub$p) else NA_real_,
       nPivotal = length(piv),
       pivotalClusters = paste(piv, collapse = ", "),
+      nPivotalLoss = length(pivLoss),
+      pivotalLossClusters = paste(pivLoss, collapse = ", "),
+      nPivotalGain = length(pivGain),
+      pivotalGainClusters = paste(pivGain, collapse = ", "),
       topInfluencer = topInf, tChangeDriver = driver,
       stringsAsFactors = FALSE
     )

@@ -63,3 +63,44 @@ test_that("a fold that empties a region-FE level still fits (empty-level gotcha)
   expect_true(is.finite(c9$estimate))
 })
 # nolint end
+
+# --- gain and loss are opposite findings (2026-08-17) -------------------------
+
+test_that("pivotal clusters are split into loss and gain, and the union is preserved", {
+  # Collapsing them invites reading a suppressed signal as a destroyed finding, which
+  # inverts the conclusion: a LOSS means a claim cannot be made, a GAIN means one country
+  # is holding a signal down. On Run-Group v1 every Saudi Arabia crossing is a gain.
+  set.seed(11)
+  n <- 240
+  d <- data.frame(region = rep(sprintf("R%02d", 1:24), each = 10),
+                  year = rep(2001:2010, times = 24))
+  d$x <- stats::rnorm(n)
+  d$ecp <- 0.35 * d$x + stats::rnorm(n, sd = 1)
+  fit <- list(formula = "ecp ~ x", data = d)
+
+  r <- computeInfluenceDiagnostics(fit, alpha = 0.05, wcb = FALSE, verbose = FALSE)
+  b <- r$byTerm
+  expect_true(all(c("nPivotalLoss", "pivotalLossClusters",
+                    "nPivotalGain", "pivotalGainClusters") %in% names(b)))
+  # the union must still equal the legacy field, so existing consumers are unaffected
+  expect_equal(b$nPivotal, b$nPivotalLoss + b$nPivotalGain)
+  # and each split must agree with the path it was derived from
+  for (tm in b$term) {
+    pth <- r$path[r$path$term == tm, ]
+    expect_equal(b$nPivotalLoss[b$term == tm], sum(pth$crossing %in% "loss"))
+    expect_equal(b$nPivotalGain[b$term == tm], sum(pth$crossing %in% "gain"))
+  }
+})
+
+test_that("a loss and a gain are never both reported for the same term", {
+  # crossing is defined against the FULL-sample p, so a term is either significant or not
+  # and only one direction of crossing is possible for it.
+  set.seed(12)
+  d <- data.frame(region = rep(sprintf("R%02d", 1:20), each = 8),
+                  year = rep(2001:2008, times = 20))
+  d$x <- stats::rnorm(160)
+  d$ecp <- 0.2 * d$x + stats::rnorm(160)
+  r <- computeInfluenceDiagnostics(list(formula = "ecp ~ x", data = d),
+                                   wcb = FALSE, verbose = FALSE)
+  expect_true(all(r$byTerm$nPivotalLoss == 0 | r$byTerm$nPivotalGain == 0))
+})
