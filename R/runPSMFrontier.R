@@ -95,6 +95,14 @@ runPSMFrontier <- function(group,
     ct$term <- rownames(fit$coeftest)
     rownames(ct) <- NULL
     rob <- tryCatch(computeFrontierRobustness(fit), error = function(e) NULL)
+    # vcov, driver support and driver correlations. Small (a 14x14 matrix and a 14-row table),
+    # and without them a consumer cannot build a marginal effect with an interaction — its
+    # variance needs Cov(beta_x, beta_x:z), which no coefficient table carries — nor honour the
+    # support discipline of MODEL.md 2.7, nor show why the selection bootstrap cannot separate
+    # the institutional channels. Added 2026-08-18; artifacts written before that date lack it.
+    diag <- tryCatch(computeFrontierDiagnostics(fit), error = function(e) {
+      say("  ", sec, " diagnostics failed: ", conditionMessage(e)); NULL
+    })
     out$bySector[[sec]] <- list(
       gamma = fit$frontierGamma,
       lr = fit$frontierLR,
@@ -102,7 +110,11 @@ runPSMFrontier <- function(group,
       converged = isTRUE(fit$converged),
       coefTable = ct,
       scores = fit$frontier,
-      robustness = rob
+      robustness = rob,
+      vcov = diag$vcov,
+      support = diag$support,
+      correlation = diag$correlation,
+      driverScaling = fit$driverScaling
     )
     stepMetrics[[paste0("gamma", sec)]] <- round(fit$frontierGamma, 3)
     if (!is.null(rob)) {

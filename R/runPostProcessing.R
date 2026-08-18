@@ -779,10 +779,16 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                 "projection", "selection-bootstrap",
                 # Policy Stringency Model pipeline (ADR 0036) — run in its OWN Run-Group
                 # (e.g. group = "psm-exhaustive"), never mixed into a price-model group.
-                "psm-sweep", "psm-projection", "psm-agreement", "psm-temporal",
-                "psm-frontier", "psm-iv", "psm-influence", "psm-sector-speeds",
-                "psm-selection-bootstrap", "psm-replay",
-                "psm-donor", "psm-coupling-bound", "psm-remind-inputs")
+                # IN DEPENDENCY ORDER, and it must stay that way: the intersect() below
+                # re-sorts the caller's step list into THIS order, so declaration order is
+                # execution order. Fixed 2026-08-18 - psm-projection previously sat second
+                # and so preceded psm-frontier and psm-donor, which silently projected
+                # against a stale frontier and re-sorted the psm-downstream alias out of the
+                # very order the alias was written in.
+                "psm-sweep", "psm-frontier", "psm-temporal", "psm-sector-speeds",
+                "psm-agreement", "psm-iv", "psm-influence", "psm-replay",
+                "psm-donor", "psm-projection", "psm-coupling-bound",
+                "psm-selection-bootstrap", "psm-remind-inputs")
   # Aliases expand to an ORDERED step list, so the whole downstream build is one
   # argument instead of a bash script that re-implements ordering, resume and
   # artifact checks outside the package. Everything downstream of the sweep needs

@@ -79,11 +79,17 @@ startRun <- function(group,
   requestedSteps <- steps
   validSteps <- c("sweep", "robustness", "temporal", "subnational", "difference-first",
                   "projection", "selection-bootstrap",
-                  "psm-sweep", "psm-projection", "psm-agreement",
-                  "psm-temporal", "psm-frontier", "psm-iv", "psm-influence",
-                  "psm-sector-speeds", "psm-selection-bootstrap",
-                  "psm-replay",   # ADR 0036 PSM pipeline
-                  "psm-donor", "psm-coupling-bound", "psm-remind-inputs",
+                  # ADR 0036 PSM pipeline. THIS VECTOR IS IN DEPENDENCY ORDER AND MUST STAY
+                  # THAT WAY: steps are filtered with intersect(validSteps, steps), which
+                  # re-sorts the caller's list into THIS order. Declaration order is therefore
+                  # execution order. Until 2026-08-18 psm-projection sat second, so it ran
+                  # before psm-frontier and before psm-donor - silently projecting against a
+                  # stale frontier whenever one happened to exist, and failing outright when
+                  # one did not.
+                  "psm-sweep", "psm-frontier", "psm-temporal", "psm-sector-speeds",
+                  "psm-agreement", "psm-iv", "psm-influence", "psm-replay",
+                  "psm-donor", "psm-projection", "psm-coupling-bound",
+                  "psm-selection-bootstrap", "psm-remind-inputs",
                   # aliases — expanded to ordered step lists inside runModelGroup
                   "psm-downstream", "psm-all")
   steps <- intersect(validSteps, steps)
