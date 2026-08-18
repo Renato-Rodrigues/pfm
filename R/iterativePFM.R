@@ -257,18 +257,29 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     }), c("Bulk", "Diffuse"))
 
     # Aggregation weights. "finalEnergy" resolves country-level fe_total, the closest
-    # available correlate of the emissions a carbon price acts on. NULL would fall back
-    # to EQUAL country weights, which over-represents small emitters - so the default
-    # is the energy weight, not the silent one.
+    # available correlate of the emissions a carbon price acts on.
+    #
+    # Both branches are ASSERTED (psmAssertSizeWeights), because both silent failures in this
+    # family look like a completed run: the old fallback to equal weights on a warning, and the
+    # normalised-index proxy that broke the offline bound on 2026-08-18. Inside a multi-hour
+    # coupled batch a warning scrolls past unread and 26 finished gdxs carry uniform country
+    # weights. Failing at the first PFM call is far cheaper. `weights = NULL` remains the
+    # explicit, deliberate opt-out into equal weights and is left alone.
     wts <- if (identical(weights, "finalEnergy")) {
-      tryCatch(psmCouplingWeights(year = weightYear, scenario = weightScenario,
-                                  verbose = verbose), error = function(e) {
-        warning("iterativePFM: final-energy weights unavailable (",
-                conditionMessage(e), "); falling back to EQUAL country weights, ",
-                "which over-represent small emitters.", call. = FALSE)
-        NULL
+      w <- tryCatch(psmCouplingWeights(year = weightYear, scenario = weightScenario,
+                                       verbose = verbose), error = function(e) {
+        stop("iterativePFM: final-energy weights are unavailable (", conditionMessage(e),
+             "). This does NOT fall back to equal weights - that silently over-represents ",
+             "small emitters across every multi-country region. Fix the madrat cache ",
+             "(calcFE, calcPE, calcEmber, calcGDP) or pass weights = NULL to accept equal ",
+             "weights deliberately.", call. = FALSE)
       })
-    } else weights
+      psmAssertSizeWeights(w, "iterativePFM")
+    } else if (is.null(weights)) {
+      say("weights = NULL — countries aggregate EQUALLY. Deliberate opt-out; small emitters ",
+          "are over-represented in every multi-country region.")
+      NULL
+    } else psmAssertSizeWeights(weights, "iterativePFM (supplied weights)")
 
     # 2. Recompute the feasible paths and the ambition gaps along THIS iteration's
     #    energy system - the Policy -> Politics feedback.

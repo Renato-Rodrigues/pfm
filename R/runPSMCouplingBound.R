@@ -68,6 +68,12 @@ runPSMCouplingBound <- function(group,
                                 anchorTheta = 0.50,
                                 recordAnchorDerivation = TRUE,
                                 panelData = NULL,
+                                # Aggregation weights: final energy at `weightYear`, scaled by
+                                # differential SSP GDP growth (MODEL.md 5.5). Near-term on
+                                # purpose - constant energy intensity is assumed, which is
+                                # false in levels and largely cancels in a within-region ratio.
+                                weightYear = 2025,
+                                weightScenario = "SSP2",
                                 verbose = TRUE) {
   groupDir <- .resolveGroupDir(group, resultsDir, modelDir, cachefolder)
   say <- function(...) if (isTRUE(verbose)) message("[PSM-BOUND:", group, "] ", ...)
@@ -179,14 +185,35 @@ runPSMCouplingBound <- function(group,
 
   # ── 2. aggregate to REMIND regions ──────────────────────────────────────────
   map <- pfmGetMapping(gdxRegionMapping, type = "regional")
-  # Emission weights are the intended production input (EDGAR). Absent an emissions
-  # series in the training panel, GDP x energy intensity is a documented proxy: the
-  # closest available correlate of combustion emissions, flagged as such on export.
-  wsrc <- panel[, 2022, c("GDP", "Energy Intensity")]
-  wts <- stats::setNames(as.numeric(wsrc[, , "GDP"]) * as.numeric(wsrc[, , "Energy Intensity"]),
-                         magclass::getItems(wsrc, dim = 1))
-  wts[!is.finite(wts) | wts < 0] <- 0
-  say("weights: GDP x energy intensity (proxy for emissions), ", sum(wts > 0), " countries")
+  # FINAL ENERGY weights, via psmCouplingWeights() - the formula MODEL.md 5.5 documents:
+  # FE at the base year scaled by differential SSP GDP growth. Final energy is the closest
+  # available correlate of what a carbon price acts on.
+  #
+  # >>> FIXED 2026-08-18. This previously read GDP x "Energy Intensity" OUT OF THE TRAINING
+  # >>> PANEL. Those columns are NORMALISED DRIVER INDICES in [0, 1], not levels - China's
+  # >>> GDP entry is 0.998 and Luxembourg's 0.728, a ratio of 1.4 where the true one is ~300.
+  # >>> Their product is therefore near-CONSTANT across countries, so every region was
+  # >>> aggregated with effectively EQUAL country weights. The visible symptom was CHA
+  # >>> reporting 31.8% in-coverage when China - which IS in the estimation sample - is over
+  # >>> 90% of that region's final energy: China got 1/4 of the weight and Hong Kong, Macao
+  # >>> and Taiwan got the other 3/4. Every multi-country region was affected.
+  wts <- tryCatch(psmCouplingWeights(year = weightYear, scaleBy = "gdp",
+                                     scenario = weightScenario, verbose = verbose),
+                  error = function(e) {
+    stop("runPSMCouplingBound: final-energy weights are unavailable (", conditionMessage(e),
+         ").
+  This step must NOT fall back to a proxy or to equal weights - doing so",
+         " silently over-represents small emitters, which is the defect fixed on 2026-08-18.",
+         "
+  psmCouplingWeights() needs the madrat caches for calcFE, calcPE, calcEmber",
+         " and calcGDP.", call. = FALSE)
+  })
+
+  psmAssertSizeWeights(wts, "runPSMCouplingBound")
+  wPos <- wts[wts > 0]
+  disp <- max(wPos) / stats::median(wPos)
+  say("weights: ", attr(wts, "source"), ", ", sum(wts > 0), " countries, ",
+      "max/median = ", signif(disp, 3))
 
   asg <- stats::setNames(lapply(sectors, function(sec)
     readRDS(file.path(groupDir, paste0("donor-assignment-band-", sec, ".rds")))), sectors)
@@ -265,6 +292,16 @@ runPSMCouplingBound <- function(group,
   out <- list(thetaSweep = summ, tiers = tierTab, lambda = lambda,
               boundAnchor = bAnchor, thetas = thetas, anchorTheta = as.numeric(ancKey),
               anchorDerivation = anchorDeriv,
+              # Weight provenance. Nothing recorded this until 2026-08-18, which is exactly
+              # why a near-uniform weight masquerading as an emission proxy survived for
+              # months: no consumer could tell what the aggregation had actually used.
+              weights = list(source = attr(wts, "source"),
+                             baseYear = attr(wts, "baseYear"),
+                             year = attr(wts, "year"),
+                             scaleBy = attr(wts, "scaleBy"),
+                             scenario = attr(wts, "scenario"),
+                             nCountries = sum(wts > 0),
+                             maxOverMedian = disp),
               refGdx = refGdx, optGdx = optGdx, inCoverageCountries = nCov)
   saveRDS(out, file.path(outDir, "coupling-summary.rds"))
   say("wrote ", outDir, "/{feasibility-bound-theta*.csv, coupling-summary.rds}")

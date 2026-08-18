@@ -120,3 +120,40 @@ psmCouplingWeights <- function(year = NULL, scaleBy = c("gdp", "none"),
   w
 }
 # nolint end
+
+# nolint start
+#' Assert that aggregation weights behave like a size variable
+#'
+#' @description
+#' The check that would have caught the 2026-08-18 weight defect on day one, and did not exist.
+#' `runPSMCouplingBound()` had been building weights as GDP x "Energy Intensity" read out of the
+#' TRAINING PANEL — but those columns are normalised driver indices in [0, 1]
+#' (`panelDataHistorical.R`: `energyIntensityNorm`), not levels. Their product is near-constant
+#' across countries: max/median was **1.4**, where real final energy is **417**. Every
+#' multi-country region was therefore aggregated with effectively equal country weights, and
+#' China received a quarter of the CHA region instead of 96%.
+#'
+#' The same assertion catches the other silent failure in this family — a fallback to equal
+#' weights, which yields a dispersion of exactly 1.
+#'
+#' @param w Numeric weight vector.
+#' @param what Label for the error message.
+#' @param minDispersion Minimum acceptable max/median over the positive weights. Final energy
+#'   gives ~417 across 208 countries; equal weights give 1; the broken proxy gave 1.4. Anything
+#'   below ~20 is not a size variable.
+#' @return `w`, invisibly, or an error.
+#' @export
+#' @author Renato Rodrigues
+psmAssertSizeWeights <- function(w, what = "aggregation weights", minDispersion = 20) {
+  wp <- w[is.finite(w) & w > 0]
+  disp <- if (length(wp)) max(wp) / stats::median(wp) else 0
+  if (!is.finite(disp) || disp < minDispersion) {
+    stop(what, ": weights are not size-like - max/median is ", signif(disp, 3),
+         ", expected a factor of hundreds for final energy (equal weights give 1, and the ",
+         "normalised-panel proxy that caused the 2026-08-18 defect gave 1.4). A near-uniform ",
+         "weight aggregates countries almost equally and over-represents small emitters. ",
+         "Check that the weights are LEVELS, not a normalised index.", call. = FALSE)
+  }
+  invisible(w)
+}
+# nolint end
