@@ -157,7 +157,17 @@ startRun <- function(group,
 
   say(if (inJob) "running on SLURM node" else "running locally", " (nCores = ", nCores, "); steps: ",
       paste(steps, collapse = ", "))
-  runGroup <- function(stepsArg) runModelGroup(group = group, steps = stepsArg,
+  # Collected across every runGroup() call (a phased render makes two) so the final line of
+  # the log can name any step that produced nothing. Without this the audit lives only in the
+  # middle of the log, which is exactly where it gets lost.
+  auditIncomplete <- character(0)
+  runGroup <- function(stepsArg) {
+    r <- runModelGroupInner(stepsArg)
+    auditIncomplete <<- unique(c(auditIncomplete,
+                                 attr(r, "incomplete"), attr(r, "notRefreshed")))
+    invisible(r)
+  }
+  runModelGroupInner <- function(stepsArg) runModelGroup(group = group, steps = stepsArg,
     resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile,
     scenarios = scenarios,
     mode = mode, selectionMethod = selectionMethod, nCores = nCores, forceRefit = forceRefit,
@@ -191,13 +201,27 @@ startRun <- function(group,
   }, error = function(e) { say("RUN FAILED: ", conditionMessage(e)); FALSE })
 
   endedAt <- Sys.time()
+  # "completed" must not mean "every requested step ran". A step that self-skips on a missing
+  # input returns quietly and the run exits 0; recording that as completed is how a job comes
+  # back looking fine with an artifact nobody wrote. Third status for exactly that case.
+  runStatus <- if (!ok) "failed" else if (length(auditIncomplete)) "incomplete" else "completed"
   .writeRunGroupManifest(groupDir, group = group, mode = mode, run = list(
-    status = if (ok) "completed" else "failed", endedAt = as.character(endedAt),
+    status = runStatus, endedAt = as.character(endedAt),
+    incompleteSteps = as.list(auditIncomplete),
     seconds = round(as.numeric(difftime(endedAt, t0, units = "secs")), 1)))
 
   if (ok && isTRUE(render) && !phased) doRender(NULL, steps)   # non-phased: render all at the end
-  say(if (ok) "DONE" else "FAILED", " - ", groupDir)
-  invisible(list(group = group, status = if (ok) "completed" else "failed", dir = groupDir))
+  say(switch(runStatus, completed = "DONE", incomplete = "DONE WITH GAPS", failed = "FAILED"),
+      " - ", groupDir)
+  if (length(auditIncomplete)) {
+    # Repeated as the LAST line of the log on purpose: the per-step audit is printed in the
+    # middle of a long run and is easy to scroll past.
+    say("!! ", length(auditIncomplete), " step(s) produced no fresh artifact: ",
+        paste(auditIncomplete, collapse = ", "))
+    say("!! Do not treat this Run-Group as complete. See the audit block above for the reason.")
+  }
+  invisible(list(group = group, status = runStatus, dir = groupDir,
+                 incompleteSteps = auditIncomplete))
 }
 
 # Internal: cores for the parallel sweep — SLURM_CPUS_PER_TASK when set, else detectCores()-1.

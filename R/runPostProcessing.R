@@ -836,10 +836,15 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
       file.exists(file.path(groupDir, stepArtifact[[step]]))
     }
   }
+  # Wall-clock mark for the completion audit below: an artifact older than this was not
+  # written by THIS run, however cheerfully the step reported itself.
+  runStartedAt <- Sys.time()
+  resumeSkipped <- character(0)
   doStep <- function(step) {
     if (!(step %in% steps)) return(FALSE)
     if (isTRUE(resume) && stepComplete(step)) {
       say("resume: skipping '", step, "' (artifact(s) already present)")
+      resumeSkipped <<- c(resumeSkipped, step)
       return(FALSE)
     }
     .writeRunGroupManifest(groupDir, group = group, mode = mode, step = step, stepStats = FALSE)
@@ -1004,7 +1009,56 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                 dots[names(dots) %in% names(formals(runPSMHistoricalReplay))])
     do.call(runPSMHistoricalReplay, rpArgs)
   }
+  # ── Completion audit ────────────────────────────────────────────────────────────────
+  # A step that cannot run - a missing input, an uninstalled optional package - reports
+  # "skipped" on its own line and returns quietly. runModelGroup then prints "done: <every
+  # step>" and the job exits 0. On a long cluster log that is invisible, and the caller
+  # discovers it only when the next tool cannot find the artifact. This audit asks the file
+  # system instead of trusting the step, and says so loudly.
+  #
+  # Two distinct failures, deliberately reported separately:
+  #   MISSING - the artifact does not exist. The step did nothing.
+  #   STALE   - the artifact exists but predates this run, so the step did not rewrite it and
+  #             anything downstream consumed the PREVIOUS run's version. Not reported under
+  #             resume = TRUE, where reusing an existing artifact is the point.
+  audited <- intersect(steps, names(stepArtifact))
+  audited <- setdiff(audited, resumeSkipped)
+  missing <- character(0); stale <- character(0)
+  for (st in audited) {
+    f <- file.path(groupDir, stepArtifact[[st]])
+    if (!file.exists(f)) {
+      missing <- c(missing, st)
+    } else if (!isTRUE(resume) && file.mtime(f) < runStartedAt) {
+      stale <- c(stale, st)
+    }
+  }
+  if (length(missing) || length(stale)) {
+    say("---------------------------------------------------------------")
+    if (length(missing)) {
+      say("INCOMPLETE - these steps ran but produced no artifact:")
+      for (st in missing) say("  ", st, "  ->  ", stepArtifact[[st]], " (absent)")
+    }
+    if (length(stale)) {
+      say("NOT REFRESHED - artifact predates this run, so the step did not rewrite it:")
+      for (st in stale) say("  ", st, "  ->  ", stepArtifact[[st]])
+    }
+    say("Look for the step's own '(skipped|failed)' line above for the reason.")
+    say("---------------------------------------------------------------")
+    warning("runModelGroup(", group, "): ", length(missing) + length(stale),
+            " of ", length(audited), " audited step(s) did not produce a fresh artifact: ",
+            paste(c(missing, stale), collapse = ", "),
+            ". The run exited normally regardless - check the log.", call. = FALSE)
+  } else if (length(audited)) {
+    say("all ", length(audited), " audited step(s) produced a fresh artifact")
+  }
+
   say("done: ", paste(steps, collapse = ", "))
-  invisible(file.path(resultsDir, group))
+  # The return value stays the group path it has always been, so existing callers are
+  # unaffected; the audit rides along as attributes for anything that wants to branch on it.
+  out <- file.path(resultsDir, group)
+  attr(out, "incomplete") <- missing
+  attr(out, "notRefreshed") <- stale
+  attr(out, "stepsRun") <- steps
+  invisible(out)
 }
 # nolint end
