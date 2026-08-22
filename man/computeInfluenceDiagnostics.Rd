@@ -38,7 +38,12 @@ A list:
 \describe{
 \item{byTerm}{One row per tracked term: full-sample \code{estimate, se, t, p},
 the fold p range (\code{pMin, pMax}), \code{nPivotal} and
-\code{pivotalClusters}, the \code{topInfluencer} (largest |dBeta|) and the
+\code{pivotalClusters} (the union), the same split into
+\code{nPivotalLoss}/\code{pivotalLossClusters} (significant on the full sample,
+destroyed by dropping that cluster) and \code{nPivotalGain}/
+\code{pivotalGainClusters} (not significant, created by dropping it) --
+\strong{these mean opposite things and must not be reported as one number} --
+the \code{topInfluencer} (largest |dBeta|) and the
 \code{tChangeDriver} decomposition (\code{"coefficient"} / \code{"se"}) at the
 fold that moves p farthest.}
 \item{path}{Long data.frame term x cluster: fold \code{estimate, se, t, p},

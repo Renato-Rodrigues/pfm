@@ -73,6 +73,12 @@
 #' @param prepared Logical. When \code{TRUE}, \code{data} is an already-prepared
 #'   data.frame with the response \emph{already transformed} for this estimator
 #'   (bootstrap/refit entry, ADR 0025); prep, transforms, cache and save are skipped.
+#' @param trendMidpoint,trendSteepness Numeric. Shape of the logistic time trend,
+#'   forwarded to \code{\link{preparePanelData}} and defaulting to its values.
+#'   Exposed here (2026-08-22) so the trend can be swept like any other modelling
+#'   choice; they are part of the Fit-Cache key and are stored on the returned fit
+#'   as \code{trendParams}, which \code{\link{projectFeasiblePath}} reuses so a
+#'   projection can never be built on a different curve from the fit.
 #' @param apTransform Character. \code{"linear"} (default) or \code{"saturating"}
 #'   — the functional form of the actor-power drivers (ADR 0040). See
 #'   \code{\link{preparePanelData}}. The saturating form bounds the extrapolation
@@ -143,7 +149,9 @@ estimatePolicyStringencyModel <- function(
     prepared = FALSE,
     form = "static",
     yearFixedEffects = FALSE,
-    apTransform = "linear") {
+    apTransform = "linear",
+    trendMidpoint = formals(preparePanelData)$trendMidpoint,
+    trendSteepness = formals(preparePanelData)$trendSteepness) {
   estimator <- match.arg(estimator, c("satP", "fractional", "beta", "levels",
                                       "satP-re", "frontier", "satP-iv"))
   form <- match.arg(form, c("static", "ecm"))
@@ -209,7 +217,9 @@ estimatePolicyStringencyModel <- function(
       useMundlak = useMundlak,
       gdpGovInteraction = gdpGovInteraction,
       outcomeVar = outcomeVar,
-      apTransform = apTransform
+      apTransform = apTransform,
+      trendMidpoint = trendMidpoint,
+      trendSteepness = trendSteepness
     )
   }
   .dscale <- attr(df, "driverScaling")
@@ -292,9 +302,14 @@ estimatePolicyStringencyModel <- function(
   }
 
   # --- 4. Cache (satP engine only — the only estimator entering selection) -----
+  # The trend shape and the scaling convention both change the design without
+  # necessarily changing the formula, so they belong in the cache key: a fit
+  # cached before the 2026-08-22 re-parameterization must never be served for a
+  # request made under the new one.
   cacheExtra <- paste0("psm-", estimator, "+max", indexMax,
                        if (identical(form, "ecm")) "+ecm" else "",
-                       if (identical(apTransform, "saturating")) "+satAP" else "")
+                       if (identical(apTransform, "saturating")) "+satAP" else "",
+                       "+trend", trendMidpoint, "_", trendSteepness, "+scaledTrend")
   usesCache <- identical(estimator, "satP") && !is.null(modelDir)
   if (usesCache && !isTRUE(ignoreCache)) {
     ids <- computeModelId(fml, df, extra = cacheExtra)
@@ -317,7 +332,8 @@ estimatePolicyStringencyModel <- function(
           boundaryShares = boundaryShares,
           squeeze = squeeze,
           driverScaling = cached$transforms$driverScaling %||% .dscale,
-          form = form
+          form = form,
+          trendParams = c(midpoint = trendMidpoint, steepness = trendSteepness)
         )
         if (identical(form, "ecm")) {
           phi <- tryCatch(cached$coeftest["lagged_ecp", 1], error = function(e) NA_real_)
@@ -493,7 +509,10 @@ estimatePolicyStringencyModel <- function(
     squeeze = squeeze,
     driverScaling = .dscale,
     converged = convergedFlag,
-    form = form
+    form = form,
+    # Carried so any downstream design built from this fit reproduces the trend
+    # it was estimated with, instead of silently picking up the current default.
+    trendParams = c(midpoint = trendMidpoint, steepness = trendSteepness)
   )
   if (estimator == "frontier") {
     # Frontier quantities (Tier-1 #1): per-row feasibility frontier, political

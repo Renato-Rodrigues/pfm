@@ -495,6 +495,14 @@ psmSpecs <- function(specs, verbose = TRUE) {
 .writeSelectedPSMConfig <- function(specs, selected, maximin, mode, configDir,
                                     sectors, indexMax = 10) {
   specByName <- stats::setNames(specs, vapply(specs, `[[`, character(1), "name"))
+  # Pin the trend shape into every entry. A spec that omits it silently means
+  # "whatever preparePanelData's default was at fit time", so replaying an old
+  # spec after a default change reproduces neither the fit nor the projection
+  # (that default moved on 2026-08-22; TODO item 0b). .psmSpecArgs() forwards any
+  # spec key matching an estimator formal, so writing them here is enough for the
+  # whole downstream chain to honour them.
+  trendDefaults <- list(trendMidpoint = formals(preparePanelData)$trendMidpoint,
+                        trendSteepness = formals(preparePanelData)$trendSteepness)
   entries <- list()
   for (stg in names(selected)) {
     cfg <- specByName[[selected[[stg]]]]
@@ -506,6 +514,9 @@ psmSpecs <- function(specs, verbose = TRUE) {
       e$model_type <- paste0(stg, ": ", sec)
       e$estimator <- "satP"
       e$indexMax <- indexMax
+      for (k in names(trendDefaults)) {
+        e[[k]] <- as.numeric(e[[k]] %||% trendDefaults[[k]])
+      }
       e$description <- paste0(
         "Maximin-selected PSM shared spec (psm-", mode, ", ", format(Sys.Date()), "). ",
         "Worse-sector tier: ", mmRow$minTier[1],

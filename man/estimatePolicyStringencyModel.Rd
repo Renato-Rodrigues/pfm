@@ -33,7 +33,9 @@ estimatePolicyStringencyModel(
   prepared = FALSE,
   form = "static",
   yearFixedEffects = FALSE,
-  apTransform = "linear"
+  apTransform = "linear",
+  trendMidpoint = formals(preparePanelData)$trendMidpoint,
+  trendSteepness = formals(preparePanelData)$trendSteepness
 )
 }
 \arguments{
@@ -95,6 +97,13 @@ of the actor-power slopes (and hence of the AP x IQ interactions) outside
 the historical share range; it is swept as an axis by
 \code{\link{psmSpecs}}. Part of the fit-cache key, so linear and saturating
 fits never collide.}
+
+\item{trendMidpoint, trendSteepness}{Numeric. Shape of the logistic time trend,
+forwarded to \code{\link{preparePanelData}} and defaulting to its values.
+Exposed here (2026-08-22) so the trend can be swept like any other modelling
+choice; they are part of the Fit-Cache key and are stored on the returned fit
+as \code{trendParams}, which \code{\link{projectFeasiblePath}} reuses so a
+projection can never be built on a different curve from the fit.}
 }
 \value{
 A list with elements \code{model}, \code{coeftest} (cluster-robust),

@@ -191,6 +191,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   gdpLogMax   <- max(log(gdpH), na.rm = TRUE)
   gdpPCLogMin <- min(log(gdpPCHist), na.rm = TRUE)
   gdpPCLogMax <- max(log(gdpPCHist), na.rm = TRUE)
+
   popNorm          <- toolNormalize(log(pop), minVal = popLogMin, maxVal = popLogMax, targetRange = c(0, 1), clamp = TRUE)
   gdpNorm          <- toolNormalize(log(gdp), minVal = gdpLogMin, maxVal = gdpLogMax, targetRange = c(0, 1), clamp = TRUE)
   gdpPerCapitaNorm <- toolNormalize(log(gdpPerCapita), minVal = gdpPCLogMin, maxVal = gdpPCLogMax, targetRange = c(0, 1), clamp = TRUE)

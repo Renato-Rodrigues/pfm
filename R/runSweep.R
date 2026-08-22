@@ -185,6 +185,19 @@ runSweep <- function(group,
   if (!is.null(mode) && !is.na(mode)) man$mode <- mode
   man$pfm_version <- pkgver("pfm")
   man$mrpfm_version <- pkgver("mrpfm")
+  # The logistic time trend's shape changes every fitted coefficient, every
+  # ceiling and the whole projection, but it is a function DEFAULT rather than a
+  # spec field, so without this a Run-Group carries no record of which curve
+  # produced it. The default moved on 2026-08-22 (TODO item 0b) and will move
+  # again if item 13 makes it a swept dimension; two groups must never be
+  # indistinguishable on it. Resolved from preparePanelData() so this tracks the
+  # default automatically rather than repeating a literal.
+  man$trend <- list(
+    form = "logistic",
+    midpoint = as.numeric(formals(preparePanelData)$trendMidpoint),
+    steepness = as.numeric(formals(preparePanelData)$trendSteepness),
+    scaled = TRUE   # standardized with the drivers since 2026-08-22
+  )
   if (!is.null(panelData)) {
     man$panel_hash <- substr(digest::digest(panelData, algo = "sha256"), 1, 16)
     yrs <- tryCatch(magclass::getYears(panelData, as.integer = TRUE), error = function(e) NULL)

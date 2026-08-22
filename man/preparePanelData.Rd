@@ -16,8 +16,8 @@ preparePanelData(
   useMundlak = FALSE,
   gdpGovInteraction = FALSE,
   driverScaling = NULL,
-  trendMidpoint = 2030,
-  trendSteepness = 0.08,
+  trendMidpoint = 2010,
+  trendSteepness = 0.2,
   trendFreezeYear = NULL,
   outcomeVar = "Effective Carbon Price",
   apTransform = "linear",
@@ -59,9 +59,12 @@ conditioning and makes driver coefficients comparable in per-SD units
 (de-scale to natural units by dividing a coefficient by the driver's stored sd).}
 
 \item{trendMidpoint, trendSteepness}{Numeric. Shape of the single common
-logistic time trend (bounded in \code{[0, 1]}, no rescale). Defaults \code{2030} and
-\code{0.08}: flat toe before 2000, meaningful rise through history, saturating
-near 1 by ~2060. Keep identical across fit and projection.}
+logistic time trend (bounded in \code{[0, 1]}, no rescale). Defaults
+\code{2010} and \code{0.20}: the inflection sits INSIDE the estimation
+window, so the S-curve's shape is identified rather than asserted, and the
+curve is ~0.92 by 2022 — leaving almost nothing for the projection to
+extrapolate. Keep identical across fit and projection (the fit stores them;
+see \code{\link{estimatePolicyStringencyModel}}).}
 
 \item{trendFreezeYear}{Integer or \code{NULL}. If set, the logistic time trend
 is held flat at its value in this year for all later years (ADR 0010): the

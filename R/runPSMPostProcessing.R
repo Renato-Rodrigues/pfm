@@ -189,6 +189,31 @@ runPSMProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "ou
     }
     sdata <- buildScenarioPanel(s)
     if (is.null(sdata)) next
+
+    # ── Seam continuity, for the gating scenario ────────────────────────────────
+    # The fitted ceiling ends at the last historical year and the projected ceiling starts at
+    # the first scenario year, and NOTHING had ever compared them. On 2026-08-19 the SI-11
+    # figure showed the two do not meet: the ceiling steps DOWN in 48 of 48 in-coverage
+    # countries, median -0.54 on the eta scale. `computeSeamDiagnostics()` had existed and been
+    # exported since the panel-data report, but was never called from the pipeline - which is
+    # precisely why the step went unnoticed for so long. It is cheap, so it runs every time.
+    #
+    # It works on the RAW panel variables rather than the model matrix on purpose: a level
+    # offset in one driver shows up as a block of large same-signed jumps, which is the
+    # signature to look for. See docs/TODO.md item 10.
+    if (identical(id, gatingId)) {
+      sd0 <- tryCatch(computeSeamDiagnostics(panel, sdata),
+                      error = function(e) { say("  seam diagnostics failed: ",
+                                                conditionMessage(e)); NULL })
+      if (!is.null(sd0)) {
+        saveRDS(sd0, file.path(groupDir, "seam-diagnostics.rds"))
+        fl <- sum(sd0$flagged, na.rm = TRUE)
+        say("seam diagnostics: ", nrow(sd0), " variable-region pairs, ", fl,
+            " flagged above 0.5 historical SD",
+            if (fl) paste0(" (worst: ", sd0$variable[1], " at ", sd0$region[1], ", ",
+                           signif(sd0$normJump[1], 3), " SD)") else "")
+      }
+    }
     proj <- do.call(rbind, lapply(sectors, function(sec) {
       tryCatch(
         projectPSMSpecScenario(cfg[[sec]], sec, histData = panel, scenarioData = sdata,

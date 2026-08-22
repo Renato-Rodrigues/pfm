@@ -14,9 +14,11 @@ runPSMCouplingBound(
   scenarios = NULL,
   gdxRegionMapping = "regionmapping_21_EU11.csv",
   thetas = c(0, 0.25, 0.5, 0.74, 0.79),
-  anchorTheta = 0.74,
+  anchorTheta = 0.5,
   recordAnchorDerivation = TRUE,
   panelData = NULL,
+  weightYear = 2025,
+  weightScenario = "SSP2",
   verbose = TRUE
 )
 }
@@ -35,13 +37,13 @@ it). Used to resolve \code{refGdx}/\code{optGdx} when those are not given.}
 \item{gdxRegionMapping}{Region mapping matching the gdxs' OWN resolution. Getting
 this wrong mis-assigns every region, silently.}
 
-\item{thetas}{Numeric vector of \eqn{\theta} values to sweep. The default carries
-\strong{both} anchor candidates: \strong{0.74}, the efficiency anchor re-derived on the
-regenerated \code{satAP} frontier for \strong{Diffuse} -- the sector that sets the
-economy-wide floor under ADR 0042 -- and 0.79, the value ADR 0041 derived on the
-pre-\code{satAP} frontier for Bulk and which every batch up to 2026-08-17 was run at.
-0.79 is kept so those runs stay comparable; it is a swept point, \strong{not} "the
-efficiency anchor" any more.}
+\item{thetas}{Numeric vector of \eqn{\theta} values to sweep. The default keeps every
+value that has ever been called the anchor, so no earlier batch becomes
+incomparable: 0.79 (ADR 0041, pre-\code{satAP} frontier, Bulk, country resolution),
+0.74 (regenerated frontier, Diffuse, still country resolution), and \strong{0.50} --
+the value the anchor actually takes at the resolution the coupling assigns
+\eqn{\varphi} on. Only the last is "the efficiency anchor"; 0.74 and 0.79 are swept
+points retained for continuity.}
 
 \item{anchorTheta}{The \eqn{\theta} whose per-region detail is reported and stored
 as \code{boundAnchor}. Snapped to the nearest swept value.}

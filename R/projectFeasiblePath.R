@@ -125,8 +125,14 @@ projectFeasiblePath <- function(spec, sector, histData, scenarioData,
     useMundlak = isTRUE(spec$useMundlak),
     gdpGovInteraction = isTRUE(spec$gdpGovInteraction),
     apTransform = spec$apTransform %||% "linear",
+    trendMidpoint = spec$trendMidpoint %||% formals(preparePanelData)$trendMidpoint,
+    trendSteepness = spec$trendSteepness %||% formals(preparePanelData)$trendSteepness,
     modelDir = modelDir, updateIndex = FALSE, verbose = FALSE
   )
+  # The scenario design below MUST be built on the curve the fit was estimated
+  # with, not on whatever the current default is; a caller may also pass a fit in.
+  tp <- fit$trendParams %||% c(midpoint = formals(preparePanelData)$trendMidpoint,
+                               steepness = formals(preparePanelData)$trendSteepness)
   phi <- tryCatch(stats::coef(fit$model)[["lagged_ecp"]], error = function(e) NA_real_)
   if (!is.finite(phi) || phi >= 0) {
     stop("projectFeasiblePath: the ECM fit carries no usable error-correction ",
@@ -150,6 +156,7 @@ projectFeasiblePath <- function(spec, sector, histData, scenarioData,
     useMundlak = isTRUE(spec$useMundlak),
     gdpGovInteraction = isTRUE(spec$gdpGovInteraction),
     driverScaling = fit$driverScaling,
+    trendMidpoint = tp[["midpoint"]], trendSteepness = tp[["steepness"]],
     trendFreezeYear = if (is.finite(lastHist)) lastHist else NULL,
     outcomeVar = fit$outcomeVar %||% "Policy Stringency"
   )

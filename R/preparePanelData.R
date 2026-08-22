@@ -31,9 +31,12 @@
 #'   conditioning and makes driver coefficients comparable in per-SD units
 #'   (de-scale to natural units by dividing a coefficient by the driver's stored sd).
 #' @param trendMidpoint,trendSteepness Numeric. Shape of the single common
-#'   logistic time trend (bounded in \code{[0, 1]}, no rescale). Defaults \code{2030} and
-#'   \code{0.08}: flat toe before 2000, meaningful rise through history, saturating
-#'   near 1 by ~2060. Keep identical across fit and projection.
+#'   logistic time trend (bounded in \code{[0, 1]}, no rescale). Defaults
+#'   \code{2010} and \code{0.20}: the inflection sits INSIDE the estimation
+#'   window, so the S-curve's shape is identified rather than asserted, and the
+#'   curve is ~0.92 by 2022 — leaving almost nothing for the projection to
+#'   extrapolate. Keep identical across fit and projection (the fit stores them;
+#'   see \code{\link{estimatePolicyStringencyModel}}).
 #' @param outcomeVar Character. Base name of the dependent variable; the
 #'   sector-qualified column \code{"<outcomeVar>|<sector>"} is read from the data.
 #'   Default \code{"Effective Carbon Price"} (the carbon-price hurdle model);
@@ -89,7 +92,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
                              lag = 1, useMundlak = FALSE,
                              gdpGovInteraction = FALSE,
                              driverScaling = NULL,
-                             trendMidpoint = 2030, trendSteepness = 0.08,
+                             trendMidpoint = 2010, trendSteepness = 0.20,
                              trendFreezeYear = NULL,
                              outcomeVar = "Effective Carbon Price",
                              apTransform = "linear",
@@ -181,17 +184,33 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
       row$timeTrend <- years[yi] - 1999L
 
       # Logistic (S-curve) time trend — a single common, bounded, SATURATING curve
-      # (revised 2026-06-14). Raw logistic in [0, 1], NO affine rescale: midpoint
-      # `trendMidpoint`, steepness `trendSteepness`. The defaults (2030, 0.08) place
-      # the flat toe BEFORE the historical window (~0.04 in 1990, ~0.08 in 2000),
-      # give a meaningful historical rise (~0.08 -> ~0.35 over 2000-2022), and let
-      # the curve SATURATE near 1 within the projection horizon (~0.92 by 2060,
-      # ~1.0 by 2100). Because it stays in [0, 1] it cannot drive an unbounded
-      # extrapolation (the old rescaled curve reached ~6 by 2080, half of the
-      # stringency price explosion). One common curve is shared across all
-      # scenarios: scenario differences flow through the scenario-specific actor
-      # power and institutional drivers, not the trend, so "ambition" is not
-      # double-counted. See CONTEXT.md "Logistic Time Trend".
+      # (revised 2026-06-14; RE-PARAMETERIZED 2026-08-22). Raw logistic in [0, 1],
+      # NO affine rescale: midpoint `trendMidpoint`, steepness `trendSteepness`.
+      #
+      # The defaults are (2010, 0.20): the inflection sits INSIDE the 2000-2022
+      # estimation window and the curve spans 0.14 -> 0.92 across it. The previous
+      # defaults (2030, 0.08) put the midpoint eight years BEYOND the last data
+      # year, so the whole fit happened on the convex toe (0.09 -> 0.35, sd 0.078)
+      # and the saturation was asserted rather than estimated. Two measured
+      # consequences of the old choice (analysis/trendParameterisationGrid.R):
+      #   * the projection lever beta*(x_2100 - x_2022) was 6.69 in Bulk, enough on
+      #     its own to move the 2100 ceiling between 4.1 and 10.0 depending purely
+      #     on whether the trend was frozen. Under (2010, 0.20) the lever is 0.29
+      #     and the frozen/unfrozen ceilings are 4.11 vs 4.82 — the freeze stops
+      #     being load-bearing.
+      #   * the old setting fit WORSE: frontier logLik -1379 (Bulk) / -647
+      #     (Diffuse) against -1319 / -559 here, at identical parameter count.
+      # beta*sd is near-invariant across parameterizations (0.80 -> 0.89 Bulk), so
+      # this changes what the trend does OUT of sample, not its in-sample role.
+      # Do not push the midpoint earlier still: (2005, 0.25) fits better again but
+      # drives frontier gamma to exactly 1.0000, the boundary degeneracy.
+      #
+      # Because it stays in [0, 1] it cannot drive an unbounded extrapolation (the
+      # old rescaled curve reached ~6 by 2080, half of the stringency price
+      # explosion). One common curve is shared across all scenarios: scenario
+      # differences flow through the scenario-specific actor power and
+      # institutional drivers, not the trend, so "ambition" is not double-counted.
+      # See CONTEXT.md "Logistic Time Trend".
       # ADR 0010: out-of-sample the trend is FROZEN at its last-historical value.
       # Time effects cannot be extrapolated, so for projection years (year >
       # trendFreezeYear) we hold the regressor flat at the freeze-year value; the
@@ -401,13 +420,25 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
   # Excludes the outcome, its lags, the time trends and region FE. Negative-valued
   # drivers (e.g. Actor Power Index in ~[-0.8, 0.1]) standardize cleanly; a
   # near-constant column (sd ~ 0) is left unscaled to avoid a division blow-up.
-  scaleExcl  <- c("ecp", "lagged_ecp", "lagged_adoption", "timeTrend",
-                  "logisticTimeTrend", "regionFE")
+  scaleExcl  <- c("ecp", "lagged_ecp", "lagged_adoption", "regionFE")
   scaleVars  <- setdiff(make.names(unique(c(actorPowerDrivers, actorPowerIndex,
                                             instQualityDrivers, controlDrivers))),
                         scaleExcl)
   scaleVars  <- intersect(scaleVars, colnames(df))
   scaleVars  <- scaleVars[!grepl("_grp_mean$", scaleVars)]
+
+  # The time trends are NOT driver-list members, so they have to be added here
+  # explicitly (2026-08-22). Before this they were the only regressors left on a
+  # raw scale while every driver was per-SD, which made the coefficient table
+  # unreadable: the logistic trend's raw beta of 10.28 against drivers near 0.26
+  # invited the conclusion that it dwarfed them, when beta*sd puts it at 0.80
+  # against 0.26 — the largest single term, but smaller than the political block
+  # combined (1.24). Standardizing is a linear reparameterization: fitted values,
+  # logLik, frontier gamma and every z-statistic are unchanged; only the units of
+  # the reported coefficient move. The trend enters as a pure main effect
+  # (buildModelFormula never interacts it), so centring introduces no
+  # interaction-interpretation change. See computeComparableCoefficients().
+  scaleVars <- c(scaleVars, intersect(c("timeTrend", "logisticTimeTrend"), colnames(df)))
 
   # --- Saturating actor-power transform (ADR 0040), applied BEFORE scaling -----
   # The actor-power drivers are energy-system shares whose HISTORICAL range is a
@@ -461,6 +492,21 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
   }
 
   scaling    <- if (is.null(driverScaling)) list() else driverScaling
+  # Apply mode with an INCOMPLETE reference is a silent-corruption hazard, not a
+  # recoverable one: falling through to the else-branch would recompute mean/sd
+  # from the SCENARIO panel (2005-2150), so the projection design would sit on a
+  # different scale from the coefficients and the ceiling would be quietly wrong.
+  # This bites hardest for artifacts written before a column joined scaleVars —
+  # exactly the trend's situation after 2026-08-22 — so refuse instead.
+  if (!is.null(driverScaling) && length(driverScaling)) {
+    stale <- setdiff(scaleVars, names(driverScaling))
+    if (length(stale)) {
+      stop("preparePanelData: driverScaling has no entry for ",
+           paste(stale, collapse = ", "),
+           ". This reference predates those columns being standardized — refit the ",
+           "model rather than projecting with a mixed-scale design.")
+    }
+  }
   for (col in scaleVars) {
     if (!is.null(driverScaling) && !is.null(driverScaling[[col]])) {
       m <- driverScaling[[col]][["mean"]]; s <- driverScaling[[col]][["sd"]]
