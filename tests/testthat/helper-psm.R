@@ -117,13 +117,19 @@ psmTestSpecs <- list(
 # tierGate = "Blue": the synthetic DGP has no interaction effect, so the fixture
 # pool is all-Blue - the Green deployment gate (ADR 0039 default) would correctly
 # select nothing (that behaviour has its own dedicated test).
-psmTestSweep <- function(group, resultsDir, modelDir, scenarioData = NULL, ...) {
+# ceilingFallGate defaults to NA here, NOT to the production 0.90 (ADR 0043): these
+# fixtures are tiny synthetic panels built to exercise one gate at a time, and a
+# second severe gate firing on them would make every sweep test assert the wrong
+# thing. Tests that mean to exercise the ceiling gate pass it explicitly.
+psmTestSweep <- function(group, resultsDir, modelDir, scenarioData = NULL,
+                         ceilingFallGate = NA_real_, ...) {
   suppressMessages(suppressWarnings(runPSMSweep(
     group = group, mode = "guided",
     resultsDir = resultsDir, modelDir = modelDir,
     panelData = makePSMSweepMagpie(), scenarioData = scenarioData,
     specs = psmTestSpecs, sectors = c("Bulk", "Diffuse"),
-    selectFE = NULL, tierGate = "Blue", verbose = FALSE, ...
+    selectFE = NULL, tierGate = "Blue", verbose = FALSE,
+    ceilingFallGate = ceilingFallGate, ...
   )))
 }
 

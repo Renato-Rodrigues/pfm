@@ -385,7 +385,9 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
                              referenceScenarioData = NULL, minScenarioDelta = 0.05,
                              deltaWindow = c(2040, 2060),
                              supportShareGate = 0.25,
+                             ceilingFallGate = NA_real_,
                              say = function(...) invisible()) {
+  ceilingByModel <- list()
   traceRows <- list()
   flagsByModel <- list()
   chosen <- NULL
@@ -403,6 +405,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
     evaluable <- TRUE
     reason <- ""
     modelFlags <- list()
+    modelCeiling <- list()
     for (sec in sectors) {
       projReason <- ""
       proj <- tryCatch(
@@ -459,6 +462,47 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
           say("  [sanity:PolicyStringency] ", m, " (", sec, ") extrapolation-dominated: ",
               "mean driverOutOfSupport = ", round(supportShare, 3),
               " > ", supportShareGate)
+        }
+      }
+
+      # Ceiling-collapse gate (TODO item 11, 2026-08-22). The FRONTIER ceiling
+      # S*(x_t) - not the level path the rest of this walk scores - falls by ~40%
+      # over the century in Bulk under the deployed spec, driven by an
+      # Incumbent-Power interaction that a decarbonization scenario runs
+      # backwards. Since the coupling turns the relative gap into phi, a
+      # shrinking ceiling tightens the constraint every period whether or not
+      # anything political happens, and a country that changes nothing is pushed
+      # through its own ceiling by the passage of time.
+      #
+      # This is deliberately a SEVERE gate rather than an audit, but it is only
+      # safe BECAUSE `extrapolationDominated` and `scenarioBlind` are severe too:
+      # the cheapest way to hold a ceiling flat is to stop responding to the
+      # scenario at all (composite-AP specs clamp both pathways to the same
+      # support edge), so on its own this gate would select inert specs. Never
+      # enable it without those two.
+      if (is.finite(ceilingFallGate)) {
+        ct <- tryCatch(
+          .psmCeilingTrajectory(cfg, sec, panelData, scenarioData,
+                                modelDir = modelDir, indexMax = indexMax),
+          error = function(e) NULL)
+        if (!is.null(ct) && is.finite(ct$ratio)) {
+          modelCeiling[[sec]] <- ct$ratio
+          if (ct$ratio < ceilingFallGate) {
+            nSevere <- nSevere + 1L
+            modelFlags[[paste0(sec, ".ceilingCollapse")]] <- data.frame(
+              rule = "ceilingCollapse", severity = "severe",
+              region = "ALL", year = NA_integer_, value = ct$ratio,
+              detail = paste0("median frontier ceiling falls to ",
+                              round(100 * ct$ratio), "% of its ", ct$year0,
+                              " value by ", ct$year1, " (gate ",
+                              round(100 * ceilingFallGate), "%); ",
+                              round(100 * (ct$shareFalling %||% NA_real_)),
+                              "% of covered countries falling"),
+              sector = sec, stringsAsFactors = FALSE
+            )
+            say("  [sanity:PolicyStringency] ", m, " (", sec, ") ceiling collapse: ",
+                "S* ratio = ", round(ct$ratio, 3), " < ", ceilingFallGate)
+          }
         }
       }
 
@@ -548,6 +592,9 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
     if (length(modelFlags) > 0) {
       flagsByModel[[m]] <- do.call(rbind, modelFlags)
     }
+    # Kept for every evaluated model, passing or not, so the ceiling trade-off is
+    # inspectable after the fact rather than only visible as a rejection.
+    if (length(modelCeiling) > 0) ceilingByModel[[m]] <- unlist(modelCeiling)
     if (evaluable && (nSevere < least$nSevere ||
                         (nSevere == least$nSevere && nWarning < least$nWarning))) {
       least <- list(model = m, nSevere = nSevere, nWarning = nWarning)
@@ -569,7 +616,77 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
   list(
     chosen = chosen, forced = forced,
     trace = if (length(traceRows) > 0) do.call(rbind, traceRows) else NULL,
-    flags = flagsByModel
+    flags = flagsByModel,
+    ceiling = ceilingByModel
   )
+}
+
+# Median frontier-ceiling trajectory for one spec/sector across the scenario.
+# Returns the end/start ratio of the median S* over COVERED countries, with the
+# trend frozen at the last historical year exactly as projectFeasiblePath does.
+# `ratio` < 1 means the ceiling falls; see the ceilingCollapse gate above.
+#' @keywords internal
+.psmCeilingTrajectory <- function(cfg, sector, histData, scenarioData,
+                                  modelDir = NULL, indexMax = 10,
+                                  years = c(2025, 2100)) {
+  unl <- function(x) if (is.null(x)) NULL else unlist(x)
+  ff <- do.call(estimatePolicyStringencyModel, c(
+    list(data = histData, sector = sector, estimator = "frontier",
+         indexMax = indexMax, modelDir = modelDir, updateIndex = FALSE, verbose = FALSE),
+    .psmSpecArgs(cfg)))
+  b <- stats::coef(ff$model)
+  b <- b[!names(b) %in% c("sigmaSq", "gamma")]
+  covered <- unique(as.character(ff$data$region))
+
+  sDf <- preparePanelData(
+    data = scenarioData, sector = sector,
+    actorPowerDrivers = unl(cfg$actorPowerDrivers), actorPowerIndex = unl(cfg$actorPowerIndex),
+    instQualityDrivers = unl(cfg$instQualityDrivers),
+    controlDrivers = setdiff(unl(cfg$controlDrivers), "lagged_ecp"),
+    regionMappingFixedEffects = if (isTRUE(cfg$useMundlak)) NULL else cfg$regionMappingFixedEffects,
+    useMundlak = isTRUE(cfg$useMundlak), gdpGovInteraction = isTRUE(cfg$gdpGovInteraction),
+    driverScaling = ff$driverScaling,
+    trendFreezeYear = suppressWarnings(max(ff$data$year, na.rm = TRUE)),
+    outcomeVar = ff$outcomeVar %||% "Policy Stringency",
+    apTransform = cfg$apTransform %||% "linear")
+  sDf$lagged_ecp <- 0
+  lv <- ff$model$xlevels$regionFE %||% levels(ff$data$regionFE)
+  if (!is.null(lv) && "regionFE" %in% names(sDf)) {
+    fe <- as.character(sDf$regionFE)
+    fe[!fe %in% lv] <- if ("Other" %in% lv) "Other" else lv[1]
+    sDf$regionFE <- factor(fe, levels = lv)
+  }
+  sDf <- .psmDriverGuard(sDf, .driverSupportRanges(ff$data, ff$driverScaling))$df
+
+  tt <- stats::delete.response(stats::terms(ff$formula))
+  mm <- stats::model.matrix(tt, stats::model.frame(tt, data = sDf, na.action = stats::na.pass))
+  shared <- intersect(colnames(mm), names(b))
+  sStar <- indexMax * stats::plogis(as.numeric(mm[, shared, drop = FALSE] %*% b[shared]))
+
+  keep <- as.character(sDf$region) %in% covered & is.finite(sStar)
+  d <- data.frame(region = as.character(sDf$region)[keep], year = sDf$year[keep],
+                  s = sStar[keep], stringsAsFactors = FALSE)
+  d <- d[d$year >= years[1] & d$year <= years[2], , drop = FALSE]
+  med <- tapply(d$s, d$year, stats::median, na.rm = TRUE)
+  pick <- function(y) {
+    av <- as.integer(names(med))
+    if (!length(av)) return(NA_real_)
+    as.numeric(med[[which.min(abs(av - y))]])
+  }
+  y0 <- pick(years[1])
+  y1 <- pick(years[2])
+  # The median can be flat while individual countries still lose their ceiling:
+  # measured on v1, the best admissible spec holds the median at 1.005 with 46%
+  # of countries still falling (the deployed one: 0.62 and 96%). The gate scores
+  # the median because that is what survives the region aggregation into phi, but
+  # the residual is reported so a passing spec is never read as "no country falls".
+  perC <- vapply(split(d, d$region), function(z) {
+    a <- z$s[which.min(z$year)]
+    b2 <- z$s[which.max(z$year)]
+    if (!is.finite(a) || a <= 0 || !is.finite(b2)) NA_real_ else b2 / a
+  }, numeric(1))
+  list(ratio = if (is.finite(y0) && y0 > 0) y1 / y0 else NA_real_,
+       ceil0 = y0, ceil1 = y1, year0 = years[1], year1 = years[2],
+       shareFalling = mean(perC < 1, na.rm = TRUE))
 }
 # nolint end

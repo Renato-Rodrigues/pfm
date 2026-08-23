@@ -73,6 +73,17 @@
 #' @param referenceGdxFile Optional path to the reference scenario's
 #'   \code{fulldata.gdx}; used to build \code{referenceScenarioData} when that is
 #'   \code{NULL}.
+#' @param ceilingFallGate Numeric or \code{NA}. Severe-gate threshold on the
+#'   median FRONTIER ceiling's end/start ratio across the scenario horizon: a
+#'   spec whose ceiling falls below this fraction of its first projected value by
+#'   the horizon end is rejected (ADR 0043). \strong{Default \code{0.90}}; set
+#'   \code{NA} to restore pre-2026-08-23 selection. Costs one frontier fit per
+#'   candidate per sector and only runs inside the sanity walk.
+#'   \strong{Do not disable the \code{supportShareGate} or
+#'   \code{minScenarioDelta} gates while this one is on} — the cheapest way to
+#'   hold a ceiling flat is to stop responding to the scenario, so without them
+#'   this gate would select inert specifications (measured: corr(ceiling ratio,
+#'   cross-country ceiling SD) = −0.42).
 #' @param supportShareGate Numeric. Severe-gate threshold on the mean
 #'   \code{driverOutOfSupport} share within \code{deltaWindow} over in-coverage
 #'   rows (ADR 0040; default 0.25). A spec whose projection in the evaluation
@@ -125,6 +136,7 @@ runPSMSweep <- function(group,
                         minScenarioDelta = 0.05,
                         deltaWindow = c(2040, 2060),
                         supportShareGate = 0.25,
+                        ceilingFallGate = 0.90,
                         sanityBatchSize = 5,
                         sanityMaxModels = 20,
                         sanityThresholds = list(),
@@ -309,6 +321,7 @@ runPSMSweep <- function(group,
       referenceScenarioData = referenceScenarioData,
       minScenarioDelta = minScenarioDelta, deltaWindow = deltaWindow,
       supportShareGate = supportShareGate,
+      ceilingFallGate = ceilingFallGate,
       say = say
     )
     # Tier-relaxed fallback (ADR 0039): if every Green-gate candidate fails the
@@ -330,6 +343,7 @@ runPSMSweep <- function(group,
           referenceScenarioData = referenceScenarioData,
           minScenarioDelta = minScenarioDelta, deltaWindow = deltaWindow,
           supportShareGate = supportShareGate,
+          ceilingFallGate = ceilingFallGate,
           say = say
         )
         if (!isTRUE(selBlue$forced)) {
