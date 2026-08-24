@@ -7,7 +7,7 @@
 createChannelConfigs(
   dir,
   mode = c("guided", "exhaustive"),
-  apPcForms = c("splitAPpc", "mixedAP"),
+  apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
   overwrite = FALSE
 )
 }

@@ -38,6 +38,7 @@ runPSMSweep(
   deltaWindow = c(2040, 2060),
   supportShareGate = 0.25,
   ceilingFallGate = 0.9,
+  gdxRegionMappingFile = "regionmappingH12.csv",
   sanityBatchSize = 5,
   sanityMaxModels = 20,
   sanityThresholds = list(),
@@ -138,6 +139,15 @@ candidate per sector and only runs inside the sanity walk.
 hold a ceiling flat is to stop responding to the scenario, so without them
 this gate would select inert specifications (measured: corr(ceiling ratio,
 cross-country ceiling SD) = −0.42).}
+
+\item{gdxRegionMappingFile}{Character. The \strong{gdx's own native resolution}, not a
+target (PITFALLS §5) — \code{"regionmappingH12.csv"} (default) for an H12 gdx,
+\code{"regionmapping_21_EU11.csv"} for an EU21 one. Forwarded to
+\code{\link{panelDataScenario}} for both the gating and reference panels. Getting
+it wrong makes the scenario panel fail and \strong{silently disables every gate
+that needs it} — the sanity walk, \code{scenarioBlind}, \code{extrapolationDominated}
+and \code{ceilingFallGate} — leaving maximin-only selection. Run-Group v1 was
+selected this way without anyone noticing.}
 
 \item{sanityBatchSize, sanityMaxModels, sanityThresholds}{Sanity-walk knobs;
 thresholds are the \code{\link{computePolicyStringencySanity}} overrides.}

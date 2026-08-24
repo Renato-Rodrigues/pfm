@@ -73,6 +73,14 @@
 #' @param referenceGdxFile Optional path to the reference scenario's
 #'   \code{fulldata.gdx}; used to build \code{referenceScenarioData} when that is
 #'   \code{NULL}.
+#' @param gdxRegionMappingFile Character. The **gdx's own native resolution**, not a
+#'   target (PITFALLS §5) — \code{"regionmappingH12.csv"} (default) for an H12 gdx,
+#'   \code{"regionmapping_21_EU11.csv"} for an EU21 one. Forwarded to
+#'   \code{\link{panelDataScenario}} for both the gating and reference panels. Getting
+#'   it wrong makes the scenario panel fail and \strong{silently disables every gate
+#'   that needs it} — the sanity walk, \code{scenarioBlind}, \code{extrapolationDominated}
+#'   and \code{ceilingFallGate} — leaving maximin-only selection. Run-Group v1 was
+#'   selected this way without anyone noticing.
 #' @param ceilingFallGate Numeric or \code{NA}. Severe-gate threshold on the
 #'   median FRONTIER ceiling's end/start ratio across the scenario horizon: a
 #'   spec whose ceiling falls below this fraction of its first projected value by
@@ -137,6 +145,7 @@ runPSMSweep <- function(group,
                         deltaWindow = c(2040, 2060),
                         supportShareGate = 0.25,
                         ceilingFallGate = 0.90,
+                        gdxRegionMappingFile = "regionmappingH12.csv",
                         sanityBatchSize = 5,
                         sanityMaxModels = 20,
                         sanityThresholds = list(),
@@ -189,10 +198,16 @@ runPSMSweep <- function(group,
   if (!is.null(modelDir)) saveTrainingPanel(panelData, dir = modelDir)
 
   # ── Scenario panel (optional; enables the bounded-index sanity gate) ─────────
+  # gdxRegionMappingFile is the gdx's OWN native resolution, not a target (PITFALLS
+  # §5). Until 2026-08-24 this call did not pass it, so it silently defaulted to H12
+  # while Run-Group v1's gdx was EU21 - the panel died with `subscript out of bounds
+  # ("EUR")`, the tryCatch swallowed it, and the whole sweep selected on maximin
+  # alone. `v1/sweep.rds` carries 0 sanity entries because of exactly this.
   if (is.null(scenarioData) && !is.null(gdxFile) && file.exists(gdxFile)) {
-    say("Building scenario panel from gdx ...")
+    say("Building scenario panel from gdx (gdx mapping: ", gdxRegionMappingFile, ") ...")
     scenarioData <- tryCatch(
       panelDataScenario(gdxFile = gdxFile, aggregate = TRUE,
+                        gdxRegionMappingFile = gdxRegionMappingFile,
                         outputRegionMappingFile = outputRegionMappingFile),
       error = function(e) {
         say("scenario panel failed (", conditionMessage(e), "); sanity gate skipped.")
@@ -207,6 +222,7 @@ runPSMSweep <- function(group,
     say("Building REFERENCE scenario panel from gdx ...")
     referenceScenarioData <- tryCatch(
       panelDataScenario(gdxFile = referenceGdxFile, aggregate = TRUE,
+                        gdxRegionMappingFile = gdxRegionMappingFile,
                         outputRegionMappingFile = outputRegionMappingFile),
       error = function(e) {
         say("reference scenario panel failed (", conditionMessage(e),
@@ -306,8 +322,21 @@ runPSMSweep <- function(group,
         if (length(tally)) paste(sprintf("%s (x%d)", names(tally), as.integer(tally)),
                                  collapse = "; ") else "(no reasons recorded)")
   } else if (is.null(scenarioData)) {
+    # Falling through to maximin-only is a REAL degradation, not a variant: every
+    # scenario-dependent gate is skipped at once - the sanity walk, scenarioBlind,
+    # extrapolationDominated and ceilingFallGate (ADR 0043, on by default). It is a
+    # warning, not a log line, because Run-Group v1 was selected this way for a whole
+    # cycle without anyone noticing: the gdx was EU21, gdxRegionMappingFile defaulted
+    # to H12, panelDataScenario died on "EUR", and the tryCatch above swallowed it.
+    active <- c(if (is.finite(ceilingFallGate)) "ceilingFallGate",
+                if (is.finite(supportShareGate)) "supportShareGate",
+                "sanity walk", "scenarioBlind")
+    warning("runPSMSweep: no scenario panel - selecting on maximin ALONE. ",
+            "Skipped: ", paste(active, collapse = ", "), ". ",
+            "Check gdxFile and that gdxRegionMappingFile ('", gdxRegionMappingFile,
+            "') matches the gdx's native resolution (PITFALLS 5).", call. = FALSE)
     selected[["PolicyStringency"]] <- pass$model[1]
-    say("Selected PSM spec (maximin only - no scenario, sanity gate skipped): ",
+    say("WARNING: Selected PSM spec (maximin only - no scenario, ALL scenario gates skipped): ",
         pass$model[1], " (", pass$minTier[1], ", mean dR2 = ",
         round(pass$meanDeltaR2[1], 3), ")")
   } else {
