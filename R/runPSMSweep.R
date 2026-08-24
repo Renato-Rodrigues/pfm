@@ -73,6 +73,11 @@
 #' @param referenceGdxFile Optional path to the reference scenario's
 #'   \code{fulldata.gdx}; used to build \code{referenceScenarioData} when that is
 #'   \code{NULL}.
+#' @param apPcForms Character vector. Per-capita actor-power forms appended to the spec
+#'   grid (design-notes/0001); forwarded to \code{\link{createChannelConfigs}}. Defaults
+#'   to all three — \code{"splitAPpc"}, \code{"mixedAP"} and \code{"bothIncAP"} — so
+#'   selection compares share against level head-to-head. \code{character(0)} restores
+#'   the pre-2026-08-24 grid. Only consulted when \code{specs} is \code{NULL}.
 #' @param gdxRegionMappingFile Character. The **gdx's own native resolution**, not a
 #'   target (PITFALLS §5) — \code{"regionmappingH12.csv"} (default) for an H12 gdx,
 #'   \code{"regionmapping_21_EU11.csv"} for an EU21 one. Forwarded to
@@ -146,8 +151,16 @@ runPSMSweep <- function(group,
                         supportShareGate = 0.25,
                         ceilingFallGate = 0.90,
                         gdxRegionMappingFile = "regionmappingH12.csv",
+                        apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
                         sanityBatchSize = 5,
-                        sanityMaxModels = 20,
+                        # Raised from 20 on 2026-08-24. The walk stops at the first
+                        # candidate that clears every severe gate, and with
+                        # ceilingFallGate active only ~10% of v1's specs did - 20 was
+                        # a real risk of exhausting the pool and forcing a pick. Each
+                        # extra candidate costs 2 frontier fits, so 60 adds ~20 min to
+                        # a cluster job and buys ~6 expected passes instead of ~2.
+                        # ADR 0043: raise this before weakening the gate.
+                        sanityMaxModels = 60,
                         sanityThresholds = list(),
                         overwriteConfig = TRUE,
                         verbose = TRUE) {
@@ -238,7 +251,8 @@ runPSMSweep <- function(group,
 
   # ── Specs: shared channel grid adapted for the PSM ───────────────────────────
   if (is.null(specs)) {
-    configPath <- createChannelConfigs(groupDir, mode, overwrite = overwriteConfig)
+    configPath <- createChannelConfigs(groupDir, mode, apPcForms = apPcForms,
+                                      overwrite = overwriteConfig)
     specs <- yaml::read_yaml(configPath)
   }
   specs <- psmSpecs(specs, verbose = verbose)

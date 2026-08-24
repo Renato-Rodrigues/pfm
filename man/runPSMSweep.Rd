@@ -39,8 +39,9 @@ runPSMSweep(
   supportShareGate = 0.25,
   ceilingFallGate = 0.9,
   gdxRegionMappingFile = "regionmappingH12.csv",
+  apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
   sanityBatchSize = 5,
-  sanityMaxModels = 20,
+  sanityMaxModels = 60,
   sanityThresholds = list(),
   overwriteConfig = TRUE,
   verbose = TRUE
@@ -148,6 +149,12 @@ it wrong makes the scenario panel fail and \strong{silently disables every gate
 that needs it} — the sanity walk, \code{scenarioBlind}, \code{extrapolationDominated}
 and \code{ceilingFallGate} — leaving maximin-only selection. Run-Group v1 was
 selected this way without anyone noticing.}
+
+\item{apPcForms}{Character vector. Per-capita actor-power forms appended to the spec
+grid (design-notes/0001); forwarded to \code{\link{createChannelConfigs}}. Defaults
+to all three — \code{"splitAPpc"}, \code{"mixedAP"} and \code{"bothIncAP"} — so
+selection compares share against level head-to-head. \code{character(0)} restores
+the pre-2026-08-24 grid. Only consulted when \code{specs} is \code{NULL}.}
 
 \item{sanityBatchSize, sanityMaxModels, sanityThresholds}{Sanity-walk knobs;
 thresholds are the \code{\link{computePolicyStringencySanity}} overrides.}
