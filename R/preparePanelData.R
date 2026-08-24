@@ -140,7 +140,12 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
     NULL
   }
 
+  # Sector-qualified in the data as "<name>|<sector>". The per-capita variants
+  # (ADR 0040 follow-up) carry the same sector suffix, so they must resolve the
+  # same way -- omitting them made every `*pc` spec fail with "missing from the
+  # data" even though the column was present.
   known_indices <- c("Actor Power Index", "Innovator Power", "Incumbent Power")
+  known_indices <- c(known_indices, paste(known_indices, "pc"))
 
   # Function to get the correct magpie name for a driver
   getMagpieName <- function(name, sector) {

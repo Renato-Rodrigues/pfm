@@ -87,6 +87,9 @@ runPSMSectorSpeeds <- function(group,
   parentOf <- c(Electricity = "Bulk", Industry = "Bulk",
                 Buildings = "Diffuse", Transport = "Diffuse")
   apVars <- c("Actor Power Index", "Innovator Power", "Incumbent Power")
+  # Per-capita variants alias identically; without this a pc-based selected model
+  # fits in the sweep but dies here.
+  apVars <- c(apVars, paste(apVars, "pc"))
   nm0 <- magclass::getNames(panel)
   for (sec in sectors) {
     par <- parentOf[[sec]]
