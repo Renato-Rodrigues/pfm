@@ -56,11 +56,22 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
     outputRegionMappingFile = outputRegionMappingFile
   )
   modelCalculatedDrivers <- iamCalculatedDrivers(modelDownscale)
-  modelAPI <- actorPowerIndex(modelCalculatedDrivers, coeff)
+  # See the note in panelDataHistorical(): the RAW population series, not the
+  # normalised driver. Fetched once here and reused for the controls below, so the
+  # two can never diverge. The uncollapsed object is kept because the control block
+  # slices it by [, , "SSP2"].
+  .popRaw <- calcOutput("Population", scenario = "SSP2",
+    aggregate = aggregate, regionmapping = outputRegionMappingFile
+  )
+  modelAPI <- actorPowerIndex(modelCalculatedDrivers, coeff = coeff,
+                              energyPerCapita = .energyPerCapita(
+                                modelDownscale, magclass::collapseNames(.popRaw)))
   out <- mbind(out, modelAPI[, y, c(
     "Actor Power Index|Bulk", "Actor Power Index|Diffuse",
     "Innovator Power|Bulk", "Innovator Power|Diffuse",
-    "Incumbent Power|Bulk", "Incumbent Power|Diffuse"
+    "Incumbent Power|Bulk", "Incumbent Power|Diffuse",
+    "Innovator Power pc|Bulk", "Innovator Power pc|Diffuse",
+    "Incumbent Power pc|Bulk", "Incumbent Power pc|Diffuse"
   )])
   # Actor Power Index Drivers
   out <- mbind(out, modelCalculatedDrivers[, y, ])
@@ -168,9 +179,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   # SSP2 GDP/Population (mrdrivers): one harmonized series (history + projection, 1960-2150)
   # used for BOTH the future trajectory and the historical normalization reference, so training
   # and scenario share a single source. Keep the "SSP2" name for the downstream [,,"SSP2"] slices.
-  pop <- calcOutput("Population", scenario = "SSP2",
-    aggregate = aggregate, regionmapping = outputRegionMappingFile
-  )
+  pop <- .popRaw          # same series the actor-power scaler used, fetched above
   gdp <- calcOutput("GDP", scenario = "SSP2", average2020 = FALSE,
     aggregate = aggregate, regionmapping = outputRegionMappingFile
   )

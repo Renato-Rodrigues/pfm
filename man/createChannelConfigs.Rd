@@ -4,7 +4,12 @@
 \alias{createChannelConfigs}
 \title{createChannelConfigs}
 \usage{
-createChannelConfigs(dir, mode = c("guided", "exhaustive"), overwrite = FALSE)
+createChannelConfigs(
+  dir,
+  mode = c("guided", "exhaustive"),
+  apPcForms = c("splitAPpc", "mixedAP"),
+  overwrite = FALSE
+)
 }
 \arguments{
 \item{dir}{Character. Target directory (created if missing).}

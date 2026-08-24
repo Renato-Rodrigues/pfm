@@ -7,7 +7,12 @@ test_that("channelSpecs builds the expected suites", {
   # block (ADR 0038: 15 IQ x 2 AP x 8 controls x 3 FE, levels only) = 1733 base;
   # every LEVELS base spec gets a saturating stringency-only twin (ADR 0028):
   # 720 + 36 + 12 + 4 + 720 = 1492 twins -> 3225 total.
-  expect_length(ex, 3225)
+  # + per-capita actor-power block (design-notes/0001, appended 2026-08-24):
+  # 3 forms x 15 IQ x 8 controls x 3 FE = 1080 raw + 1080 twins = 2160 -> 5385.
+  expect_length(ex, 5385)
+  # The base grid is unchanged and the new forms are strictly additive - this is the
+  # numbering-stability contract test-psmImprovements.R also pins.
+  expect_length(channelSpecs("exhaustive", apPcForms = character(0)), 3225)
   # every spec has the fields the report schema needs
   needed <- c("name", "description", "actorPowerDrivers", "actorPowerIndex",
               "instQualityDrivers", "controlDrivers", "logisticTimeTrend",
@@ -16,10 +21,14 @@ test_that("channelSpecs builds the expected suites", {
   # names unique within each suite
   expect_false(anyDuplicated(vapply(g, `[[`, character(1), "name")) > 0)
   expect_false(anyDuplicated(vapply(ex, `[[`, character(1), "name")) > 0)
-  # exhaustive transform split: 2984 levels (1492 base + 1492 satP twins)
-  # + 240 hybridFD + 1 pureFD
+  # exhaustive transform split: 5144 levels (1492 base + 1492 satP twins
+  # + 1080 per-capita + 1080 their twins) + 240 hybridFD + 1 pureFD. The per-capita
+  # block is levels-only, so hybridFD and pureFD are untouched by it.
   tr <- vapply(ex, `[[`, character(1), "panelTransform")
-  expect_equal(as.integer(table(tr)[c("levels", "hybridFD", "pureFD")]), c(2984L, 240L, 1L))
+  expect_equal(as.integer(table(tr)[c("levels", "hybridFD", "pureFD")]), c(5144L, 240L, 1L))
+  trBase <- vapply(channelSpecs("exhaustive", apPcForms = character(0)), `[[`,
+                   character(1), "panelTransform")
+  expect_equal(as.integer(table(trBase)[c("levels", "hybridFD", "pureFD")]), c(2984L, 240L, 1L))
   # Option 2b: no hybrid AP form (no spec has split mains with a composite index)
   hybrid <- vapply(ex, function(s) {
     setequal(s$actorPowerDrivers, c("Innovator Power", "Incumbent Power")) &&

@@ -97,11 +97,21 @@ panelDataHistorical <- function(aggregate = TRUE,
   # Actor Power Index
   histData <- iamHistoricalData(aggregate = aggregate, outputRegionMappingFile = outputRegionMappingFile)
   histCalculatedDrivers <- iamCalculatedDrivers(histData)
-  histAPI <- actorPowerIndex(histCalculatedDrivers, coeff = coeff)
+  # Total primary energy per capita scales the share-based indices into per-capita
+  # levels (design-notes/0001). It needs the RAW population series, not the
+  # normalised `Population` driver built further down - that one is a log-min-max
+  # index in [0, 1], and dividing energy by an index is not a per-capita quantity.
+  # Fetched once here and reused for the driver below, so the two can never diverge.
+  .popRaw <- magclass::collapseNames(calcOutput("Population", scenario = "SSP2",
+    aggregate = aggregate, regionmapping = outputRegionMappingFile))
+  histAPI <- actorPowerIndex(histCalculatedDrivers, coeff = coeff,
+                             energyPerCapita = .energyPerCapita(histData, .popRaw))
   out <- mbind(out, histAPI[, y, c(
     "Actor Power Index|Bulk", "Actor Power Index|Diffuse",
     "Innovator Power|Bulk", "Innovator Power|Diffuse",
-    "Incumbent Power|Bulk", "Incumbent Power|Diffuse"
+    "Incumbent Power|Bulk", "Incumbent Power|Diffuse",
+    "Innovator Power pc|Bulk", "Innovator Power pc|Diffuse",
+    "Incumbent Power pc|Bulk", "Incumbent Power pc|Diffuse"
   )])
   # Actor Power Index Drivers
   out <- mbind(out, histCalculatedDrivers[, y, ])
@@ -196,8 +206,7 @@ panelDataHistorical <- function(aggregate = TRUE,
   # window so the log min/max normalization bounds (reused as the projection clamp) are not
   # distorted by projected future values.
   .histEnd <- max(as.integer(gsub("y", "", as.character(y))))
-  pop <- magclass::collapseNames(calcOutput("Population", scenario = "SSP2",
-    aggregate = aggregate, regionmapping = outputRegionMappingFile))
+  pop <- .popRaw          # same series the actor-power scaler used, fetched above
   gdp <- magclass::collapseNames(calcOutput("GDP", scenario = "SSP2", average2020 = FALSE,
     aggregate = aggregate, regionmapping = outputRegionMappingFile))
   pop <- pop[, getYears(pop, as.integer = TRUE) <= .histEnd, ]

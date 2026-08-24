@@ -33,7 +33,8 @@
 #'
 #' @export
 #' @author Renato Rodrigues
-channelSpecs <- function(mode = c("guided", "exhaustive")) {
+channelSpecs <- function(mode = c("guided", "exhaustive"),
+                         apPcForms = c("splitAPpc", "mixedAP", "bothIncAP")) {
   mode <- match.arg(mode)
 
   backbone <- list(
@@ -61,6 +62,21 @@ channelSpecs <- function(mode = c("guided", "exhaustive")) {
   CSP  <- "Civil Service Professionalism (VDem)"
   SPLIT <- c("Innovator Power", "Incumbent Power")
   COMP  <- "Actor Power Index"
+  # Per-capita counterparts (design-notes/0001). Shares operationalise STRUCTURAL
+  # power (dependence, lock-in); per-capita levels operationalise INSTRUMENTAL power
+  # (rents, employment, lobbying resources). MIXED is the design note's recommendation:
+  # innovator influence as policy feedback (share-like), incumbent influence as
+  # instrumental weight (level-like). Legal because the deployed form is `splitAP` -
+  # the two enter separately, so the composite difference is never taken across scales.
+  SPLITPC <- c("Innovator Power pc", "Incumbent Power pc")
+  MIXED   <- c("Innovator Power", "Incumbent Power pc")
+  # Both incumbent terms at once. This NESTS `splitAP` and `mixedAP`, so it is the
+  # test that resolves the design note's own main risk: dropping the share loses the
+  # dependence / lock-in channel, which is well established in this literature. With
+  # both present the sweep answers directly whether the share still carries
+  # information once the level is in. Costs three extra parameters (one main effect
+  # plus its two institution interactions).
+  BOTHINC <- c("Innovator Power", "Incumbent Power", "Incumbent Power pc")
 
   # Control variables (ADR 0011). Projection-safe transforms only: GDP-Q quantile
   # (+ its square), log GDP per capita (+ square), log Population. Raw GDP+GDP^2 is
@@ -162,6 +178,19 @@ channelSpecs <- function(mode = c("guided", "exhaustive")) {
   # projection explosion). Only consistent forms remain.
   apForms <- list("compAP" = list(drivers = COMP, index = COMP),
                   "splitAP" = list(drivers = SPLIT, index = SPLIT))
+  # The per-capita forms are NOT added here: doing so interleaves them into the
+  # nested crosses and renumbers every X-NNNN downstream, breaking the numbering
+  # stability this file has maintained through three previous additions. They are
+  # appended as their own block at the end instead - see `apPcForms` below.
+  pcForms <- list("splitAPpc" = list(drivers = SPLITPC, index = SPLITPC),
+                  "mixedAP"   = list(drivers = MIXED,   index = MIXED),
+                  "bothIncAP" = list(drivers = BOTHINC, index = BOTHINC))
+  unknown <- setdiff(apPcForms, names(pcForms))
+  if (length(unknown)) {
+    stop("channelSpecs: unknown apPcForms: ", paste(unknown, collapse = ", "),
+         ". Available: ", paste(names(pcForms), collapse = ", "))
+  }
+  pcForms <- pcForms[apPcForms]
 
   # ADR 0011 — control-set axis (8 curated sets incl. no-controls, no-GDP, and
   # the GDP-Q vs log-GDP comparison) and region-FE axis (5 levels incl. Mundlak).
@@ -332,6 +361,46 @@ channelSpecs <- function(mode = c("guided", "exhaustive")) {
     }
   }
 
+  # ── Per-capita actor-power block (design-notes/0001, 2026-08-24) ───────────
+  # APPENDED after every existing cross so X-numbers stay stable, exactly as the
+  # capture-channel, EU-diffusion and context-dummies blocks were before it.
+  #
+  # The base grid's indices are SHARES of the energy system, which operationalise
+  # STRUCTURAL power (dependence, lock-in) and are driven to a floor by a mitigation
+  # scenario BY CONSTRUCTION - measured on v1, ~5 SD below the estimation range by
+  # 2100 against ~1 SD for a per-capita level. These forms let selection compare that
+  # against INSTRUMENTAL power (rents, employment, lobbying resources):
+  #   splitAPpc - both indices per capita
+  #   mixedAP   - innovator share (policy feedback), incumbent per capita
+  #               (instrumental weight): the design note's recommendation
+  # Levels only, and only across the FE axis with the full IQ x control cross, which
+  # mirrors the base `lev` block so the comparison is like-for-like.
+  for (ge in names(govEffOptions)) {
+    for (rl in names(rolOptions)) {
+      for (ac in names(accOptions)) {
+        iq <- c(govEffOptions[[ge]], rolOptions[[rl]], accOptions[[ac]])
+        if (length(iq) == 0) next
+        for (ap in names(pcForms)) {
+          for (cs in names(controlSets)) {
+            for (fl in names(feLevels)) {
+              idx <- idx + 1L
+              specs[[idx]] <- spec(
+                sprintf("X-%04d %s|%s|%s %s lev ctl:%s fe:%s", idx, ge, rl, ac, ap, cs, fl),
+                paste0("Per-capita actor power (design-notes/0001): GovEff=", ge,
+                       ", RoL=", rl, ", Acc=", ac, ", AP=", ap, ", controls=", cs,
+                       ", FE=", fl, ", levels."),
+                pcForms[[ap]]$drivers, pcForms[[ap]]$index, iq, transform = "levels",
+                overrides = list(controlDrivers = controlSets[[cs]],
+                                 regionMappingFixedEffects = feLevels[[fl]]$fe,
+                                 useMundlak = feLevels[[fl]]$mundlak)
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+
   # ── Lagged stringency-price variants (2026-06-14) ──────────────────────────
   # Carbon prices are sticky; a lagged price both fits that and damps projection
   # swings. A lagged dependent + region FE incurs dynamic-panel (Nickell) bias, so
@@ -397,6 +466,7 @@ channelSpecs <- function(mode = c("guided", "exhaustive")) {
 #' @export
 #' @author Renato Rodrigues
 createChannelConfigs <- function(dir, mode = c("guided", "exhaustive"),
+                                 apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
                                  overwrite = FALSE) {
   mode <- match.arg(mode)
   if (!requireNamespace("yaml", quietly = TRUE)) {
@@ -408,7 +478,7 @@ createChannelConfigs <- function(dir, mode = c("guided", "exhaustive"),
     message("createChannelConfigs: keeping existing ", out)
     return(invisible(out))
   }
-  specs <- channelSpecs(mode)
+  specs <- channelSpecs(mode, apPcForms = apPcForms)
   nSatTwin <- sum(vapply(specs, function(s) isTRUE(s$stringencyOnly), logical(1)))
   nFits <- (length(specs) - nSatTwin) * 4L + nSatTwin * 2L  # twins are stringency-only (ADR 0028)
   header <- paste0(

@@ -6,6 +6,7 @@
 \usage{
 actorPowerIndex(
   data,
+  energyPerCapita = NULL,
   coeff = list(bulk = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
     list(vre = 1, elec = 0.6), incumbents_power = list(coal = 1, oilgas = 1, fossilInd =
     0.5)), diffuse = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
@@ -15,6 +16,13 @@ actorPowerIndex(
 }
 \arguments{
 \item{data}{A \code{magpie} object with calculated drivers.}
+
+\item{energyPerCapita}{Optional \code{magpie} object holding total primary energy per
+capita, aligned to \code{data}. When supplied, per-capita variants of both indices are
+emitted \strong{in addition to} the shares, named \code{"Innovator Power pc|<sector>"} and
+\code{"Incumbent Power pc|<sector>"}. A specification selects between share and
+per-capita by naming the drivers it wants; nothing downstream changes. See
+\code{design-notes/0001-actor-power-share-vs-level.md} for why both are carried.}
 
 \item{coeff}{List with weights for Innovator and Incumbent index calculation.
 Default weights apply the predefined Bulk and Diffuse schema.}

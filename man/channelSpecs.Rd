@@ -4,7 +4,10 @@
 \alias{channelSpecs}
 \title{channelSpecs}
 \usage{
-channelSpecs(mode = c("guided", "exhaustive"))
+channelSpecs(
+  mode = c("guided", "exhaustive"),
+  apPcForms = c("splitAPpc", "mixedAP")
+)
 }
 \arguments{
 \item{mode}{Character. \code{"guided"} or \code{"exhaustive"}.}

@@ -8,6 +8,12 @@
 #' @param data A `magpie` object with calculated drivers.
 #' @param coeff List with weights for Innovator and Incumbent index calculation.
 #' Default weights apply the predefined Bulk and Diffuse schema.
+#' @param energyPerCapita Optional `magpie` object holding total primary energy per
+#' capita, aligned to `data`. When supplied, per-capita variants of both indices are
+#' emitted **in addition to** the shares, named `"Innovator Power pc|<sector>"` and
+#' `"Incumbent Power pc|<sector>"`. A specification selects between share and
+#' per-capita by naming the drivers it wants; nothing downstream changes. See
+#' `design-notes/0001-actor-power-share-vs-level.md` for why both are carried.
 #'
 #' @return A `magpie` object with the calculated indices.
 #' @author Renato Rodrigues
@@ -17,6 +23,7 @@
 #' @export
 actorPowerIndex <- function(
     data,
+    energyPerCapita = NULL,
     coeff = list(
       bulk = list(
         actor_power = list(innov = 1, incumb = 1),
@@ -75,6 +82,35 @@ actorPowerIndex <- function(
   out[, , "Incumbent Power|Diffuse"] <-
     ((coeff$diffuse$incumbents_power$coal * coal) + (coeff$diffuse$incumbents_power$oilgas * oilgas) +
      (coeff$diffuse$incumbents_power$fossilInd * fossilInd)) / sumIncumbDiffuse
+
+  # --- Per-capita variants (design-notes/0001, 2026-08-24) -------------------
+  # The indices above are SHARES of the energy system, so they operationalise
+  # STRUCTURAL power (dependence, lock-in) and fall when a rival grows even if the
+  # sector is untouched. The per-capita variants multiply by total primary energy
+  # per person, giving the sector's absolute weight in the polity - INSTRUMENTAL
+  # power (rents, employment, lobbying resources).
+  #
+  # This matters for projection, not only for theory: measured on v1, a share-based
+  # incumbent index is driven ~5 SD below its estimation range by 2100 because a
+  # mitigation scenario takes the share to a floor by construction; the per-capita
+  # level moves ~1 SD. Both are extrapolation; one is five times further out.
+  #
+  # Emitted alongside the shares (never instead), so a specification chooses between
+  # them by NAMING the drivers it wants - no estimator or projection change. Skipped
+  # when `energyPerCapita` is NULL, which keeps every existing caller unchanged.
+  if (!is.null(energyPerCapita)) {
+    epc <- energyPerCapita[getItems(out, dim = 1), getYears(out), ]
+    pcNames <- c("Innovator Power pc|Bulk", "Innovator Power pc|Diffuse",
+                 "Incumbent Power pc|Bulk", "Incumbent Power pc|Diffuse")
+    pc <- new.magpie(magclass::getItems(out, dim = 1), getYears(out), pcNames, fill = NA)
+    for (s in c("Bulk", "Diffuse")) {
+      for (a in c("Innovator", "Incumbent")) {
+        pc[, , paste0(a, " Power pc|", s)] <-
+          setNames(out[, , paste0(a, " Power|", s)] * epc, paste0(a, " Power pc|", s))
+      }
+    }
+    out <- mbind(out, pc)
+  }
 
   # --- Calculate overall Actor Power Index ---
   out[, , "Actor Power Index|Bulk"] <-
