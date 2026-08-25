@@ -72,6 +72,13 @@ pfmResolveConfig <- function(config = NULL, verbose = TRUE) {
   list(scenarios = scenarios, gdxFile = gdxFile,
        cachefolder = absify(cfg[["cachefolder"]] %||% cfg[["cacheDir"]] %||% "data/cache"),
        resultsDir = def("resultsDir", NULL), modelDir = def("modelDir", NULL),
+       # The panel's spatial resolution. DECLARED here rather than left to each step
+       # function's own default, because ~14 of them carry one and a partial change
+       # produces a Run-Group fitted at one resolution and projected at another --
+       # the failure class of PITFALLS 15/20/21. Every min-max normalised quantity
+       # (u, and hence phi, and hence the theta anchor) is normalised over whatever
+       # units are in frame, so this changes the fitted object, not the display.
+       outputRegionMappingFile = cfg[["outputRegionMappingFile"]] %||% "country",
        path = path, dir = confDir)
 }
 # nolint end

@@ -431,6 +431,14 @@ pfmRun <- function(group = NULL,
           if (is.null(rc$scenarios)) "  [no scenarios]"
           else paste0("  [", length(rc$scenarios), " scenario(s)]"))
   if ("psm-remind-inputs" %in% steps) message("  REMIND out  : ", remindDir)
+  # The panel's spatial resolution decides WHICH UNITS every min-max normalised
+  # quantity is normalised over, so it changes the fitted object, not just the
+  # display. It was invisible here until 2026-08-25, when a run launched through
+  # pfmRun built a country-resolution panel (hash f8845f66) while the Run-Group it
+  # was meant to be compared against was 54-region (60f35576) — the whole maximin
+  # ranking differed and it read as a gate effect. Print it.
+  message("  panel res   : ", list(...)$outputRegionMappingFile %||% rc$outputRegionMappingFile,
+          if (is.null(list(...)$outputRegionMappingFile)) "  (config)" else "  (caller)")
   message("  steps       : ", paste(steps, collapse = ", "))
   hr("=")
 
@@ -498,7 +506,11 @@ pfmRun <- function(group = NULL,
       list(group = group, steps = pipelineSteps, cluster = cluster,
            resultsDir = resultsDir, modelDir = modelDir, resume = resume,
            scenarios = rc$scenarios, cachefolder = rc$cachefolder,
-           outputRegionMappingFile = "country"),
+           # One value, threaded to EVERY psm step: runModelGroup forwards dots to
+           # each step filtered by that step's own formals, and all of them carry
+           # `outputRegionMappingFile`. Passing it once here is what keeps the fit
+           # and the projection at the same resolution.
+           outputRegionMappingFile = rc$outputRegionMappingFile),
       list(...))
     if (!is.null(rc$gdxFile)) args$gdxFile <- rc$gdxFile
     # Each axis is set only when the caller did NOT pass it, so an explicit

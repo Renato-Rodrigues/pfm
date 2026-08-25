@@ -103,4 +103,38 @@ test_that("gammaGate and sanityMaxModels survive the dots filter into runPSMSwee
   # `config` is the known casualty of this filter -- keep it documented in a test
   expect_false("config" %in% names(formals(startRun)))
 })
+test_that("panel resolution is declared in config and threaded to every psm step", {
+  # 2026-08-25: pfmRun hardcoded outputRegionMappingFile = "country" with no comment
+  # and nothing in the printed plan. A gate-comparison sweep was therefore fitted on a
+  # country-resolution panel (hash f8845f66) while the Run-Group it was meant to be
+  # compared against was 54-region (60f35576). The whole maximin ranking differed and
+  # it read as a gate effect.
+  #
+  # Two halves are pinned. (1) pfmResolveConfig must SUPPLY the key, so the value is
+  # declared in config.yml rather than buried in a function default. (2) every psm step
+  # must ACCEPT it -- runModelGroup forwards dots filtered by each step's own formals,
+  # so a step lacking the formal silently keeps its own default and splits the group
+  # across two resolutions: the PITFALLS 15/20/21 failure class.
+
+  # (1) written to a temp config so the test does not depend on the checkout's own.
+  cfgPath <- withr::local_tempfile(fileext = ".yml")
+  writeLines(c('cachefolder: "data/cache"', 'outputRegionMappingFile: "country"'), cfgPath)
+  rc <- pfmResolveConfig(cfgPath)
+  expect_identical(rc$outputRegionMappingFile, "country")
+
+  # and it must DEFAULT to country when the key is absent, not to a step's own value
+  cfgBare <- withr::local_tempfile(fileext = ".yml")
+  writeLines('cachefolder: "data/cache"', cfgBare)
+  expect_identical(pfmResolveConfig(cfgBare)$outputRegionMappingFile, "country")
+
+  # (2)
+  psmSteps <- list(runPSMSweep, runPSMTemporalValidation, runPSMFrontier,
+                   runPSMSectorSpeeds, runPSMSelectionBootstrap, runPSMHistoricalReplay)
+  for (f in psmSteps) expect_true("outputRegionMappingFile" %in% names(formals(f)))
+
+  # pfmRun must supply it from config rather than leaving each default to disagree
+  body <- paste(deparse(pfmRun), collapse = "\n")
+  expect_match(body, "outputRegionMappingFile = rc$outputRegionMappingFile", fixed = TRUE)
+  expect_false(grepl('outputRegionMappingFile = "country"', body, fixed = TRUE))
+})
 # nolint end
