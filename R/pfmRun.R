@@ -439,6 +439,28 @@ pfmRun <- function(group = NULL,
     psmCleanSteps(group, victims, resultsDir = resultsDir, dryRun = TRUE)
   }
 
+  # Validate the caller's dots against startRun BEFORE the dryRun exit, so a dry run
+  # cannot report a plan that is impossible to execute. This fired for real on
+  # 2026-08-25: dryRun printed a clean plan and the identical live call then died on
+  # a duplicated `cachefolder`. A dry run that does not check argument assembly gives
+  # false confidence, which is worse than not offering one.
+  local({
+    dn <- names(list(...))
+    dn <- dn[nzchar(dn)]
+    if (!length(dn)) return(invisible(NULL))
+    known <- names(formals(startRun))
+    # Args startRun accepts only through its own `...` (forwarded to the step
+    # functions). Anything matching neither is almost certainly a typo and would be
+    # swallowed silently — the `config` trap, which cost a full run.
+    fwd <- unique(c(names(formals(runPSMSweep)), names(formals(runPostProcessing))))
+    unknown <- setdiff(dn, c(known, fwd))
+    if (length(unknown)) {
+      warning("pfmRun: argument(s) not recognised by startRun or the step functions: ",
+              paste(unknown, collapse = ", "),
+              ". These are SILENTLY IGNORED, not applied. Check the spelling.",
+              call. = FALSE)
+    }
+  })
   if (isTRUE(dryRun)) { message("dryRun = TRUE — nothing was run."); return(invisible(settings)) }
   if (interactiveRun && !askYesNo("Proceed?", TRUE)) {
     message("cancelled."); return(invisible(settings))
@@ -456,10 +478,20 @@ pfmRun <- function(group = NULL,
     # startRun takes `scenarios`/`gdxFile`, not a config path — passing `config` would
     # land in ... and be silently ignored, leaving the projection with no registry and
     # a fallback to one legacy scenario from a generic gdx. Resolve it here instead.
-    args <- list(group = group, steps = pipelineSteps, cluster = cluster,
-                 resultsDir = resultsDir, modelDir = modelDir, resume = resume,
-                 scenarios = rc$scenarios, cachefolder = rc$cachefolder,
-                 outputRegionMappingFile = "country", ...)
+    # The caller's `...` OVERRIDES these defaults rather than colliding with them.
+    # Splicing `...` into the same list() literal made any of `cachefolder`,
+    # `scenarios` or `outputRegionMappingFile` a duplicate name, and do.call then
+    # died with "formal argument matched by multiple actual arguments" — AFTER the
+    # plan had printed and AFTER dryRun had reported success, because dryRun returns
+    # before this assembly. Passing a cachefolder explicitly is the natural thing to
+    # do (every startRun example in the docs does), so this was easy to hit.
+    # modifyList gives the caller precedence, matching the nCores/mem/time rule below.
+    args <- utils::modifyList(
+      list(group = group, steps = pipelineSteps, cluster = cluster,
+           resultsDir = resultsDir, modelDir = modelDir, resume = resume,
+           scenarios = rc$scenarios, cachefolder = rc$cachefolder,
+           outputRegionMappingFile = "country"),
+      list(...))
     if (!is.null(rc$gdxFile)) args$gdxFile <- rc$gdxFile
     # Each axis is set only when the caller did NOT pass it, so an explicit
     # nCores/mem/time/partition still wins over the auto-sizing.
