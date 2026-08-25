@@ -385,9 +385,10 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
                              referenceScenarioData = NULL, minScenarioDelta = 0.05,
                              deltaWindow = c(2040, 2060),
                              supportShareGate = 0.25,
-                             ceilingFallGate = NA_real_,
+                             ceilingFallGate = NA_real_, gammaGate = NA_real_,
                              say = function(...) invisible()) {
   ceilingByModel <- list()
+  gammaByModel <- list()
   traceRows <- list()
   flagsByModel <- list()
   chosen <- NULL
@@ -406,6 +407,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
     reason <- ""
     modelFlags <- list()
     modelCeiling <- list()
+    modelGamma <- list()
     for (sec in sectors) {
       projReason <- ""
       proj <- tryCatch(
@@ -485,6 +487,37 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
           .psmCeilingTrajectory(cfg, sec, panelData, scenarioData,
                                 modelDir = modelDir, indexMax = indexMax),
           error = function(e) NULL)
+        # gamma screen (ADR 0043 consequences, implemented 2026-08-25). OFF by
+        # default (gammaGate = NA) so enabling it is a deliberate, dated act.
+        #
+        # gamma -> 1 means sigma_v^2 -> 0: the variance decomposition attributes
+        # ALL composed error to slack and none to noise, so the "stochastic"
+        # frontier has degenerated into a deterministic one and the gap is very
+        # nearly the arithmetic residual (MODEL.md 3.4). ADR 0043 already directs
+        # the project to screen this on any winner - X-0170 was called out there
+        # for gamma = 1.0000 exactly - but nothing implemented it, and v3's
+        # deployed X-2367 came in at 0.99999999 in BOTH sectors unremarked.
+        #
+        # REPORTED even when the gate is off, so turning it on is never the first
+        # time anyone sees the number.
+        if (!is.null(ct) && is.finite(ct$gamma %||% NA_real_)) {
+          modelGamma[[sec]] <- ct$gamma
+          if (is.finite(gammaGate) && ct$gamma > gammaGate) {
+            nSevere <- nSevere + 1L
+            modelFlags[[paste0(sec, ".gammaBoundary")]] <- data.frame(
+              rule = "gammaBoundary", severity = "severe",
+              region = "ALL", year = NA_integer_, value = ct$gamma,
+              detail = paste0("frontier gamma = ", format(ct$gamma, digits = 8),
+                              " > gate ", gammaGate,
+                              "; variance decomposition is at the boundary, so slack ",
+                              "is indistinguishable from residual (MODEL.md 3.4)"),
+              sector = sec, stringsAsFactors = FALSE
+            )
+            say("  [sanity:PolicyStringency] ", m, " (", sec, ") gamma at boundary: ",
+                format(ct$gamma, digits = 8), " > ", gammaGate)
+          }
+        }
+
         if (!is.null(ct) && is.finite(ct$ratio)) {
           modelCeiling[[sec]] <- ct$ratio
           if (ct$ratio < ceilingFallGate) {
@@ -595,6 +628,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
     # Kept for every evaluated model, passing or not, so the ceiling trade-off is
     # inspectable after the fact rather than only visible as a rejection.
     if (length(modelCeiling) > 0) ceilingByModel[[m]] <- unlist(modelCeiling)
+    if (length(modelGamma) > 0) gammaByModel[[m]] <- unlist(modelGamma)
     if (evaluable && (nSevere < least$nSevere ||
                         (nSevere == least$nSevere && nWarning < least$nWarning))) {
       least <- list(model = m, nSevere = nSevere, nWarning = nWarning)
@@ -617,7 +651,8 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
     chosen = chosen, forced = forced,
     trace = if (length(traceRows) > 0) do.call(rbind, traceRows) else NULL,
     flags = flagsByModel,
-    ceiling = ceilingByModel
+    ceiling = ceilingByModel,
+    gamma = gammaByModel
   )
 }
 
@@ -685,8 +720,17 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
     b2 <- z$s[which.max(z$year)]
     if (!is.finite(a) || a <= 0 || !is.finite(b2)) NA_real_ else b2 / a
   }, numeric(1))
+  # gamma comes free: `ff` is already fitted above and `b` already strips it out.
+  # Returning it lets the gammaGate screen cost ZERO additional frontier fits
+  # (ADR 0043 consequences: "screen gamma on any winner").
+  gm <- tryCatch({
+    cf <- stats::coef(ff$model)
+    if ("gamma" %in% names(cf)) as.numeric(cf[["gamma"]]) else ff$frontierGamma %||% NA_real_
+  }, error = function(e) NA_real_)
+
   list(ratio = if (is.finite(y0) && y0 > 0) y1 / y0 else NA_real_,
        ceil0 = y0, ceil1 = y1, year0 = years[1], year1 = years[2],
-       shareFalling = mean(perC < 1, na.rm = TRUE))
+       shareFalling = mean(perC < 1, na.rm = TRUE),
+       gamma = gm)
 }
 # nolint end

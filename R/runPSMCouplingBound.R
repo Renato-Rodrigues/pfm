@@ -33,13 +33,16 @@
 #'   it). Used to resolve \code{refGdx}/\code{optGdx} when those are not given.
 #' @param gdxRegionMapping Region mapping matching the gdxs' OWN resolution. Getting
 #'   this wrong mis-assigns every region, silently.
-#' @param thetas Numeric vector of \eqn{\theta} values to sweep. The default keeps every
-#'   value that has ever been called the anchor, so no earlier batch becomes
-#'   incomparable: 0.79 (ADR 0041, pre-\code{satAP} frontier, Bulk, country resolution),
-#'   0.74 (regenerated frontier, Diffuse, still country resolution), and \strong{0.50} --
-#'   the value the anchor actually takes at the resolution the coupling assigns
-#'   \eqn{\varphi} on. Only the last is "the efficiency anchor"; 0.74 and 0.79 are swept
-#'   points retained for continuity.
+#' @param thetas Numeric vector of \eqn{\theta} values to sweep, each in \strong{[0, 1)}
+#'   (\code{aggregateFeasibilityToRegions()} rejects \eqn{\theta \ge 1}). The default is an
+#'   even grid: \strong{0.50} is the declared central value -- what the efficiency anchor
+#'   takes at the resolution the coupling assigns \eqn{\varphi} on -- and \strong{0.95/0.99}
+#'   bracket Run-Group \code{v3}'s Bulk region-resolution anchor of 0.951.
+#'
+#'   \strong{Changed 2026-08-25:} the legacy country-resolution anchors 0.74 and 0.79 were
+#'   dropped in favour of 0.75. Runs written before that date sweep 0.74/0.79 and have no
+#'   0.75; these are different severities, so compare grids point-by-point and never
+#'   interpolate between them.
 #' @param anchorTheta The \eqn{\theta} whose per-region detail is reported and stored
 #'   as \code{boundAnchor}. Snapped to the nearest swept value.
 #' @param recordAnchorDerivation Derive the efficiency anchor from this run's own
@@ -59,12 +62,33 @@ runPSMCouplingBound <- function(group,
                                 cachefolder = NULL,
                                 refGdx = NULL, optGdx = NULL, scenarios = NULL,
                                 gdxRegionMapping = "regionmapping_21_EU11.csv",
-                                thetas = c(0, 0.25, 0.50, 0.74, 0.79),
-                                # 0.50, not 0.74: the anchor derived at REGION resolution
-                                # and the seed year, which is where phi is assigned. The
-                                # country-level 0.74 was the wrong resolution - aggregation
-                                # collapses the gap range, so median u rises and theta
-                                # falls. See computeEfficiencyAnchor() and MODEL.md 5.3.
+                                thetas = c(0, 0.25, 0.50, 0.75, 0.95, 0.99),
+                                # An EVEN grid, chosen 2026-08-25 (TODO 14b(b)).
+                                #
+                                # 0.50 is the declared central value: the anchor derived at
+                                # REGION resolution and the seed year, which is where phi is
+                                # assigned. See computeEfficiencyAnchor() and MODEL.md 5.3.
+                                #
+                                # 0.95/0.99 BRACKET v3's Bulk region-resolution anchor of
+                                # 0.951 (Diffuse's 0.330 sits between 0.25 and 0.50).
+                                # Bracketing rather than landing on it is the point: the
+                                # anchor is an analogy that fixes a scale, not an estimate,
+                                # so a swept neighbourhood is the honest object.
+                                #
+                                # 0.74/0.79 were REMOVED and replaced by 0.75. They were
+                                # legacy anchors from a pre-satAP frontier at COUNTRY
+                                # resolution, kept only so earlier batches stayed comparable.
+                                # That comparability is DELIBERATELY given up: v3 changed the
+                                # specification and the trend together, so the 2026-08-17
+                                # coupled batch is not comparable to v3 at ANY theta
+                                # (TODO 14c), and two odd values were preserving a comparison
+                                # that no longer exists. Artifacts written before this date
+                                # carry theta074/theta079 CSVs and no theta075 - they are
+                                # different severities, so do NOT interpolate between grids.
+                                #
+                                # theta = 1 is NOT admissible - aggregateFeasibilityToRegions()
+                                # validates [0, 1) at line 127 and stops, because phi = 0 for
+                                # the largest-gap tier is degenerate, not severe.
                                 anchorTheta = 0.50,
                                 recordAnchorDerivation = TRUE,
                                 panelData = NULL,

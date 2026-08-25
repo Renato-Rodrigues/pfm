@@ -86,6 +86,29 @@
 #'   that needs it} — the sanity walk, \code{scenarioBlind}, \code{extrapolationDominated}
 #'   and \code{ceilingFallGate} — leaving maximin-only selection. Run-Group v1 was
 #'   selected this way without anyone noticing.
+#' @param gammaGate Numeric or \code{NA}. Severe-gate threshold on the frontier's
+#'   \eqn{\gamma}: a spec whose \eqn{\gamma} \strong{exceeds} this value is rejected.
+#'   \strong{Default \code{NA} (off)} — enabling it is a deliberate, dated choice, not
+#'   a silent default change.
+#'
+#'   \eqn{\gamma \to 1} means \eqn{\sigma_v^2 \to 0}: the variance decomposition
+#'   attributes all composed error to slack and none to noise, so the \emph{stochastic}
+#'   frontier has degenerated into a deterministic one and the gap is very nearly the
+#'   arithmetic residual (\code{MODEL.md} §3.4). ADR 0043's consequences already direct
+#'   the project to "screen \eqn{\gamma} on any winner"; nothing implemented it, and
+#'   Run-Group \code{v3}'s deployed \code{X-2367} came in at \strong{0.99999999 in both
+#'   sectors} unremarked. Implementing the screen honours that earlier decision rather
+#'   than adding a new one.
+#'
+#'   \strong{Costs nothing.} \eqn{\gamma} is read off the frontier fit that
+#'   \code{ceilingFallGate} already performs, so the gate is free \emph{when
+#'   \code{ceilingFallGate} is active} and does nothing when it is not.
+#'   \eqn{\gamma} is \strong{recorded on \code{$sanity$<stage>$gamma} whether or not the
+#'   gate is on}, so switching it on is never the first time anyone sees the number.
+#'
+#'   A sensible first value is \code{0.999}; on \code{v3} that rejects the deployed spec,
+#'   which is the point of screening. Expect it to bind hard — \code{v1}'s Bulk headline
+#'   was already 0.9995.
 #' @param ceilingFallGate Numeric or \code{NA}. Severe-gate threshold on the
 #'   median FRONTIER ceiling's end/start ratio across the scenario horizon: a
 #'   spec whose ceiling falls below this fraction of its first projected value by
@@ -150,6 +173,7 @@ runPSMSweep <- function(group,
                         deltaWindow = c(2040, 2060),
                         supportShareGate = 0.25,
                         ceilingFallGate = 0.90,
+                        gammaGate = NA_real_,
                         gdxRegionMappingFile = "regionmappingH12.csv",
                         apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
                         sanityBatchSize = 5,
@@ -343,6 +367,7 @@ runPSMSweep <- function(group,
     # cycle without anyone noticing: the gdx was EU21, gdxRegionMappingFile defaulted
     # to H12, panelDataScenario died on "EUR", and the tryCatch above swallowed it.
     active <- c(if (is.finite(ceilingFallGate)) "ceilingFallGate",
+                if (is.finite(gammaGate)) "gammaGate",
                 if (is.finite(supportShareGate)) "supportShareGate",
                 "sanity walk", "scenarioBlind")
     warning("runPSMSweep: no scenario panel - selecting on maximin ALONE. ",
@@ -365,6 +390,7 @@ runPSMSweep <- function(group,
       minScenarioDelta = minScenarioDelta, deltaWindow = deltaWindow,
       supportShareGate = supportShareGate,
       ceilingFallGate = ceilingFallGate,
+      gammaGate = gammaGate,
       say = say
     )
     # Tier-relaxed fallback (ADR 0039): if every Green-gate candidate fails the
@@ -387,6 +413,7 @@ runPSMSweep <- function(group,
           minScenarioDelta = minScenarioDelta, deltaWindow = deltaWindow,
           supportShareGate = supportShareGate,
           ceilingFallGate = ceilingFallGate,
+          gammaGate = gammaGate,
           say = say
         )
         if (!isTRUE(selBlue$forced)) {
