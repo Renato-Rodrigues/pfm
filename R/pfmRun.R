@@ -444,22 +444,30 @@ pfmRun <- function(group = NULL,
   # 2026-08-25: dryRun printed a clean plan and the identical live call then died on
   # a duplicated `cachefolder`. A dry run that does not check argument assembly gives
   # false confidence, which is worse than not offering one.
-  local({
+  # tryCatch is not defensive padding here: this check exists only to catch typos,
+  # and a convenience check must never be able to abort the run it is checking.
+  # The first version of it did exactly that — it referenced `runPostProcessing`,
+  # which is a FILE name, not a function (the function is `runModelGroup`), and
+  # killed a live submission with "object 'runPostProcessing' not found".
+  tryCatch({
     dn <- names(list(...))
     dn <- dn[nzchar(dn)]
-    if (!length(dn)) return(invisible(NULL))
-    known <- names(formals(startRun))
-    # Args startRun accepts only through its own `...` (forwarded to the step
-    # functions). Anything matching neither is almost certainly a typo and would be
-    # swallowed silently — the `config` trap, which cost a full run.
-    fwd <- unique(c(names(formals(runPSMSweep)), names(formals(runPostProcessing))))
-    unknown <- setdiff(dn, c(known, fwd))
-    if (length(unknown)) {
-      warning("pfmRun: argument(s) not recognised by startRun or the step functions: ",
-              paste(unknown, collapse = ", "),
-              ". These are SILENTLY IGNORED, not applied. Check the spelling.",
-              call. = FALSE)
+    if (length(dn)) {
+      # startRun's own formals, plus the step functions it forwards `...` to.
+      # runModelGroup dispatches the steps; runPSMSweep is where the sweep gates
+      # (gammaGate, sanityMaxModels, ceilingFallGate) actually land.
+      fns <- list(startRun, runPSMSweep, runModelGroup)
+      known <- unique(unlist(lapply(fns, function(f) names(formals(f)))))
+      unknown <- setdiff(dn, known)
+      if (length(unknown)) {
+        warning("pfmRun: argument(s) not recognised by startRun or the step functions: ",
+                paste(unknown, collapse = ", "),
+                ". These are SILENTLY IGNORED, not applied. Check the spelling.",
+                call. = FALSE)
+      }
     }
+  }, error = function(e) {
+    message("pfmRun: argument check skipped (", conditionMessage(e), ")")
   })
   if (isTRUE(dryRun)) { message("dryRun = TRUE — nothing was run."); return(invisible(settings)) }
   if (interactiveRun && !askYesNo("Proceed?", TRUE)) {

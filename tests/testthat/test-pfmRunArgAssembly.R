@@ -36,9 +36,53 @@ test_that("pfmRun assembles args with modifyList, not a spliced literal", {
                      body, fixed = TRUE))
 })
 
-test_that("unknown dots are warned about before the dryRun exit", {
+test_that("every function the dots check calls actually EXISTS", {
+  # THE BUG THIS FILE FAILED TO CATCH THE FIRST TIME. The check originally called
+  # formals(runPostProcessing) -- a FILE name, not a function; the function is
+  # runModelGroup. It killed a live cluster submission with
+  # "object 'runPostProcessing' not found".
+  #
+  # The original tests only asserted that the SOURCE TEXT contained certain
+  # strings, so they passed against code that could not run. Assert resolvability
+  # instead: pull every formals(<name>) target out of the body and look it up.
+  # Use codetools rather than regexing the source: the broken reference was
+  # `formals(runPostProcessing)`, but a text search for `formals(<name>)` misses
+  # the equally breakable `list(startRun, runPSMSweep, runModelGroup)` form.
+  # findGlobals resolves the whole question -- every free symbol in the body.
+  skip_if_not_installed("codetools")
+  ns <- asNamespace("pfm")
+  globals <- codetools::findGlobals(pfmRun)
+  expect_gt(length(globals), 0)
+  missing <- globals[!vapply(globals, exists, logical(1), envir = ns)]
+  expect_identical(missing, character(0),
+                   info = paste("unresolved symbol(s) in pfmRun:",
+                                paste(missing, collapse = ", ")))
+})
+
+test_that("the dots check runs, warns on a typo, and stays silent on real arguments", {
+  # Executes the logic rather than grepping for it.
+  check <- function(...) {
+    dn <- names(list(...)); dn <- dn[nzchar(dn)]
+    fns <- list(startRun, runPSMSweep, runModelGroup)
+    known <- unique(unlist(lapply(fns, function(f) names(formals(f)))))
+    setdiff(dn, known)
+  }
+  expect_identical(check(gammaGate = 0.999, sanityMaxModels = 120,
+                         cachefolder = "x", gdxFile = "y"), character(0))
+  expect_identical(check(gammaGata = 0.999), "gammaGata")   # transposed letters
+
+  # `config` must NOT be tested through this helper: it is a pfmRun FORMAL, so it
+  # never reaches `...` in the first place. pfmRun resolves it into scenarios/gdxFile
+  # precisely because startRun would swallow it (that trap cost a full run).
+  expect_true("config" %in% names(formals(pfmRun)))
+  expect_false("config" %in% names(formals(startRun)))
+})
+
+test_that("a broken dots check cannot abort the run", {
+  # The check is a convenience; it must degrade to a message, never propagate.
   body <- paste(deparse(pfmRun), collapse = "\n")
   iCheck <- regexpr("not recognised by startRun", body, fixed = TRUE)
+  expect_match(body, "argument check skipped", fixed = TRUE)
   # Anchor on the EXIT message, not on "dryRun = TRUE" -- that string also appears
   # in the earlier psmCleanSteps(dryRun = TRUE) preview call, and matching it made
   # this test compare against the wrong line.
