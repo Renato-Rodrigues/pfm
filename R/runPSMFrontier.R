@@ -103,11 +103,22 @@ runPSMFrontier <- function(group,
     diag <- tryCatch(computeFrontierDiagnostics(fit), error = function(e) {
       say("  ", sec, " diagnostics failed: ", conditionMessage(e)); NULL
     })
+    # Persist the standard-error trust signal WITH the standard errors. FRONTIER 4.1's
+    # own covariance matrix was 14.8x too large for v4 Bulk while `converged`, the
+    # log-likelihood and the estimates were all correct (TODO 14f), so a consumer that
+    # reads coefTable has no way to tell a checked table from an unchecked one unless
+    # the artifact says. Artifacts written before 2026-08-26 lack this field, and for
+    # those the answer is "unchecked" — not "fine".
+    if (!is.null(fit$vcovCheck) && !identical(fit$vcovCheck$status, "ok")) {
+      say("  ", sec, " vcov: ", fit$vcovCheck$status,
+          " (reported/recomputed = ", format(fit$vcovCheck$ratio, digits = 4), ")")
+    }
     out$bySector[[sec]] <- list(
       gamma = fit$frontierGamma,
       lr = fit$frontierLR,
       n = nrow(fit$data),
       converged = isTRUE(fit$converged),
+      vcovCheck = fit$vcovCheck,
       coefTable = ct,
       scores = fit$frontier,
       robustness = rob,
