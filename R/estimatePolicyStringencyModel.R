@@ -473,12 +473,35 @@ estimatePolicyStringencyModel <- function(
     # MLE vcov (no clustered sandwich exists for the SFA likelihood — stated).
     # The table includes sigmaSq and gamma: gamma = share of composed-error
     # variance from the one-sided slack term (gamma ~ 0 => no frontier structure).
-    vcovClust <- as.matrix(stats::vcov(fit))
+    #
+    # NOT stats::vcov(fit): FRONTIER 4.1's own covariance matrix is not reliable.
+    # It returned standard errors 14.8x too large for Run-Group v4 Bulk while the
+    # log-likelihood, the estimates and `converged` were all correct (TODO 14f).
+    # .psmFrontierVcov() recomputes the information matrix from the likelihood
+    # that was actually maximised and reports which matrix it handed back.
+    frontierVcov <- .psmFrontierVcov(fit, fml, df)
     b <- stats::coef(fit)
-    se <- sqrt(pmax(diag(vcovClust), 0))
+    if (identical(frontierVcov$source, "recomputed")) {
+      # The recomputed matrix carries log(sigmaSq) and qlogis(gamma); map those two
+      # back to the natural scale by the delta method so the table keeps its shape.
+      k <- length(b) - 2L
+      seOwn <- sqrt(pmax(diag(frontierVcov$vcov), 0))
+      se <- stats::setNames(rep(NA_real_, length(b)), names(b))
+      se[names(b)[seq_len(k)]] <- seOwn[seq_len(k)]
+      se[["sigmaSq"]] <- b[["sigmaSq"]] * seOwn[["logSigmaSq"]]
+      se[["gamma"]] <- b[["gamma"]] * (1 - b[["gamma"]]) * seOwn[["logitGamma"]]
+    } else {
+      se <- sqrt(pmax(diag(as.matrix(frontierVcov$vcov)), 0))
+    }
+    vcovClust <- frontierVcov$vcov
     z <- b / se
     robustTest <- cbind(Estimate = b, `Std. Error` = se, `z value` = z,
                         `Pr(>|z|)` = 2 * stats::pnorm(-abs(z)))
+    if (identical(frontierVcov$status, "corrupt") && isTRUE(verbose)) {
+      message("[psm] frontier::sfa reported standard errors ",
+              format(frontierVcov$ratio, digits = 3), "x the recomputed ones for ",
+              sector, "; using the recomputed matrix (TODO 14f).")
+    }
   } else {
     # Clustered (by region) sandwich SEs for every suite member. betareg supports the
     # sandwich estfun/bread interface; fall back to the model vcov if clustering fails.
@@ -525,6 +548,12 @@ estimatePolicyStringencyModel <- function(
     )
     result$frontier <- tryCatch(computeFeasibilityFrontier(result),
                                 error = function(e) NULL)
+    # The artifact carries its own trust signal for the standard errors, so a
+    # reader never has to know that FRONTIER 4.1's covariance step can fail:
+    #   status "ok" | "corrupt" | "boundary" | "flat" | "likelihood-mismatch"
+    #   source "recomputed" | "frontier";  ratio = reported / recomputed median SE
+    result$vcovCheck <- frontierVcov[c("status", "source", "ratio",
+                                       "logLikReported", "logLikCheck")]
   }
   if (estimator == "satP-iv") {
     result$instrument <- paste(
