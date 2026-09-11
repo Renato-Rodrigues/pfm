@@ -120,8 +120,12 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", "../remind
     phi = stats::setNames(c(0.7, 0.45, 0.9), regs),
     phiSector = list(Bulk    = stats::setNames(c(0.80, 0.60, 0.55), regs),
                      Diffuse = stats::setNames(c(0.50, 0.95, 0.70), regs)),
-    lamSector = list(Bulk    = stats::setNames(rep(0.1023, length(regs)), regs),
-                     Diffuse = stats::setNames(rep(0.0770, length(regs)), regs)),
+    lamSector = list(Bulk    = stats::setNames(rep(0.1105, length(regs)), regs),
+                     Diffuse = stats::setNames(rep(0.0730, length(regs)), regs)),
+    # The economy-wide floor rate, min() over the two sectors - the same maximin rule
+    # that gives the floor min(phi). Deliberately the Diffuse value, so a round trip
+    # that silently picked the Bulk rate (or 0, the pre-2026-09-11 behaviour) fails.
+    lamFloor = stats::setNames(rep(0.0730, length(regs)), regs),
     bndSector = bnd,
     mpSector  = lapply(bnd, function(d) { names(d)[names(d) == "priceBound"] <- "price"; d }),
     bnd = mkBnd(300))
@@ -133,6 +137,7 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", "../remind
   mp1 <- fx$mpSector$Bulk
   list(
     .psmCouplingSym1d("p45_regiDiff_phi", fx$phi),
+    .psmCouplingSym1d("p45_regiDiff_lambda", fx$lamFloor),
     .psmCouplingSym1d("p45_pfmDelta",    stats::setNames(rep(0.004, length(regs)), regs)),
     .psmCouplingSym1d("p45_pfmIterSeen", stats::setNames(rep(iter, length(regs)), regs)),
     .psmCouplingSym2d("p45_pfmPriceBound", fx$bnd, "priceBound"),
@@ -147,7 +152,8 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", "../remind
 #' @rdname pfmReplayInterface
 .psmReplayDeclarations <- function(declGms) {
   lines <- readLines(declGms, warn = FALSE)
-  need <- c("p45_regiDiff_phi\\(", "p45_regiDiff_phi_aux", "p45_pfmDelta_aux",
+  need <- c("p45_regiDiff_phi\\(", "p45_regiDiff_phi_aux",
+            "p45_regiDiff_lambda\\(", "p45_regiDiff_lambda_aux", "p45_pfmDelta_aux",
             "p45_pfmIterSeen_aux", "p45_pfmPriceBound\\(", "p45_pfmPriceBound_aux",
             "p45_pfmMPPrice\\(", "p45_pfmMPPrice_aux",
             "p45_pfmPhiMkt\\(", "p45_pfmPhiMkt_aux",
@@ -193,6 +199,7 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", "../remind
     "*** The stamp is loaded FIRST, as presolve.gms does since 2026-08-17.",
     "Execute_Loadpoint 'p45_regiDiff_phi' p45_pfmIterSeen_aux = p45_pfmIterSeen;",
     "Execute_Loadpoint 'p45_regiDiff_phi' p45_regiDiff_phi_aux = p45_regiDiff_phi;",
+    "Execute_Loadpoint 'p45_regiDiff_phi' p45_regiDiff_lambda_aux = p45_regiDiff_lambda;",
     "Execute_Loadpoint 'p45_regiDiff_phi' p45_pfmDelta_aux = p45_pfmDelta;",
     "Execute_Loadpoint 'p45_regiDiff_phi' p45_pfmPriceBound_aux = p45_pfmPriceBound;",
     "Execute_Loadpoint 'p45_regiDiff_phi' p45_pfmMPPrice_aux = p45_pfmMPPrice;",
@@ -211,6 +218,7 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", "../remind
     chk("phiMkt EUR/ETS",   "p45_pfmPhiMkt_aux('EUR','ETS')",   fx$phiSector$Bulk[["EUR"]]),
     chk("phiMkt EUR/ES",    "p45_pfmPhiMkt_aux('EUR','ES')",    fx$phiSector$Diffuse[["EUR"]]),
     chk("phiMkt EUR/other", "p45_pfmPhiMkt_aux('EUR','other')", fx$phiSector$Diffuse[["EUR"]]),
+    chk("lambda floor USA", "p45_regiDiff_lambda_aux('USA')", fx$lamFloor[["USA"]]),
     chk("lambdaMkt USA/ETS", "p45_pfmLambdaMkt_aux('USA','ETS')", fx$lamSector$Bulk[["USA"]]),
     chk("lambdaMkt USA/ES",  "p45_pfmLambdaMkt_aux('USA','ES')",  fx$lamSector$Diffuse[["USA"]]),
     chk("bndMkt 2050/CHA/ETS", "p45_pfmPriceBoundMkt_aux('2050','CHA','ETS')",
@@ -290,6 +298,22 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", "../remind
   lines <- if (file.exists(lst)) readLines(lst, warn = FALSE) else character(0)
   loadedCleanly <- any(grepl("REPLAY OK", lines, fixed = TRUE))
   verdict <- grep("MISMATCH|ALL-ZERO|STALE gdx|REPLAY FAILED|REPLAY OK", lines, value = TRUE)
+  # A GAMS that cannot start says nothing about the contract, and it is easy to mistake for
+  # one: a wrong-version system exits 7 BEFORE COMPILING ANYTHING, so `verdict` is empty and
+  # every assertion in test-pfmReplayInterface.R fails at once with no hint why. That is not
+  # hypothetical - two systems are installed here (C:/Program Files/GAMS/51 runs; the 54.3.1
+  # in the parent directory is refused by the PIK licence, "maintenance expired"), and PATH
+  # resolves to whichever the calling process saw at start-up. So name it in the verdict
+  # rather than leaving five silent failures. It stays a FAILURE and not a skip on purpose:
+  # COUPLING.md 12.2 - a gate that did not run has verified nothing.
+  if (!length(verdict)) {
+    lic <- grep("[Ll]icens|[Mm]aintenance expired|too old for this version",
+                c(lines, as.character(rc)), value = TRUE)
+    if (length(lic)) {
+      verdict <- c(paste("GAMS DID NOT RUN -", trimws(lic[1])),
+                   paste("gams binary:", gams), utils::head(trimws(lic[-1]), 2))
+    }
+  }
   list(ok = identical(as.integer(status), 0L) && loadedCleanly,
        loadedCleanly = loadedCleanly, status = as.integer(status),
        lst = lst, verdict = utils::head(trimws(verdict), 6))

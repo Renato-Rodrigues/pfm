@@ -66,10 +66,17 @@
 #'   \strong{relative} paths so the run folder is self-contained. Absent outside a
 #'   prepared REMIND run, which is normal.
 #' @param runtimeConfig Path to the small YAML \strong{written by GAMS}
-#'   (\code{presolve.gms}) carrying \code{bindMode} and \code{theta}. When present it
-#'   \strong{overrides} the corresponding arguments, so the scenario config is the
-#'   single source of truth and no hand-maintained copy can drift out of sync. Absent
-#'   is normal outside GAMS.
+#'   (\code{presolve.gms}) carrying \code{bindMode}, \code{theta} and
+#'   \code{gapClosure}. When present it \strong{overrides} the corresponding
+#'   arguments, so the scenario config is the single source of truth and no
+#'   hand-maintained copy can drift out of sync. Absent is normal outside GAMS.
+#'
+#'   \code{gapClosure} is \code{cm_pfmGapClosure}: \code{0} means the political gap
+#'   PERSISTS, so every gap-closure rate is forced to zero; \code{1} means it closes at
+#'   the frontier's estimated rates. It reaches bind modes 1 and 2 only \emph{}
+#'   mode 3's \eqn{\lambda} is a momentum rate, not a gap-closure rate, and zeroing it
+#'   would freeze the mild-progression price at its seed. See the note beside
+#'   \code{lambdaGap} in the body.
 #' @param gapMeasure,phiRule Forwarded to
 #'   \code{\link{aggregateFeasibilityToRegions}}; the defaults match the offline
 #'   pipeline, so the coupled run cannot silently disagree with the published tables.
@@ -115,6 +122,10 @@ iterativePFM <- function(gdx = "fulldata.gdx",
                          verbose = TRUE) {
   say <- function(...) if (isTRUE(verbose)) message("[iterativePFM] ", ...)
   rtIteration <- NULL
+  # TRUE = the political gap closes at the frontier's rates; FALSE = it persists.
+  # Overridden by cm_pfmGapClosure from the GAMS runtime config. Default TRUE so an
+  # offline call behaves exactly as it did before the switch existed.
+  gapClosure <- TRUE
 
   # --- static settings, written into the run folder by preparePFM.R -------------
   # Paths here are RELATIVE to the run folder (the working directory when GAMS calls
@@ -149,6 +160,20 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       if (!is.null(rt$bindMode)) bindMode <- as.integer(rt$bindMode)
       if (!is.null(rt$theta)) theta <- as.numeric(rt$theta)
       if (!is.null(rt$iteration)) rtIteration <- rt$iteration
+      # cm_pfmGapClosure. 0 = the political gap PERSISTS, the deployed setting since
+      # 2026-09-11 and exportFeasibilityRegiDiff()'s documented default; 1 = it closes at
+      # the frontier's estimated ECM speeds. Recorded here and applied below as
+      # `gapClosure`, because WHICH lambda it may touch is not obvious - see the note at
+      # the lambda read.
+      #
+      # Why default-to-persist: the estimated lambda fails a forecast-skill test against
+      # persistence (-0.123 / -0.797 at v4) and a placebo battery on panels with NO
+      # adjustment by construction returns 0.281 / 0.107, LARGER than the estimates
+      # themselves. It cannot carry the claim "the gap closes at 7.3%/yr". TODO.md 1e-a.
+      if (!is.null(rt$gapClosure)) {
+        gcRaw <- suppressWarnings(as.numeric(rt$gapClosure))
+        if (is.finite(gcRaw)) gapClosure <- gcRaw >= 0.5
+      }
       # The tier year decides WHERE the ambition gap is read, and that single choice
       # decides whether this is a feedback loop at all. REMIND fixes its solution before
       # cm_startyear, so a tier year inside that window makes phi a constant: it came
@@ -164,7 +189,9 @@ iterativePFM <- function(gdx = "fulldata.gdx",
         }
       }
       say("runtime config from GAMS: bindMode ", bindMode, ", theta ",
-          signif(theta, 4), if (!is.null(rt$iteration)) paste0(", iteration ", rt$iteration) else "")
+          signif(theta, 4),
+          if (!is.null(rt$gapClosure)) paste0(", gapClosure ", rt$gapClosure) else "",
+          if (!is.null(rt$iteration)) paste0(", iteration ", rt$iteration) else "")
     } else {
       warning("iterativePFM: '", runtimeConfig, "' exists but could not be parsed; ",
               "falling back to the local settings. Check bindMode/theta by hand.",
@@ -231,6 +258,38 @@ iterativePFM <- function(gdx = "fulldata.gdx",
                        function(s) tv$bySector[[s]]$ecm$metrics$adjustmentSpeed,
                        numeric(1))
     }
+    # --- what cm_pfmGapClosure may and may NOT switch off -------------------------
+    # One symbol called lambda does THREE jobs in this function, and they are not the
+    # same object. Checked by running each branch at lambda = 0, 2026-09-11:
+    #
+    #   mode 1  GAP-CLOSURE RATE. ratio(t) = 1 - (1-phi)(1-lambda)^(t-t0), delivered to
+    #           GAMS as p45_regiDiff_lambda and p45_pfmLambdaMkt. At 0 the ratio is phi
+    #           for the whole horizon - exactly "the gap persists".      -> SWITCHED
+    #
+    #   mode 2  SPEED LIMIT on approaching the phi-scaled target, inside
+    #           exportFeasibilityBound()'s recursion. At 0 that function takes its
+    #           lamEff = 1 branch, so the bound is P_ref + phi(P_opt - P_ref) from the
+    #           first period rather than ramping to it. That IS the persistent-gap
+    #           reading of mode L - a permanent phi share of the incremental effort, with
+    #           no assumed build-up period. Note it makes early bounds HIGHER, not
+    #           lower.                                                   -> SWITCHED
+    #
+    #   mode 3  MOMENTUM RATE in P(t+1) = P(t)(1 + lambda (S*-S)/S). There is no gap and
+    #           no anchor in mode M; lambda IS the mechanism. At 0 the price is frozen at
+    #           the current-policy seed for the whole horizon (verified: 10.0 -> 10.0 ->
+    #           10.0 -> 10.0), so the run would report "observed political momentum takes
+    #           us nowhere" - a tautology produced by the switch, not a finding.
+    #                                                                   -> NOT SWITCHED
+    #
+    # Hence `lambdaGap` below rather than overwriting `lambda`. Getting this wrong in
+    # either direction is silent: mode 3 would still solve and still report a number.
+    lambdaGap <- if (isTRUE(gapClosure)) lambda else {
+      stats::setNames(rep(0, length(lambda)), names(lambda))
+    }
+    say("gap closure: ", if (isTRUE(gapClosure))
+          paste0("ON - frontier rates ",
+                 paste(sprintf("%s %.4f", names(lambda), lambda), collapse = " | "))
+        else "OFF - the political gap PERSISTS (lambda 0 for modes 1 and 2; mode 3 keeps its momentum rate)")
     norm <- function(s) {
       for (f in c("actorPowerDrivers", "actorPowerIndex", "instQualityDrivers",
                   "controlDrivers")) {
@@ -477,7 +536,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
         # The economy-wide floor: the worse sector, as before.
         bnd <- tryCatch(
           exportFeasibilityBound(feas, priceOptimal = prices$pO,
-                                 priceReference = prices$pR, lambda = lambda,
+                                 priceReference = prices$pR, lambda = lambdaGap,
                                  sectorRule = "min", file = NULL),
           error = function(e) { say("price bound failed: ", conditionMessage(e)); NULL })
         # One bound per sector, for the per-market markups (ADR 0042). Same inputs and
@@ -489,7 +548,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
           lapply(names(.psmSectorMarkets()), function(sec) {
             tryCatch(
               exportFeasibilityBound(feas, priceOptimal = prices$pO,
-                                     priceReference = prices$pR, lambda = lambda,
+                                     priceReference = prices$pR, lambda = lambdaGap,
                                      sectorRule = sec, file = NULL),
               error = function(e) {
                 say(sec, " bound failed: ", conditionMessage(e)); NULL })
@@ -592,17 +651,15 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     syms[[length(syms) + 1L]] <- .psmCouplingSymMkt1d("p45_pfmPhiMkt", phiSector)
     # Each sector's own closure rate. Modes 2 and 3 carry it inside the price paths they
     # receive from here; mode 1 rebuilds its path in GAMS from phi and a rate, and
-    # without this symbol it falls back to p45_regiDiff_lambda - which, having come
-    # through sectorRule = "min", is the SLOWER sector's speed. Bulk 0.1023/yr vs
-    # Diffuse 0.0770/yr, so the faster market would close on the anchor about a third
-    # too slowly. Broadcast over the same regions as phi: lambda is estimated per
-    # SECTOR, not per region, exactly as exportFeasibilityRegiDiff() broadcasts the
-    # economy-wide rate. A zero is GAMS's "not supplied" default there, so a non-finite
-    # or absent sector speed is written as 0 and GAMS keeps the floor rate.
+    # without this symbol it falls back to p45_regiDiff_lambda - the economy-wide rate
+    # exported just below, which under the maximin rule is the SLOWER sector's speed, so
+    # the faster market would close on the anchor too slowly. Broadcast over the same
+    # regions as phi: lambda is estimated per SECTOR, not per region, exactly as
+    # exportFeasibilityRegiDiff() broadcasts the economy-wide rate. A zero is GAMS's
+    # "not supplied" default there, so a non-finite or absent sector speed is written as
+    # 0 and GAMS keeps the floor rate.
     lamSector <- stats::setNames(lapply(names(phiSector), function(sec) {
-      l <- if (!is.null(names(lambda)) && sec %in% names(lambda)) {
-        unname(lambda[[sec]])
-      } else suppressWarnings(mean(lambda, na.rm = TRUE))
+      l <- .psmSectorLambda(lambdaGap, sec)
       if (!is.finite(l) || l < 0) l <- 0
       stats::setNames(rep(l, length(phiSector[[sec]])), names(phiSector[[sec]]))
     }), names(phiSector))
@@ -611,6 +668,61 @@ iterativePFM <- function(gdx = "fulldata.gdx",
                 paste(sprintf("%s %.4f", names(lamSector),
                               vapply(lamSector, function(x) x[[1]], numeric(1))),
                       collapse = " | ")))
+
+    # The ECONOMY-WIDE closure rate, which is the rate the mode-1 FLOOR path is built
+    # from (45_carbonprice/functionalForm/presolve.gms, "apply phi, EVERY iteration").
+    # Reconciled across sectors by the same maximin rule that produced phi itself:
+    # min(phi), max(tier), and therefore min(lambda) - the rule exportFeasibilityBound()
+    # applies at sectorRule = "min". The floor is what the WORSE political regime can
+    # deliver, and a rate is part of "what it can deliver".
+    #
+    # Added 2026-09-11, and it is a FIX, not a new feature. Until now nothing wrote this
+    # symbol during a coupled run: datainput.gms sets it to 0, the seed .inc writes 0
+    # (exportFeasibilityRegiDiff()'s documented "the gap persists" default), and
+    # presolve.gms loaded only the per-market companion. So mode 1 built its floor at
+    # lambda = 0 - ratio(t) = phi, flat for the whole horizon - while each market's own
+    # path closed on the anchor at the frontier's speeds.
+    #
+    # BE PRECISE ABOUT WHAT THAT BROKE, because the obvious reading is wrong. The
+    # effective price a market pays is floor + max(market - floor, 0) = max(floor,
+    # market), and market >= floor always held, so the MARKET PRICES WERE ALREADY THE
+    # per-sector lambda paths and this fix does not move them. What it moves is the
+    # floor, up onto the same path. Three things were actually wrong:
+    #
+    #   (a) pm_taxCO2eq was not the price anyone paid. It is what p_priceCO2forMAC and
+    #       therefore every MAC curve - all non-CO2 and process abatement - reads, and
+    #       at EU21 -PFMratio 2050 it sat at $126 while the two markets paid $224.6 and
+    #       $240.1 ((1-0.0730)^20 = 0.2196 against 0.50).
+    #   (b) pm_taxemiMkt conflated a SPEED gap with a SECTOR gap. Most of the markup was
+    #       "lambda_m > lambda_floor = 0", not "this sector can bear more than the worse
+    #       one". With the rates consistent the binding sector's markup is exactly zero,
+    #       which is the invariant ADR 0042 states.
+    #   (c) the -Min twins were not a clean counterfactual. Turning cm_pfmSectorMarkup
+    #       off also moved lambda from 0.1105/0.0730 to 0, so SCENARIOS.md 4.5's "the
+    #       markup buys back a fifth of the carbon cost" is measuring both at once.
+    #
+    # It does NOT settle whether the gap should close at all. lambda > 0 closes 78% of
+    # it by 2050, which is why mode R's spread is 1.12x; exportFeasibilityRegiDiff()
+    # documents lambda = 0, "the gap PERSISTS", as the reason option 11 exists. Now that
+    # the floor is exported the two branches are one call apart: pass lambda = c(Bulk =
+    # 0, Diffuse = 0) and BOTH the floor and the markets run at zero. That is a modelling
+    # decision, not a plumbing one - TODO.md item 1e.
+    #
+    # Written over the same regions as phi, like every other 1-d coupling symbol, so
+    # Execute_Loadpoint finds it on regi rather than on a GLO singleton. GAMS keeps its
+    # own value when this is 0 or absent, which reproduces the pre-fix behaviour exactly
+    # - the safe direction for a run whose export failed.
+    lamFloor <- suppressWarnings(
+      min(vapply(names(phiSector), function(sec) {
+        l <- .psmSectorLambda(lambdaGap, sec)
+        if (!is.finite(l) || l < 0) NA_real_ else l
+      }, numeric(1)), na.rm = TRUE))
+    if (!is.finite(lamFloor) || lamFloor < 0) lamFloor <- 0
+    syms[[length(syms) + 1L]] <- .psmCouplingSym1d(
+      "p45_regiDiff_lambda",
+      stats::setNames(rep(lamFloor, length(phi)), names(phi)))
+    say(sprintf("economy-wide lambda exported: %.4f (min over sectors - the mode-1 floor rate)",
+                lamFloor))
     if (!is.null(bndSector) && length(bndSector)) {
       ok <- vapply(bndSector, function(d)
         all(c("region", "year", "priceBound") %in% names(d)), logical(1))
@@ -794,6 +906,27 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 #' @rdname psmCouplingGdx
 .psmSectorMarkets <- function() {
   list(Bulk = "ETS", Diffuse = c("ES", "other"))
+}
+
+#' One sector's closure rate out of whatever \code{lambda} happens to be
+#'
+#' \code{lambda} reaches \code{iterativePFM()} either named by sector (the normal case,
+#' read from \code{temporal-validation.rds}) or as a bare scalar (a caller overriding it).
+#' Both the per-market export and the economy-wide floor export have to resolve it the
+#' same way or they reintroduce, one level down, exactly the asymmetry the 2026-09-11 fix
+#' removes: a floor built from one rate and markets built from another.
+#'
+#' Returns \code{NA_real_} when nothing usable is available; both call sites decide for
+#' themselves what to do with that, because their safe defaults differ.
+#'
+#' @keywords internal
+#' @rdname psmCouplingGdx
+.psmSectorLambda <- function(lambda, sector) {
+  if (!length(lambda)) return(NA_real_)
+  if (!is.null(names(lambda)) && sector %in% names(lambda)) {
+    return(suppressWarnings(as.numeric(unname(lambda[[sector]]))))
+  }
+  suppressWarnings(mean(as.numeric(lambda), na.rm = TRUE))
 }
 
 #' Region x market (rank 2) and year x region x market (rank 3) symbols

@@ -29,8 +29,13 @@ test_that("every symbol the replay loads is declared in the module", {
   decl <- file.path(remindDir(), "modules", "45_carbonprice", "functionalForm",
                     "declarations.gms")
   d <- pfm:::.psmReplayDeclarations(decl)
-  expect_length(d, 16L)
+  expect_length(d, 18L)
   expect_true(all(nzchar(d)))
+  # The economy-wide closure rate and its aux, added 2026-09-11. Before then the module
+  # declared the parameter but presolve never loaded it, so it sat at 0 for every coupled
+  # run while the per-market companion carried the frontier's speeds - SCENARIOS.md 1.1a.
+  expect_true(any(grepl("^p45_regiDiff_lambda\\(all_regi\\)", d)))
+  expect_true(any(grepl("^p45_regiDiff_lambda_aux\\(all_regi\\)", d)))
   # the ADR 0042 market symbols, at the ranks REMIND declares
   expect_true(any(grepl("^p45_pfmPhiMkt\\(all_regi,all_emiMkt\\)", d)))
   expect_true(any(grepl("^p45_pfmLambdaMkt\\(all_regi,all_emiMkt\\)", d)))

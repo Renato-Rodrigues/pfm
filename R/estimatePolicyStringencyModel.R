@@ -146,6 +146,13 @@ estimatePolicyStringencyModel <- function(
     label = "",
     verbose = TRUE,
     maxit = 3000,
+    # Iteration cap for the SFA optimiser ONLY. Deliberately NOT `maxit`, which is 3000
+    # here and would raise frontier::sfa's own cap of 1000 -- a behaviour change for
+    # every production frontier fit. 1000 is sfa's default, so this is a no-op unless a
+    # caller lowers it. Exposed because some trend shapes do not converge on this panel
+    # and sfa spends the time inside FRONTIER 4.1's Fortran, where R cannot interrupt it:
+    # setTimeLimit() does not fire and the caller hangs (found 2026-08-26, TODO item 13).
+    frontierMaxit = 1000,
     prepared = FALSE,
     form = "static",
     yearFixedEffects = FALSE,
@@ -410,12 +417,19 @@ estimatePolicyStringencyModel <- function(
       df$regionFE <- droplevels(df$regionFE)
     }
     fit <- tryCatch(
-      frontier::sfa(fml, data = df),
+      frontier::sfa(fml, data = df, maxit = frontierMaxit),
       error = function(e) stop("estimatePolicyStringencyModel: frontier::sfa failed: ",
                                conditionMessage(e))
     )
     familyLabel <- "normal-halfnormal frontier (satP)"
-    convergedFlag <- all(is.finite(stats::coef(fit)))
+    # Hitting the cap is NOT convergence. sfa returns the last iterate either way, so
+    # without this a capped fit is indistinguishable from a converged one.
+    hitCap <- isTRUE(tryCatch(fit$nIter >= fit$maxit, error = function(e) FALSE))
+    convergedFlag <- all(is.finite(stats::coef(fit))) && !hitCap
+    if (hitCap && isTRUE(verbose)) {
+      message("  [psm] frontier::sfa hit its iteration cap (", fit$maxit,
+              ") for ", sector, " - treating as NOT converged.")
+    }
   } else if (estimator == "satP-iv") {
     # 2SLS with the shift-share instrument: Incumbent Power (and its IQ
     # interactions) endogenous; instruments = z and z x IQ (just identified).
@@ -554,6 +568,8 @@ estimatePolicyStringencyModel <- function(
     #   source "recomputed" | "frontier";  ratio = reported / recomputed median SE
     result$vcovCheck <- frontierVcov[c("status", "source", "ratio",
                                        "logLikReported", "logLikCheck")]
+    result$frontierIter <- tryCatch(c(nIter = fit$nIter, maxit = fit$maxit),
+                                    error = function(e) NULL)
   }
   if (estimator == "satP-iv") {
     result$instrument <- paste(

@@ -409,3 +409,47 @@ test_that("non-numeric years are refused", {
   expect_error(pfm:::.psmCouplingSym2d("p45_pfmPriceBound", d, "priceBound"),
                "non-numeric years")
 })
+
+# --- the economy-wide closure rate (2026-09-11) --------------------------------
+# p45_regiDiff_lambda is the rate the mode-1 FLOOR path is built from. Until
+# 2026-09-11 it was never exported and never loaded, so every coupled run built its
+# floor at lambda = 0 while each market's own path used the frontier's speeds; the
+# markup, being max(market - floor, 0), absorbed the whole difference and mode R's
+# spread collapsed from 1.98x to 1.12x. SCENARIOS.md 1.1a.
+
+test_that("the economy-wide closure rate is rank 1 on all_regi, like phi", {
+  skip_if_no_gt()
+  f <- file.path(tempdir(), "lamfloor.gdx"); on.exit(unlink(f), add = TRUE)
+  v <- c(EUR = 0.073, USA = 0.073, CHA = 0.073)
+  writeSyms(f, mkPhi(), pfm:::.psmCouplingSym1d("p45_regiDiff_lambda", v))
+  i <- symInfo(f, "p45_regiDiff_lambda")
+  expect_equal(i$dim, 1L)
+  expect_equal(i$domains, "all_regi")
+  expect_equal(cells(i)[names(v)], v, tolerance = 1e-12)
+})
+
+test_that(".psmSectorLambda resolves named, unnamed and empty lambda the same way", {
+  lam <- c(Bulk = 0.1105, Diffuse = 0.0730)
+  expect_equal(pfm:::.psmSectorLambda(lam, "Bulk"), 0.1105)
+  expect_equal(pfm:::.psmSectorLambda(lam, "Diffuse"), 0.0730)
+  # An unnamed lambda is a caller override: every sector gets the same mean, so the
+  # floor's min() and the markets' per-sector lookup cannot disagree.
+  expect_equal(pfm:::.psmSectorLambda(c(0.1, 0.2), "Bulk"),
+               pfm:::.psmSectorLambda(c(0.1, 0.2), "Diffuse"))
+  # A sector the vector does not name falls back to the mean rather than to NA, which
+  # is what keeps a renamed sector from silently landing on the floor rate.
+  expect_equal(pfm:::.psmSectorLambda(lam, "Nonsense"), mean(lam))
+  expect_true(is.na(pfm:::.psmSectorLambda(numeric(0), "Bulk")))
+})
+
+test_that("the floor rate is the SLOWER sector, so the markup is never negative", {
+  # The maximin discipline: the floor carries min(phi), max(tier) and therefore
+  # min(lambda). If the floor ever took the faster rate, floor > market for the slow
+  # sector and max(market - floor, 0) would clip that sector to the floor - silently
+  # reintroducing the information loss ADR 0042 removed.
+  lam <- c(Bulk = 0.1105, Diffuse = 0.0730)
+  floorRate <- min(vapply(names(lam), function(s) pfm:::.psmSectorLambda(lam, s),
+                          numeric(1)))
+  expect_equal(floorRate, 0.0730)
+  expect_true(all(floorRate <= lam))
+})

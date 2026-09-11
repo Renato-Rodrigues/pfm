@@ -271,3 +271,41 @@ test_that("the Diffuse markup is non-zero somewhere when Bulk is the worse secto
              by = c("region", "year"), suffixes = c(".floor", ".diffuse"))
   expect_gt(max(m$priceBound.diffuse - m$priceBound.floor), 0)
 })
+
+# --- what lambda = 0 means in each bind mode (cm_pfmGapClosure, 2026-09-11) -----
+# One symbol called lambda does three different jobs across the bind modes, and
+# cm_pfmGapClosure may only switch off the two that are gap-closure rates. These tests
+# pin WHY mode 3 is exempt, because getting it wrong is silent: the run still solves
+# and still reports a number.
+
+test_that("mode 2: lambda = 0 removes the speed limit, it does not freeze the bound", {
+  f <- data.frame(region = rep("EUR", 3), year = c(2025, 2030, 2050),
+                  phi = 0.5, tier = 2, sector = "Bulk", stringsAsFactors = FALSE)
+  pO <- data.frame(region = "EUR", year = c(2025, 2030, 2050), value = c(10, 100, 300))
+  pR <- data.frame(region = "EUR", year = c(2025, 2030, 2050), value = c(10, 10, 10))
+  b0 <- exportFeasibilityBound(f, priceOptimal = pO, priceReference = pR,
+                               lambda = c(Bulk = 0, Diffuse = 0),
+                               sectorRule = "min", file = NULL)
+  # no speed limit: the bound IS the phi-scaled target from the first period on
+  expect_equal(b0$priceBound, pmin(b0$priceTarget, b0$priceOptimal), tolerance = 1e-9)
+  # and it is emphatically NOT frozen at the reference price
+  expect_gt(b0$priceBound[b0$year == 2050], b0$priceReference[b0$year == 2050])
+
+  b1 <- exportFeasibilityBound(f, priceOptimal = pO, priceReference = pR,
+                               lambda = c(Bulk = 0.1105, Diffuse = 0.0730),
+                               sectorRule = "min", file = NULL)
+  # with a speed limit the early bound is LOWER - the target is approached, not taken
+  expect_lt(b1$priceBound[b1$year == 2030], b0$priceBound[b0$year == 2030])
+})
+
+test_that("mode 3: lambda = 0 freezes the price, which is why the switch exempts it", {
+  st <- data.frame(region = "EUR", year = c(2025, 2030, 2040, 2050),
+                   feasibleIndex = c(3, 3.5, 4.2, 4.8), ceilingIndex = 7,
+                   stringsAsFactors = FALSE)
+  frozen <- projectMildProgressionPrice(st, c(EUR = 10), lambda = 0, seedYear = 2025)
+  expect_equal(unique(round(frozen$price, 9)), 10)   # no movement at all, ever
+  moving <- projectMildProgressionPrice(st, c(EUR = 10), lambda = 0.073, seedYear = 2025)
+  expect_gt(max(moving$price), 10)
+  # The mode-3 lambda is the mechanism, not a rate the gap closes at: zeroing it would
+  # make "observed political momentum" a tautology rather than a measurement.
+})
