@@ -87,9 +87,13 @@ startRun <- function(group,
                   # stale frontier whenever one happened to exist, and failing outright when
                   # one did not.
                   "psm-sweep", "psm-frontier", "psm-temporal", "psm-sector-speeds",
-                  "psm-agreement", "psm-iv", "psm-influence", "psm-replay",
+                  # psm-inference and psm-regfront were added to psmStepArtifacts() and to
+                  # pfmRun()'s diagnostics/downstream stages on 2026-09-15, but NOT to this
+                  # whitelist - so startRun silently DROPPED them and `stage = "diagnostics"`
+                  # produced no inference.rds. Fixed 2026-09-15; keep the three lists in step.
+                  "psm-agreement", "psm-iv", "psm-influence", "psm-inference", "psm-replay",
                   "psm-donor", "psm-projection", "psm-coupling-bound",
-                  "psm-selection-bootstrap", "psm-remind-inputs",
+                  "psm-selection-bootstrap", "psm-regfront", "psm-remind-inputs",
                   # aliases — expanded to ordered step lists inside runModelGroup
                   "psm-downstream", "psm-all")
   steps <- intersect(validSteps, steps)

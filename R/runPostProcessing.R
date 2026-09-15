@@ -786,7 +786,8 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                 # against a stale frontier and re-sorted the psm-downstream alias out of the
                 # very order the alias was written in.
                 "psm-sweep", "psm-frontier", "psm-temporal", "psm-sector-speeds",
-                "psm-agreement", "psm-iv", "psm-influence", "psm-replay",
+                "psm-agreement", "psm-iv", "psm-influence", "psm-inference", "psm-replay",
+                "psm-regfront",
                 "psm-donor", "psm-projection", "psm-coupling-bound",
                 "psm-selection-bootstrap", "psm-remind-inputs")
   # Aliases expand to an ORDERED step list, so the whole downstream build is one
@@ -927,6 +928,29 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                                                c("group", "resultsDir", "modelDir",
                                                  "cachefolder", "verbose"))])
     do.call(runPSMInfluence, infArgs)
+  }
+  if (doStep("psm-inference")) {
+    say("step: psm-inference")
+    dots <- list(...)
+    infcArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
+                       cachefolder = cachefolder, verbose = verbose),
+                  dots[names(dots) %in% setdiff(names(formals(runPSMInference)),
+                                                c("group", "resultsDir", "modelDir",
+                                                  "cachefolder", "verbose"))])
+    do.call(runPSMInference, infcArgs)
+  }
+  # regional-frontier.rds was exported but wired into no stage, so Run-Group v4 simply never
+  # produced it and `fig-frontier-by-region` failed for weeks with "artifact not found".
+  # An artifact a figure reads must be written by a step (TODO.md item 24).
+  if (doStep("psm-regfront")) {
+    say("step: psm-regfront")
+    dots <- list(...)
+    rfArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
+                     cachefolder = cachefolder, verbose = verbose),
+                dots[names(dots) %in% setdiff(names(formals(computeRegionalFrontier)),
+                                              c("group", "resultsDir", "modelDir",
+                                                "cachefolder", "verbose"))])
+    do.call(computeRegionalFrontier, rfArgs)
   }
   if (doStep("psm-sector-speeds")) {
     say("step: psm-sector-speeds")

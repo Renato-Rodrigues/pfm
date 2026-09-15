@@ -595,9 +595,13 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 
       # One path per sector, for the per-market markups (ADR 0042). Same seed and the
       # same recursion; only the sector selected differs. lambda is that sector's own
-      # speed limit where one was supplied per sector - Bulk moves faster (0.1023 vs
-      # 0.0770/yr) - and using the pooled mean would understate exactly the headroom the
-      # markup is meant to express.
+      # MOMENTUM RATE where one was supplied per sector - Bulk moves faster (v4: 0.1105
+      # vs 0.0730/yr) - and using the pooled mean would understate exactly the headroom
+      # the markup is meant to express.
+      #
+      # Note this is `lambda`, NOT `lambdaGap`: mode 3 is the branch cm_pfmGapClosure
+      # deliberately does not reach, because here lambda IS the mechanism and zeroing it
+      # would freeze the price at its seed. See the note beside lambdaGap above.
       if ("sector" %in% names(feas)) {
         mpSector <- Filter(Negate(is.null), stats::setNames(
           lapply(names(.psmSectorMarkets()), function(sec) {

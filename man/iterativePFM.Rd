@@ -80,10 +80,17 @@ diverged. \strong{\code{weightScenario} must match the SSP the coupled run uses}
 or the weights describe a different world than the model does.}
 
 \item{runtimeConfig}{Path to the small YAML \strong{written by GAMS}
-(\code{presolve.gms}) carrying \code{bindMode} and \code{theta}. When present it
-\strong{overrides} the corresponding arguments, so the scenario config is the
-single source of truth and no hand-maintained copy can drift out of sync. Absent
-is normal outside GAMS.}
+(\code{presolve.gms}) carrying \code{bindMode}, \code{theta} and
+\code{gapClosure}. When present it \strong{overrides} the corresponding
+arguments, so the scenario config is the single source of truth and no
+hand-maintained copy can drift out of sync. Absent is normal outside GAMS.
+
+\code{gapClosure} is \code{cm_pfmGapClosure}: \code{0} means the political gap
+PERSISTS, so every gap-closure rate is forced to zero; \code{1} means it closes at
+the frontier's estimated rates. It reaches bind modes 1 and 2 only \emph{}
+mode 3's \eqn{\lambda} is a momentum rate, not a gap-closure rate, and zeroing it
+would freeze the mild-progression price at its seed. See the note beside
+\code{lambdaGap} in the body.}
 
 \item{verbose}{Logical.}
 }

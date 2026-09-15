@@ -4,6 +4,7 @@
 \alias{.psmCouplingSym1d}
 \alias{.psmCouplingSym2d}
 \alias{.psmSectorMarkets}
+\alias{.psmSectorLambda}
 \alias{.psmCouplingSymMkt1d}
 \alias{.psmCouplingSymMkt2d}
 \alias{.psmCouplingUels}
@@ -16,6 +17,8 @@
 .psmCouplingSym2d(name, df, valueCol, regionCol = "region", yearCol = "year")
 
 .psmSectorMarkets()
+
+.psmSectorLambda(lambda, sector)
 
 .psmCouplingSymMkt1d(name, bySector)
 
@@ -48,6 +51,12 @@ industry); Diffuse covers effort sharing and everything not otherwise assigned.
 (\code{47_regipol/regiCarbonPrice/postsolve.gms:409} does \code{other = ES}) and it
 matches the mapping ADR 0042 states, "ETS ~ Bulk, ES + other ~ Diffuse".
 
+\code{lambda} reaches \code{iterativePFM()} either named by sector (the normal case,
+read from \code{temporal-validation.rds}) or as a bare scalar (a caller overriding it).
+Both the per-market export and the economy-wide floor export have to resolve it the
+same way or they reintroduce, one level down, exactly the asymmetry the 2026-09-11 fix
+removes: a floor built from one rate and markets built from another.
+
 The market dimension is a real set rather than one parameter per market: the
 symmetric markup needs BOTH sectors delivered, which would otherwise be eight flat
 parameters. ADR 0042 originally rejected the extra rank because defect 4 was a
@@ -61,6 +70,9 @@ the FILE rather than the objects that produced it is the point - it is the file 
 reads.
 }
 \details{
+Returns \code{NA_real_} when nothing usable is available; both call sites decide for
+themselves what to do with that, because their safe defaults differ.
+
 \code{bySector} is a named list of per-sector values, fanned out to that sector's
 markets via \code{.psmSectorMarkets()}.
 }

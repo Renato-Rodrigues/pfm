@@ -385,7 +385,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
                              referenceScenarioData = NULL, minScenarioDelta = 0.05,
                              deltaWindow = c(2040, 2060),
                              supportShareGate = 0.25,
-                             ceilingFallGate = NA_real_, gammaGate = NA_real_,
+                             ceilingFallGate = NA_real_, gammaGate = 0.999,
                              say = function(...) invisible()) {
   ceilingByModel <- list()
   gammaByModel <- list()
@@ -487,8 +487,11 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
           .psmCeilingTrajectory(cfg, sec, panelData, scenarioData,
                                 modelDir = modelDir, indexMax = indexMax),
           error = function(e) NULL)
-        # gamma screen (ADR 0043 consequences, implemented 2026-08-25). OFF by
-        # default (gammaGate = NA) so enabling it is a deliberate, dated act.
+        # gamma screen (ADR 0043 consequences, implemented 2026-08-25). ON by default
+        # at 0.999 since 2026-09-15 -- the deliberate, dated act this comment used to
+        # ask for is ADR 0046. The threshold sits in an observed gap: over 19
+        # specifications the healthy fits top out at 0.99840 and the degenerate ones
+        # start at 0.99991 (docs/reference/spec-selection-2026-09-15/).
         #
         # gamma -> 1 means sigma_v^2 -> 0: the variance decomposition attributes
         # ALL composed error to slack and none to noise, so the "stochastic"

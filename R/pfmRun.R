@@ -97,9 +97,10 @@ pfmRun <- function(group = NULL,
     # inference at this cluster count, and `psm-replay` is the gate a coupled claim
     # depends on. They ran only via `custom` until 2026-08-14, which is how
     # Run-Group v1 came to be complete-looking and unciteable.
-    diagnostics = c("psm-agreement", "psm-iv", "psm-influence", "psm-replay"),
+    diagnostics = c("psm-agreement", "psm-iv", "psm-influence", "psm-inference",
+                    "psm-replay"),
     downstream  = c("psm-donor", "psm-projection", "psm-coupling-bound",
-                    "psm-selection-bootstrap"),
+                    "psm-selection-bootstrap", "psm-regfront"),
     remind      = "psm-remind-inputs",
     custom      = character(0))
 

@@ -30,6 +30,7 @@ estimatePolicyStringencyModel(
   label = "",
   verbose = TRUE,
   maxit = 3000,
+  frontierMaxit = 1000,
   prepared = FALSE,
   form = "static",
   yearFixedEffects = FALSE,
