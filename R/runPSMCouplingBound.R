@@ -174,8 +174,12 @@ runPSMCouplingBound <- function(group,
   fr <- readRDS(file.path(groupDir, "frontier.rds"))
   tv <- readRDS(file.path(groupDir, "temporal-validation.rds"))
   lambda <- vapply(sectors, function(s) tv$bySector[[s]]$ecm$metrics$adjustmentSpeed, numeric(1))
-  say(sprintf("lambda: Bulk %.4f | Diffuse %.4f  (validated OOS only in electricity: +0.08)",
-              lambda[["Bulk"]], lambda[["Diffuse"]]))
+  # Two rates with two jobs (MODEL.md 4.3.1): this one - estimated on data to 2015 so it can be
+  # scored out of sample - sets the PRICE speed limit; the stringency PATH that produces phi is
+  # built by projectFeasiblePath() on the same ECM re-estimated over the full panel. Say both.
+  say(sprintf(paste0("lambda (price speed limit, train <= %s): Bulk %.4f | Diffuse %.4f; ",
+                     "the phi path uses the same ECM re-estimated on the full panel"),
+              tv$trainEnd %||% "2015", lambda[["Bulk"]], lambda[["Diffuse"]]))
 
   # Scenario panel, cached per group. This used to be a hardcoded readRDS of a cache
   # file left behind by an earlier run — absent on a fresh checkout, and silently
