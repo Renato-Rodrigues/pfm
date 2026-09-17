@@ -109,7 +109,7 @@
 #'   cross-country ceiling SD) = −0.42).
 #' @param supportShareGate Numeric. Severe-gate threshold on the mean
 #'   \code{driverOutOfSupport} share within \code{deltaWindow} over in-coverage
-#'   rows (ADR 0040; default 0.25). A spec whose projection in the evaluation
+#'   rows (ADR 0040; default 0.275 since ADR 0045). A spec whose projection in the evaluation
 #'   window is mostly winsorized is scoring the extrapolation guard, not the
 #'   model - the diagnosed cause of the ceiling-feedback sign artifact. Set
 #'   \code{NA} to disable.
@@ -158,7 +158,7 @@ runPSMSweep <- function(group,
                         referenceGdxFile = NULL,
                         minScenarioDelta = 0.05,
                         deltaWindow = c(2040, 2060),
-                        supportShareGate = 0.25,
+                        supportShareGate = 0.275,
                         ceilingFallGate = 0.90,
                         gammaGate = 0.999,
                         gdxRegionMappingFile = "regionmappingH12.csv",

@@ -384,7 +384,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
                              histIndexBySector, indexMax = 10,
                              referenceScenarioData = NULL, minScenarioDelta = 0.05,
                              deltaWindow = c(2040, 2060),
-                             supportShareGate = 0.25,
+                             supportShareGate = 0.275,
                              ceilingFallGate = NA_real_, gammaGate = 0.999,
                              say = function(...) invisible()) {
   ceilingByModel <- list()
