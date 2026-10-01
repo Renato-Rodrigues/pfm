@@ -299,7 +299,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
       message("[preparePanelData] excluding ", sum(drop), " row(s) for ",
               paste(intersect(excludeCountries, unique(as.character(df$region))),
                     collapse = ", "),
-              " - see docs/PITFALLS.md §27")
+              " - see docs/PITFALLS.md section 27")
       df <- df[!drop, , drop = FALSE]
     }
   }

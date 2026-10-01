@@ -151,7 +151,7 @@ boundary of its parameter space, and \code{frontier::sfa} itself warns that
 statistical tests are no longer valid. 0.999 is placed in an observed gap: across
 the 19-specification survey of 2026-09-15 the healthy fits top out at 0.99840 and
 the degenerate ones start at 0.99991, with nothing in between
-(\code{docs/reference/spec-selection-2026-09-15/}). \code{NA} disables.}
+(\code{../_archive/_wip/2026-10-01/docs/reference/spec-selection-2026-09-15/}). \code{NA} disables.}
 
 \item{gdxRegionMappingFile}{Character. The \strong{gdx's own native resolution}, not a
 target (PITFALLS §5) — \code{"regionmappingH12.csv"} (default) for an H12 gdx,
