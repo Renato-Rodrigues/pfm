@@ -403,6 +403,12 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       a
     }))
 
+    # 2b. Optional test override of the shares (GP-23, GP-24): phi-override.yml in the Run-Group.
+    #     Applied here, before steps 3-5 derive the economy-wide share, the per-market shares
+    #     and the mode-2 bound from feas$phi, so every symbol GAMS loads sees the same values.
+    #     No file = no change (every deployed Run-Group). See .psmApplyPhiOverride().
+    feas <- .psmApplyPhiOverride(feas, gd, say)
+
     # 3. One share per region: the worse sector, the maximin discipline used
     #    throughout. phi is time-invariant by construction (tiers fixed at 2022).
     byReg <- split(feas$phi, as.character(feas$region))
