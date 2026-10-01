@@ -18,6 +18,7 @@ pfmRun(
   priority = NULL,
   config = NULL,
   ask = NULL,
+  prepareCache = TRUE,
   dryRun = FALSE,
   ...
 )
@@ -26,8 +27,11 @@ pfmRun(
 \item{group}{Run-Group name. Interactively: offered from the existing groups under
 \code{resultsDir}, or type a new name to start a fresh one.}
 
-\item{stage}{One of \code{"all"}, \code{"sweep"}, \code{"diagnostics"},
-\code{"downstream"}, \code{"remind"}, \code{"custom"}.}
+\item{stage}{One or SEVERAL of \code{"all"}, \code{"sweep"}, \code{"diagnostics"},
+\code{"downstream"}, \code{"remind"}; or \code{"custom"} alone. Several stages run as one
+chain, in dependency order and, on SLURM, in ONE job: \code{stage = c("sweep",
+  "diagnostics", "downstream", "remind")} goes from estimation to the REMIND inputs folder
+with a single call.}
 
 \item{steps}{Explicit step vector. Overrides \code{stage} when given.}
 
@@ -64,6 +68,12 @@ and starting tomorrow.}
 \item{ask}{Force the interactive wizard on (\code{TRUE}) or off (\code{FALSE}).
 Default: interactive sessions ask only for what was not supplied.}
 
+\item{prepareCache}{Logical. Before any step, run \code{\link{pfmPrepareCache}}: check the
+project madrat cache (config \code{madrat: cachefolder}) holds every file the pipeline
+reads, copy what is missing from the configured cache sources, compute the rest. A
+complete cache is confirmed in well under a second. Skipped when the caller passes its
+own \code{cachefolder}.}
+
 \item{dryRun}{Print the resolved plan and stop without running.}
 
 \item{...}{Passed through to \code{\link{startRun}} (e.g. \code{qos}, \code{time}).}
@@ -94,7 +104,7 @@ influence, and the historical-replay gate. Needed before any number from the
 Run-Group is quotable, and before any coupled claim.}
 \item{\code{downstream}}{Everything the coupling needs from a finished sweep:
 donor assumptions, projection fan-out, coupling bound, selection bootstrap.}
-\item{\code{remind}}{Assemble the self-contained \code{pfm-data} folder REMIND's
+\item{\code{remind}}{Assemble the self-contained \code{output/remind-inputs} folder REMIND's
 \code{preparePFM.R} consumes.}
 \item{\code{all}}{Every step above, in dependency order — raw data to REMIND
 inputs.}
@@ -108,7 +118,9 @@ pfmRun()                                          # ask for everything
 pfmRun(group = "v1", stage = "downstream")
 pfmRun(group = "v1", stage = "diagnostics", cluster = "slurm")
 pfmRun(group = "v1", stage = "all", cluster = "slurm")
-pfmRun(group = "v1", stage = "remind", remindDir = "../pfm-data")
+pfmRun(group = "v6", stage = c("sweep", "diagnostics", "downstream", "remind"),
+       cluster = "slurm", config = "config.yml")      # one job, estimation to REMIND inputs
+pfmRun(group = "v5", stage = "remind", remindDir = "output/remind-inputs")
 }
 }
 \author{

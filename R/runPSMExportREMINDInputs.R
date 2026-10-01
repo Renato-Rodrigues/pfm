@@ -23,7 +23,9 @@
 #' @param group Run-Group name.
 #' @param dest Destination root. Default \code{"output/remind-inputs"} under the project
 #'   root, matching the REMIND fork's default \code{cfg$pfm$source}.
-#' @param resultsDir,modelDir,cachefolder Standard Run-Group locations.
+#' @param resultsDir,modelDir,cachefolder Standard Run-Group locations. \code{cachefolder} is
+#'   also the prepared madrat cache whose coupling files (its \code{cache-manifest.tsv}) are
+#'   staged into \code{<dest>/<group>/madrat-cache/}; see \code{\link{pfmPrepareCache}}.
 #' @param overwrite Overwrite an existing destination group folder.
 #' @param verbose Logical.
 #'
@@ -81,8 +83,40 @@ runPSMExportREMINDInputs <- function(group,
   if (!ok) stop("runPSMExportREMINDInputs: one or more files failed to copy to '",
                 outDir, "'.", call. = FALSE)
 
+  # The coupling's madrat cache files, from the prepared project cache (pfmPrepareCache): the
+  # scenario panel and the coupling weights read them at every coupling iteration. Staged with
+  # the group so a REMIND run reads the data versions the estimation was prepared with, not
+  # whatever madrat's shared cache holds on the day the run starts - which is how the v5
+  # estimation and the v5 coupled runs came to read different calcFE/calcPE versions.
+  staged <- character(0)
+  manFile <- if (!is.null(cachefolder)) file.path(cachefolder, "cache-manifest.tsv") else NULL
+  mc <- file.path(outDir, "madrat-cache")
+  unlink(mc, recursive = TRUE)
+  if (!is.null(manFile) && file.exists(manFile)) {
+    man <- .readCacheTable(manFile)
+    use <- man[grepl("scenario-panel|coupling-weights", man$builders), , drop = FALSE]
+    if (!any(grepl("scenario-panel", use$builders))) {
+      warning("runPSMExportREMINDInputs: the prepared cache has no scenario-panel files (no ",
+              "registry gdx existed when it was prepared); the coupling computes them on a miss.",
+              call. = FALSE)
+    }
+    dir.create(mc)
+    ok <- file.copy(file.path(cachefolder, use$file), file.path(mc, use$file), copy.date = TRUE)
+    if (!all(ok)) stop("runPSMExportREMINDInputs: could not stage ", paste(use$file[!ok], collapse = ", "),
+                       " from ", cachefolder, call. = FALSE)
+    .writeCacheTable(use, file.path(mc, "cache-manifest.tsv"),
+                     header = c(paste0("from: ", normalizePath(cachefolder, winslash = "/")),
+                                paste0("tag: ", attr(man, "tag") %||% "")))
+    staged <- file.path("madrat-cache", c(use$file, "cache-manifest.tsv"))
+    say("  staged ", nrow(use), " madrat cache files for the coupling (tag ", attr(man, "tag") %||% "?", ")")
+  } else {
+    warning("runPSMExportREMINDInputs: no prepared madrat cache (",
+            manFile %||% "no cachefolder given", "), so nothing is staged and the coupling reads ",
+            "madrat's own cache. Run pfm::pfmPrepareCache() and export again.", call. = FALSE)
+  }
+
   # Verify what landed, not what we intended to write.
-  wrote <- c(need, file.path("panels", panel))
+  wrote <- c(need, file.path("panels", panel), staged)
   bad <- wrote[!file.exists(file.path(outDir, wrote))]
   if (length(bad)) {
     stop("runPSMExportREMINDInputs: destination is incomplete after copying: ",
@@ -98,7 +132,8 @@ runPSMExportREMINDInputs <- function(group,
     message("  and set cm_taxCO2_regiDiff = 11 on the scenarios that should couple.\n")
   }
   .recordStep(groupDir, group, "psm-remind-inputs", t0,
-              metrics = list(dest = outDir, files = length(wrote), panel = panel))
+              metrics = list(dest = outDir, files = length(wrote), panel = panel,
+                             madratCache = length(staged)))
   invisible(outDir)
 }
 # nolint end

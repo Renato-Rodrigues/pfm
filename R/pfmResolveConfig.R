@@ -18,14 +18,31 @@
 #'
 #' @param config Path to the YAML. \code{NULL} looks for \code{config.yml} in the
 #'   working directory and returns empty defaults if there is none.
+#' @param group Run-Group. Fills the \code{\{group\}} tag of \code{madrat: cachefolder};
+#'   \code{NULL} takes the config's own \code{group}.
 #' @param verbose Logical.
 #'
+#' @section The madrat block:
+#' \preformatted{
+#' madrat:
+#'   cachefolder: "data/madrat/{group}"   # the project cache; {group} -> one cache per Run-Group
+#'   sourcefolder: [<dir>, <dir>]          # raw sources, first that EXISTS on this machine wins
+#'   cacheSources: [<dir>, <dir>]          # caches to copy missing files from, in order
+#'   useMadratConfig: true                 # also madrat's own cachefolder/sourcefolder, last
+#'   compute: true                         # compute what no cache has, from the sources
+#' }
+#' Lists of candidate paths are how one committed config serves the workstation and the
+#' cluster: a path that does not exist on this machine is skipped. The top-level
+#' \code{cachefolder}/\code{sourcefolder} keys of older configs are still read.
+#' See \code{\link{pfmPrepareCache}}.
+#'
 #' @return List with \code{scenarios} (or \code{NULL}), \code{gdxFile} (the gating
-#'   scenario's gdx, or \code{NULL}), \code{cachefolder}, \code{resultsDir},
+#'   scenario's gdx, or \code{NULL}), \code{cachefolder}, \code{sourcefolder},
+#'   \code{madrat} (the resolved madrat block), \code{group}, \code{recordsDir}, \code{resultsDir},
 #'   \code{modelDir}, \code{path} and \code{dir}.
 #' @author Renato Rodrigues
 #' @export
-pfmResolveConfig <- function(config = NULL, verbose = TRUE) {
+pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
   say <- function(...) if (isTRUE(verbose)) message("[config] ", ...)
   cfg <- list(); confDir <- getwd(); path <- NULL
 
@@ -69,9 +86,38 @@ pfmResolveConfig <- function(config = NULL, verbose = TRUE) {
         scenReg$gating %||% "none")
   }
 
+  # --- madrat: the project cache, where it is filled from, and the raw sources --------------
+  md <- cfg[["madrat"]] %||% list()
+  group <- group %||% def("group", NULL)
+  template <- md[["cachefolder"]] %||% cfg[["cachefolder"]] %||% cfg[["cacheDir"]] %||% "data/cache"
+  tag <- if (grepl("{group}", template, fixed = TRUE)) group %||% "default" else basename(template)
+  cachefolder <- absify(gsub("{group}", tag, template, fixed = TRUE))
+  paths <- function(v) {
+    v <- as.character(unlist(v)); v <- v[!is.na(v) & nzchar(v)]
+    vapply(v, function(p) absify(path.expand(p)), character(1), USE.NAMES = FALSE)
+  }
+  # Per MACHINE: a candidate that does not exist here is skipped, so the workstation and the
+  # cluster paths can both be listed in the one committed file.
+  sfCand <- paths(md[["sourcefolder"]] %||% cfg[["sourcefolder"]])
+  sourcefolder <- sfCand[dir.exists(sfCand)][1]
+  if (is.na(sourcefolder)) sourcefolder <- NULL
+  csCand <- paths(md[["cacheSources"]])
+  cacheSources <- unique(csCand[dir.exists(csCand)])
+  cacheSources <- cacheSources[normalizePath(cacheSources, winslash = "/") !=
+                                 normalizePath(cachefolder, winslash = "/", mustWork = FALSE)]
+  madratBlock <- list(cachefolder = cachefolder, template = template, tag = tag,
+                      sourcefolder = sourcefolder, sourcefolderCandidates = sfCand,
+                      cacheSources = cacheSources, cacheSourceCandidates = csCand,
+                      useMadratConfig = !isFALSE(md[["useMadratConfig"]]),
+                      compute = !isFALSE(md[["compute"]]))
+
   list(scenarios = scenarios, gdxFile = gdxFile,
-       cachefolder = absify(cfg[["cachefolder"]] %||% cfg[["cacheDir"]] %||% "data/cache"),
+       cachefolder = cachefolder, sourcefolder = sourcefolder, madrat = madratBlock,
+       group = group,
        resultsDir = def("resultsDir", NULL), modelDir = def("modelDir", NULL),
+       # Tracked reproduction records, one folder per Run-Group: the madrat pin and the list
+       # of input files (pfmPrepareCache). Unlike output/, this folder is in git.
+       recordsDir = absify(def("recordsDir", "records")),
        # The panel's spatial resolution. DECLARED here rather than left to each step
        # function's own default, because ~14 of them carry one and a partial change
        # produces a Run-Group fitted at one resolution and projected at another --

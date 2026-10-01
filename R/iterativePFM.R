@@ -64,7 +64,8 @@
 #' @param couplingConfig Path to the run-local YAML written by REMIND's
 #'   \code{scripts/start/preparePFM.R}, holding the \strong{static} settings with
 #'   \strong{relative} paths so the run folder is self-contained. Absent outside a
-#'   prepared REMIND run, which is normal.
+#'   prepared REMIND run, which is normal. Its \code{cachefolder} names the run's staged
+#'   madrat cache (see \code{\link{pfmPrepareCache}}).
 #' @param runtimeConfig Path to the small YAML \strong{written by GAMS}
 #'   (\code{presolve.gms}) carrying \code{bindMode}, \code{theta} and
 #'   \code{gapClosure}. When present it \strong{overrides} the corresponding
@@ -126,6 +127,8 @@ iterativePFM <- function(gdx = "fulldata.gdx",
   # Overridden by cm_pfmGapClosure from the GAMS runtime config. Default TRUE so an
   # offline call behaves exactly as it did before the switch existed.
   gapClosure <- TRUE
+  # The run's staged madrat cache (pfm-coupling.yml `cachefolder`), NULL = madrat's own.
+  madratCache <- NULL
 
   # --- static settings, written into the run folder by preparePFM.R -------------
   # Paths here are RELATIVE to the run folder (the working directory when GAMS calls
@@ -143,6 +146,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       if (!is.null(sc$refGdx)) refGdx <- sc$refGdx
       if (!is.null(sc$weightScenario)) weightScenario <- sc$weightScenario
       if (!is.null(sc$weightYear)) weightYear <- as.numeric(sc$weightYear)
+      if (!is.null(sc$cachefolder)) madratCache <- sc$cachefolder
       say("run config from '", couplingConfig, "': group ", group,
           ", resultsDir ", resultsDir)
     }
@@ -207,6 +211,24 @@ iterativePFM <- function(gdx = "fulldata.gdx",
   if (!identical(mapping, gdxRegionMapping)) {
     say("NOTE: reading a '", gdxRegionMapping, "' gdx but delivering at '", mapping,
         "'. Intended only if the resolutions genuinely differ.")
+  }
+  # madrat: the coupling's files of the PREPARED project cache, staged into the run folder by
+  # preparePFM.R from the Run-Group's REMIND export (pfmPrepareCache). The scenario panel and the
+  # coupling weights then read the data versions the Run-Group was prepared with, instead of
+  # madrat's shared cache as it happens to stand when the run starts. forcecache, as offline: a
+  # miss is computed from madrat's sources and written INTO the run folder, where it stays
+  # visible. Restored on exit, so an offline caller's session is not left on a run folder.
+  if (!is.null(madratCache) && dir.exists(madratCache)) {
+    oldMadrat <- madrat::getConfig(verbose = FALSE)
+    on.exit(suppressMessages(madrat::setConfig(cachefolder = oldMadrat$cachefolder,
+                                               forcecache = oldMadrat$forcecache,
+                                               .verbose = FALSE)), add = TRUE)
+    suppressMessages(madrat::setConfig(cachefolder = normalizePath(madratCache, winslash = "/"),
+                                       forcecache = TRUE, .verbose = FALSE))
+    say("madrat cache: ", madratCache, " (staged in the run folder)")
+  } else if (!is.null(madratCache)) {
+    say("NOTE: madrat cache '", madratCache, "' is declared but absent - using madrat's own (",
+        madrat::getConfig("cachefolder", verbose = FALSE), ")")
   }
   t0 <- Sys.time()
 

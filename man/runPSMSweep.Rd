@@ -38,7 +38,7 @@ runPSMSweep(
   deltaWindow = c(2040, 2060),
   supportShareGate = 0.275,
   ceilingFallGate = 0.9,
-  gammaGate = NA_real_,
+  gammaGate = 0.999,
   gdxRegionMappingFile = "regionmappingH12.csv",
   apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
   sanityBatchSize = 5,
@@ -143,28 +143,15 @@ this gate would select inert specifications (measured: corr(ceiling ratio,
 cross-country ceiling SD) = −0.42).}
 
 \item{gammaGate}{Numeric or \code{NA}. Severe-gate threshold on the frontier's
-\eqn{\gamma}: a spec whose \eqn{\gamma} \strong{exceeds} this value is rejected.
-\strong{Default \code{NA} (off)} — enabling it is a deliberate, dated choice, not
-a silent default change.
-
-\eqn{\gamma \to 1} means \eqn{\sigma_v^2 \to 0}: the variance decomposition
-attributes all composed error to slack and none to noise, so the \emph{stochastic}
-frontier has degenerated into a deterministic one and the gap is very nearly the
-arithmetic residual (\code{MODEL.md} §3.4). ADR 0043's consequences already direct
-the project to "screen \eqn{\gamma} on any winner"; nothing implemented it, and
-Run-Group \code{v3}'s deployed \code{X-2367} came in at \strong{0.99999999 in both
-sectors} unremarked. Implementing the screen honours that earlier decision rather
-than adding a new one.
-
-\strong{Costs nothing.} \eqn{\gamma} is read off the frontier fit that
-\code{ceilingFallGate} already performs, so the gate is free \emph{when
-\code{ceilingFallGate} is active} and does nothing when it is not.
-\eqn{\gamma} is \strong{recorded on \code{$sanity$<stage>$gamma} whether or not the
-gate is on}, so switching it on is never the first time anyone sees the number.
-
-A sensible first value is \code{0.999}; on \code{v3} that rejects the deployed spec,
-which is the point of screening. Expect it to bind hard — \code{v1}'s Bulk headline
-was already 0.9995.}
+\eqn{\gamma}. \strong{On by default at 0.999 since 2026-09-15 (ADR 0046).}
+\eqn{\gamma     o 1} means \eqn{\sigma_v^2     o 0}: the variance decomposition
+attributes ALL composed error to slack and none to noise, so the \emph{stochastic}
+frontier has degenerated into a deterministic one, the likelihood sits on the
+boundary of its parameter space, and \code{frontier::sfa} itself warns that
+statistical tests are no longer valid. 0.999 is placed in an observed gap: across
+the 19-specification survey of 2026-09-15 the healthy fits top out at 0.99840 and
+the degenerate ones start at 0.99991, with nothing in between
+(\code{docs/reference/spec-selection-2026-09-15/}). \code{NA} disables.}
 
 \item{gdxRegionMappingFile}{Character. The \strong{gdx's own native resolution}, not a
 target (PITFALLS §5) — \code{"regionmappingH12.csv"} (default) for an H12 gdx,

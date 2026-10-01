@@ -156,11 +156,18 @@ runSweep <- function(group,
 # forcecache = TRUE; when a cachefolder is supplied, also sets it. Distinct from the Fit Cache /
 # model store (options(pfm.modelDir)) — that is the `modelDir` argument, not this.
 #' @keywords internal
-.useMadratCache <- function(cachefolder = NULL) {
+.useMadratCache <- function(cachefolder = NULL, sourcefolder = getOption("pfm.sourcefolder", NULL)) {
   if (!is.null(cachefolder) && nzchar(cachefolder)) {
     madrat::setConfig(cachefolder = cachefolder, forcecache = TRUE)
   } else {
     madrat::setConfig(forcecache = TRUE)
+  }
+  # Raw sources for calculations missing from the cache. forcecache only decides WHICH cached
+  # file is accepted; on a real miss madrat computes from sources and writes the result into
+  # the cache folder above. Without a source folder that compute fails ("Sourcefolder does not
+  # contain data ..."), which is what happened on a workstation with an unconfigured madrat.
+  if (!is.null(sourcefolder) && nzchar(sourcefolder)) {
+    madrat::setConfig(sourcefolder = sourcefolder)
   }
   invisible(NULL)
 }

@@ -6,7 +6,7 @@
 \usage{
 runPSMExportREMINDInputs(
   group,
-  dest = "pfm-data",
+  dest = "output/remind-inputs",
   resultsDir = getOption("pfm.resultsDir", "output"),
   modelDir = getOption("pfm.modelDir", "output"),
   cachefolder = NULL,
@@ -17,10 +17,12 @@ runPSMExportREMINDInputs(
 \arguments{
 \item{group}{Run-Group name.}
 
-\item{dest}{Destination root. Default \code{"pfm-data"} beside the working
-directory, matching REMIND's \code{../pfm-data} default from a run folder.}
+\item{dest}{Destination root. Default \code{"output/remind-inputs"} under the project
+root, matching the REMIND fork's default \code{cfg$pfm$source}.}
 
-\item{resultsDir, modelDir, cachefolder}{Standard Run-Group locations.}
+\item{resultsDir, modelDir, cachefolder}{Standard Run-Group locations. \code{cachefolder} is
+also the prepared madrat cache whose coupling files (its \code{cache-manifest.tsv}) are
+staged into \code{<dest>/<group>/madrat-cache/}; see \code{\link{pfmPrepareCache}}.}
 
 \item{overwrite}{Overwrite an existing destination group folder.}
 
@@ -32,7 +34,8 @@ Invisibly, the destination folder path.
 \description{
 The last step of the PFM pipeline: copy exactly what the coupling reads out of a
 Run-Group into a self-contained folder that REMIND's \code{preparePFM.R} picks up
-(its \code{cfg$pfm$source}, default \code{../pfm-data}).
+(its \code{cfg$pfm$source}, default \code{../../output/remind-inputs} from a checkout
+in \code{models/}).
 
 Only the six artifacts \code{\link{iterativePFM}} actually opens are copied, plus
 the one panel named by \code{manifest.json:panel_hash}. Copying the whole Run-Group

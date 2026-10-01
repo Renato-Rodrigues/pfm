@@ -95,7 +95,7 @@
 #'   statistical tests are no longer valid. 0.999 is placed in an observed gap: across
 #'   the 19-specification survey of 2026-09-15 the healthy fits top out at 0.99840 and
 #'   the degenerate ones start at 0.99991, with nothing in between
-#'   (\code{docs/reference/spec-selection-2026-09-15/}). \code{NA} disables.
+#'   (\code{../_archive/_wip/2026-10-01/docs/reference/spec-selection-2026-09-15/}). \code{NA} disables.
 #' @param ceilingFallGate Numeric or \code{NA}. Severe-gate threshold on the
 #'   median FRONTIER ceiling's end/start ratio across the scenario horizon: a
 #'   spec whose ceiling falls below this fraction of its first projected value by

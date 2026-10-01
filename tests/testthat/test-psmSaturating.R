@@ -201,7 +201,7 @@ test_that("linear and saturating fits do not collide in the fit cache", {
                tolerance = 1e-8)
 })
 
-# --- country exclusion (docs/psm-pecoal-estonia-issue.md) ----------------------
+# --- country exclusion (docs/PITFALLS.md §27) ----------------------
 # Estonia is dropped because its upstream PE|Coal is negative, which the clamp turns
 # into a coal share of 0.0 - a "clean" reading for a very carbon-intensive system.
 # The exclusion must be a visible option, never a silent hard-coded filter.

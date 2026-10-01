@@ -11,7 +11,7 @@
 \title{Replay the GAMS half of the PFM <-> REMIND gdx interface}
 \usage{
 pfmReplayInterface(
-  remindDir = getOption("pfm.remindDir", "../remind_pfm"),
+  remindDir = getOption("pfm.remindDir", NULL),
   dir = file.path(tempdir(), "pfm-replay-interface"),
   negativeControl = TRUE,
   gams = Sys.which("gams"),
@@ -32,8 +32,9 @@ pfmReplayInterface(
 }
 \arguments{
 \item{remindDir}{Path to the REMIND fork carrying the module. Default: the
-\code{pfm.remindDir} option, else \code{"../remind_pfm"} relative to the working
-directory.}
+\code{pfm.remindDir} option, else the first REMIND checkout found from the project root
+(\code{models/remind_pfm}, \code{models/remind_pfm-EU21}, \code{models/remind_pfm-H12}),
+else \code{"../remind_pfm"} (the layout before 2026-10-01).}
 
 \item{dir}{Working directory for the generated stub, gdx and listing. Default a session
 temporary directory; pass a real path to keep the artefacts.}

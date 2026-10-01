@@ -4,17 +4,21 @@
 \alias{pfmResolveConfig}
 \title{Resolve a run configuration and its scenario registry}
 \usage{
-pfmResolveConfig(config = NULL, verbose = TRUE)
+pfmResolveConfig(config = NULL, group = NULL, verbose = TRUE)
 }
 \arguments{
 \item{config}{Path to the YAML. \code{NULL} looks for \code{config.yml} in the
 working directory and returns empty defaults if there is none.}
 
+\item{group}{Run-Group. Fills the \code{\{group\}} tag of \code{madrat: cachefolder};
+\code{NULL} takes the config's own \code{group}.}
+
 \item{verbose}{Logical.}
 }
 \value{
 List with \code{scenarios} (or \code{NULL}), \code{gdxFile} (the gating
-scenario's gdx, or \code{NULL}), \code{cachefolder}, \code{resultsDir},
+scenario's gdx, or \code{NULL}), \code{cachefolder}, \code{sourcefolder},
+\code{madrat} (the resolved madrat block), \code{group}, \code{recordsDir}, \code{resultsDir},
 \code{modelDir}, \code{path} and \code{dir}.
 }
 \description{
@@ -32,6 +36,22 @@ Relative paths inside the file resolve against \strong{the config file's own
 directory}, not the working directory, so a config can sit next to its data and be
 passed from anywhere.
 }
+\section{The madrat block}{
+
+\preformatted{
+madrat:
+  cachefolder: "data/madrat/{group}"   # the project cache; {group} -> one cache per Run-Group
+  sourcefolder: [<dir>, <dir>]          # raw sources, first that EXISTS on this machine wins
+  cacheSources: [<dir>, <dir>]          # caches to copy missing files from, in order
+  useMadratConfig: true                 # also madrat's own cachefolder/sourcefolder, last
+  compute: true                         # compute what no cache has, from the sources
+}
+Lists of candidate paths are how one committed config serves the workstation and the
+cluster: a path that does not exist on this machine is skipped. The top-level
+\code{cachefolder}/\code{sourcefolder} keys of older configs are still read.
+See \code{\link{pfmPrepareCache}}.
+}
+
 \author{
 Renato Rodrigues
 }

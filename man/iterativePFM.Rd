@@ -45,7 +45,8 @@ options so the REMIND run can set them once in its \code{.Rprofile}.}
 \item{couplingConfig}{Path to the run-local YAML written by REMIND's
 \code{scripts/start/preparePFM.R}, holding the \strong{static} settings with
 \strong{relative} paths so the run folder is self-contained. Absent outside a
-prepared REMIND run, which is normal.}
+prepared REMIND run, which is normal. Its \code{cachefolder} names the run's staged
+madrat cache (see \code{\link{pfmPrepareCache}}).}
 
 \item{theta, nTiers, lambda}{Coupling knobs, passed through to
 \code{\link{aggregateFeasibilityToRegions}}. \code{theta} is a declared

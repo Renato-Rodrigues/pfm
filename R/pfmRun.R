@@ -32,8 +32,11 @@
 #'
 #' @param group Run-Group name. Interactively: offered from the existing groups under
 #'   \code{resultsDir}, or type a new name to start a fresh one.
-#' @param stage One of \code{"all"}, \code{"sweep"}, \code{"diagnostics"},
-#'   \code{"downstream"}, \code{"remind"}, \code{"custom"}.
+#' @param stage One or SEVERAL of \code{"all"}, \code{"sweep"}, \code{"diagnostics"},
+#'   \code{"downstream"}, \code{"remind"}; or \code{"custom"} alone. Several stages run as one
+#'   chain, in dependency order and, on SLURM, in ONE job: \code{stage = c("sweep",
+#'   "diagnostics", "downstream", "remind")} goes from estimation to the REMIND inputs folder
+#'   with a single call.
 #' @param steps Explicit step vector. Overrides \code{stage} when given.
 #' @param cluster \code{"auto"} (SLURM when \code{sbatch} is on PATH), \code{"slurm"}
 #'   or \code{"local"}.
@@ -59,6 +62,11 @@
 #' @param config Path to the scenario-registry YAML.
 #' @param ask Force the interactive wizard on (\code{TRUE}) or off (\code{FALSE}).
 #'   Default: interactive sessions ask only for what was not supplied.
+#' @param prepareCache Logical. Before any step, run \code{\link{pfmPrepareCache}}: check the
+#'   project madrat cache (config \code{madrat: cachefolder}) holds every file the pipeline
+#'   reads, copy what is missing from the configured cache sources, compute the rest. A
+#'   complete cache is confirmed in well under a second. Skipped when the caller passes its
+#'   own \code{cachefolder}.
 #' @param dryRun Print the resolved plan and stop without running.
 #' @param ... Passed through to \code{\link{startRun}} (e.g. \code{qos}, \code{time}).
 #'
@@ -70,6 +78,8 @@
 #' pfmRun(group = "v1", stage = "downstream")
 #' pfmRun(group = "v1", stage = "diagnostics", cluster = "slurm")
 #' pfmRun(group = "v1", stage = "all", cluster = "slurm")
+#' pfmRun(group = "v6", stage = c("sweep", "diagnostics", "downstream", "remind"),
+#'        cluster = "slurm", config = "config.yml")      # one job, estimation to REMIND inputs
 #' pfmRun(group = "v5", stage = "remind", remindDir = "output/remind-inputs")
 #' }
 #' @author Renato Rodrigues
@@ -87,6 +97,7 @@ pfmRun <- function(group = NULL,
                    priority = NULL,
                    config = NULL,
                    ask = NULL,
+                   prepareCache = TRUE,
                    dryRun = FALSE,
                    ...) {
 
@@ -261,6 +272,12 @@ pfmRun <- function(group = NULL,
     }
   }
   groupDir <- file.path(resultsDir, group)
+  # Again, now that the group is known: it names the madrat cache (`madrat: cachefolder`
+  # "data/madrat/{group}").
+  rc <- pfmResolveConfig(config, group = group, verbose = FALSE)
+  # madrat's raw-source folder (config `madrat: sourcefolder`, first existing candidate),
+  # applied by .useMadratCache() in every step and carried into SLURM jobs by startRun().
+  if (!is.null(rc$sourcefolder)) options(pfm.sourcefolder = rc$sourcefolder)
   hasSpec <- file.exists(file.path(groupDir, "selected-models-psm.yml"))
 
   # ── stage / steps ───────────────────────────────────────────────────────────
@@ -280,11 +297,17 @@ pfmRun <- function(group = NULL,
                          default = if (hasSpec) 3L else 1L)
     }
     stage <- match.arg(stage, c("all", "sweep", "diagnostics", "downstream",
-                                "remind", "custom"))
+                                "remind", "custom"), several.ok = TRUE)
+    if ("custom" %in% stage && length(stage) > 1) {
+      stop("pfmRun: stage = 'custom' cannot be combined with other stages; pass 'steps'.",
+           call. = FALSE)
+    }
+    # Several stages are one chain: the union of their steps, in the dependency order of
+    # "all" - so c("downstream", "sweep") still estimates before it projects.
     steps <- if (identical(stage, "custom")) {
       if (!interactiveRun) stop("pfmRun: stage = 'custom' needs 'steps'.", call. = FALSE)
       askMulti("Which steps?", allSteps)
-    } else stageSteps[[stage]]
+    } else intersect(stageSteps$all, unlist(stageSteps[stage]))
   }
   steps <- unique(steps)
 
@@ -440,6 +463,12 @@ pfmRun <- function(group = NULL,
   # ranking differed and it read as a gate effect. Print it.
   message("  panel res   : ", list(...)$outputRegionMappingFile %||% rc$outputRegionMappingFile,
           if (is.null(list(...)$outputRegionMappingFile)) "  (config)" else "  (caller)")
+  ownCache <- !is.null(list(...)$cachefolder)
+  message("  madrat cache: ", list(...)$cachefolder %||% rc$cachefolder,
+          if (ownCache) "  (caller; not prepared)" else paste0("  [tag ", rc$madrat$tag, "]",
+          if (isTRUE(prepareCache)) ", checked and filled before the steps" else ", NOT checked"))
+  message("  sources     : ", getOption("pfm.sourcefolder") %||%
+            "(madrat's own configuration - used only for calculations missing from the cache)")
   message("  steps       : ", paste(steps, collapse = ", "))
   hr("=")
 
@@ -487,10 +516,32 @@ pfmRun <- function(group = NULL,
     psmCleanSteps(group, victims, resultsDir = resultsDir, dryRun = FALSE)
   }
 
+  # ── madrat cache ────────────────────────────────────────────────────────────
+  # Before anything is submitted: a cache filled here is one the jobs only read. Left to the
+  # jobs, parallel workers missing the same file would each compute it, and every batch would
+  # silently carry whichever data versions happened to be lying in the folder.
+  if (isTRUE(prepareCache) && !ownCache) {
+    pc <- pfmPrepareCache(config, group = group)
+    if (identical(pc$status, "incomplete")) {
+      msg <- paste0("the madrat cache ", pc$cachefolder, " is incomplete: ",
+                    paste(names(pc$failed), collapse = ", "), " could not be built (see [cache] above).")
+      if ("historical-panel" %in% names(pc$failed)) {
+        stop("pfmRun: ", msg, " Every step reads the historical panel. Add the missing cache ",
+             "files to a `madrat: cacheSources` folder or the raw sources to `madrat: sourcefolder`, ",
+             "or pass prepareCache = FALSE to run anyway.", call. = FALSE)
+      }
+      warning("pfmRun: ", msg, " Steps reading it will compute what is missing.", call. = FALSE)
+    }
+  }
+
   # ── run ─────────────────────────────────────────────────────────────────────
-  # The REMIND export is a plain local file copy: submitting it to SLURM would queue
-  # a job to copy seven files. Split it out and run it here, after the rest.
-  pipelineSteps <- setdiff(steps, "psm-remind-inputs")
+  # The REMIND export ALONE is a plain file copy and runs here: a SLURM job to copy a few
+  # files would only queue. Together with other steps it is the chain's last step, inside
+  # the same job (runModelGroup runs it after the downstream steps), so one call goes from
+  # estimation to the REMIND inputs. Until 2026-10-01 it was always split off, and a
+  # submitted chain needed a second pfmRun(stage = "remind") once the job had finished.
+  exportOnly <- identical(steps, "psm-remind-inputs")
+  pipelineSteps <- if (exportOnly) character(0) else steps
   if (length(pipelineSteps)) {
     # startRun takes `scenarios`/`gdxFile`, not a config path — passing `config` would
     # land in ... and be silently ignored, leaving the projection with no registry and
@@ -514,6 +565,10 @@ pfmRun <- function(group = NULL,
            outputRegionMappingFile = rc$outputRegionMappingFile),
       list(...))
     if (!is.null(rc$gdxFile)) args$gdxFile <- rc$gdxFile
+    # Absolute: a SLURM job's working directory is not necessarily this one.
+    if ("psm-remind-inputs" %in% pipelineSteps) {
+      args$dest <- normalizePath(remindDir, winslash = "/", mustWork = FALSE)
+    }
     # Each axis is set only when the caller did NOT pass it, so an explicit
     # nCores/mem/time/partition still wins over the auto-sizing.
     if (!is.null(prio)) {
@@ -526,16 +581,10 @@ pfmRun <- function(group = NULL,
     if (!is.null(nCores)) args$nCores <- nCores
     do.call(startRun, args)
   }
-  if ("psm-remind-inputs" %in% steps) {
-    if (identical(cluster, "slurm") && length(pipelineSteps)) {
-      message("\nNOTE: the pipeline was SUBMITTED, so the REMIND folder is not built yet —")
-      message("      its inputs do not exist until the job finishes. When it does, run:")
-      message("        pfmRun(group = \"", group, "\", stage = \"remind\", remindDir = \"",
-              remindDir, "\")")
-    } else {
-      runPSMExportREMINDInputs(group = group, dest = remindDir,
-                               resultsDir = resultsDir, modelDir = modelDir)
-    }
+  if (exportOnly) {
+    runPSMExportREMINDInputs(group = group, dest = remindDir,
+                             resultsDir = resultsDir, modelDir = modelDir,
+                             cachefolder = list(...)$cachefolder %||% rc$cachefolder)
   }
   invisible(settings)
 }

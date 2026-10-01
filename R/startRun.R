@@ -293,7 +293,11 @@ startRun <- function(group,
     as.integer(bootstrapResamples), .rlit(bootstrapDetail), as.integer(bootstrapTopK),
     paste0(scenLit, dotsLit))
   jobR <- file.path(chdir, paste0("pfm-", group, "-job.R"))
-  writeLines(c("suppressMessages(library(pfm))", call), jobR)
+  # The madrat source folder is a session option (set by pfmRun from config.yml `madrat:
+  # sourcefolder`); a fresh job process would not have it.
+  sf <- getOption("pfm.sourcefolder", NULL)
+  optLine <- if (!is.null(sf) && nzchar(sf)) sprintf("options(pfm.sourcefolder = %s)", .rlit(abspath(sf))) else NULL
+  writeLines(c("suppressMessages(library(pfm))", optLine, call), jobR)
 
   # sbatch --chdir changes the working directory BEFORE the payload runs, so every
   # path in the script must be absolute or the job dies on the node with "cannot open
