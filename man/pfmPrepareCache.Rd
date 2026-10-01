@@ -39,7 +39,7 @@ Invisibly, a list: \code{status} (\code{"ready"}, \code{"prepared"} or
 Makes the project cache (config \code{madrat: cachefolder}) hold every madrat cache file
 the pipeline reads, so that the historical panel, the estimation, the projection and the
 coupling all read the SAME data versions from ONE folder. Called by
-\code{setup-workspace.sh} after installing, and by \code{\link{pfmRun}} before any step.
+\code{tools/setup.sh} after installing, and by \code{\link{pfmRun}} before any step.
 
 \enumerate{
 \item \strong{Quick check.} When the folder's \code{cache-manifest.tsv} was written for
@@ -48,7 +48,7 @@ it lists is present and unchanged, nothing else happens. This is the normal case
 takes well under a second.
 \item \strong{Pin.} A Run-Group that recorded what it read
 (\code{<recordsDir>/<group>/madrat-cache-used-pfm.tsv}, from
-\code{analysis/workspace/listMadratCacheUsed.R}) gets EXACTLY those files, copied by
+\code{tools/listMadratCacheUsed.R}) gets EXACTLY those files, copied by
 name from the cache sources. This is what reproduces an existing group.
 \item \strong{Builders.} The pipeline's own data builders run against the project cache:
 the historical panel (two- and four-sector policy stringency), the scenario panel (on
