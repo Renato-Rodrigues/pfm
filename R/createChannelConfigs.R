@@ -453,8 +453,8 @@ channelSpecs <- function(mode = c("guided", "exhaustive"),
 
 #' @title createChannelConfigs
 #' @description Writes the \code{channels-<mode>.yml} sweep configuration built by
-#' \code{\link{channelSpecs}} to a directory (typically
-#' \code{pfm-reports/reports/model-selection/model-configs/}).
+#' \code{\link{channelSpecs}} to a directory (typically the
+#' Run-Group directory, via \code{\link{runSweep}}).
 #'
 #' @param dir Character. Target directory (created if missing).
 #' @param mode Character. \code{"guided"} or \code{"exhaustive"}.

@@ -26,7 +26,7 @@ Reads the YAML that tells a run WHERE things are: the madrat cache, the results
 root, and above all the Policy Scenario Registry (ADR 0035) naming each scenario's
 gdx and that gdx's own region mapping.
 
-This used to live in \code{pfm-reports/start.R}, outside the package, which meant a
+This used to live in a launcher script outside the package, which meant a
 caller going straight to \code{\link{startRun}} silently got NO scenarios: the
 projection then fell back to a single legacy scenario read from a generic gdx and
 wrote a projection of the wrong pathway, with nothing in the log to say so. Config

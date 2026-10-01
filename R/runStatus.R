@@ -46,7 +46,7 @@ runStatus <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
     remaining = setdiff(requested, doneSteps),
     artifacts = unlist(man$artifacts %||% list()), slurm = live
   )
-  # Live progress bars (model fitting / report rendering), parsed from the run log while it is active.
+  # Live progress bar (model fitting), parsed from the run log while it is active.
   active <- (status$manifestStatus %in% c("running", "submitted")) ||
     (!is.null(live) && toupper(live$state %||% "") %in% c("RUNNING", "PENDING", "CONFIGURING", "COMPLETING"))
   status$progress <- if (active) .runProgress(group, groupDir, jobId) else NULL
@@ -78,10 +78,8 @@ runStatus <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
   paste(parts, collapse = " ")
 }
 
-# Internal: parse live progress from a run's newest .err log.
-# - model fitting: the most recent "[fits] N/M" (sweep) or "resample r/N" (selection bootstrap) line.
-# - report rendering: present only once "rendering reports via ..." appears (i.e. render was requested);
-#   total = the report set listed in that marker, done = count of "[pfmreports] rendering <name>" lines.
+# Internal: parse live progress from a run's newest .err log: the most recent "[fits] N/M"
+# (sweep) or "resample r/N" (selection bootstrap) line.
 #' @keywords internal
 .runProgress <- function(group, groupDir, jobId = NULL) {
   errs <- character(0)
@@ -120,33 +118,6 @@ runStatus <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
   }
   if (!is.null(nm) && length(nm) == 2L && nm[2] > 0L) {
     res$model <- list(label = lbl, done = nm[1], total = nm[2], frac = nm[1] / nm[2])
-  }
-
-  # --- report rendering: per-report detail, only once rendering has started (=> --render run) -------
-  renStart <- grep("rendering reports via", ln)
-  if (length(renStart)) {
-    sline <- ln[max(renStart)]
-    inParen <- regmatches(sline, regexpr("\\(([^)]*)\\)", sline))
-    expected <- if (length(inParen)) trimws(strsplit(gsub("[()]", "", inParen), ",")[[1]]) else character(0)
-    grab <- function(re) {
-      hit <- regmatches(ln, regexpr(re, ln, perl = TRUE))
-      unique(hit[nzchar(hit)])
-    }
-    startedNm <- grab("(?<=\\[pfmreports\\] rendering )\\S+")
-    doneLines <- grep("\\[pfmreports\\] done ", ln, value = TRUE)
-    doneNm  <- regmatches(doneLines, regexpr("(?<=\\[pfmreports\\] done )\\S+", doneLines, perl = TRUE))
-    doneDur <- gsub("[()]", "", regmatches(doneLines, regexpr("\\(([^)]*)\\)", doneLines)))
-    reports <- lapply(expected, function(nm) {
-      if (nm %in% doneNm) list(name = nm, state = "done", dur = doneDur[match(nm, doneNm)])
-      else if (nm %in% startedNm) list(name = nm, state = "running", dur = NA_character_)
-      else list(name = nm, state = "pending", dur = NA_character_)
-    })
-    # completed count drives the bar; fall back to "started" count for logs without done-markers.
-    done <- if (length(doneNm)) length(doneNm) else length(startedNm)
-    total <- if (length(expected)) length(expected) else NA_integer_
-    res$render <- list(done = done, total = total,
-                       frac = if (!is.na(total) && total > 0) min(1, done / total) else 0,
-                       reports = reports)
   }
   if (length(res)) res else NULL
 }
@@ -202,21 +173,6 @@ runStatus <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
     if (!is.null(p$model)) {
       line("  ", p$model$label, " : ", .progressBar(p$model$frac),
            "  (", p$model$done, "/", p$model$total, ")")
-    }
-    if (!is.null(p$render)) {
-      tot <- if (is.na(p$render$total)) "?" else p$render$total
-      line("  reports         : ", .progressBar(p$render$frac),
-           "  (", p$render$done, "/", tot, " rendered)")
-      rs <- p$render$reports
-      if (length(rs)) {
-        nmOf <- function(st) vapply(Filter(function(r) r$state == st, rs),
-          function(r) if (identical(st, "done") && !is.na(r$dur)) paste0(r$name, " (", r$dur, ")") else r$name,
-          character(1))
-        dn <- nmOf("done"); rn <- nmOf("running"); pn <- nmOf("pending")
-        if (length(dn)) line("      done      : ", paste(dn, collapse = ", "))
-        if (length(rn)) line("      rendering : ", paste(rn, collapse = ", "))
-        if (length(pn)) line("      pending   : ", paste(pn, collapse = ", "))
-      }
     }
   }
   if (length(s$remaining)) line("  remaining       : ", paste(s$remaining, collapse = ", "))

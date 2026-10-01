@@ -29,7 +29,7 @@ canonical Term Group names.
 }
 \description{
 Maps a character vector of model term names (as they appear in a model
-matrix) to canonical Term Group names used throughout pfm and pfm-reports:
+matrix) to canonical Term Group names used throughout pfm:
 \code{"Intercept"}, \code{"Actor Power"}, \code{"Inst. Quality"},
 \code{"Interaction"}, \code{"Controls"}, \code{"Time Trend"},
 \code{"Path Dep."}, \code{"Region FE"}, \code{"Other"}.

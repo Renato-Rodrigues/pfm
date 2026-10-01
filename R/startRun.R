@@ -4,8 +4,7 @@
 #' @description
 #' The single entry point for running a model group (ADR 0020). Detects whether to submit a
 #' SLURM job (PIK cluster) or run in-process, sizes parallelism to the available cores, runs
-#' \code{\link{runModelGroup}}, records run statistics + status in the Run-Group manifest, and
-#' optionally renders the pfm-reports outputs afterwards.
+#' \code{\link{runModelGroup}}, and records run statistics + status in the Run-Group manifest.
 #'
 #' Cluster detection (\code{cluster = "auto"}): if \code{SLURM_JOB_ID} is set we are already
 #' inside an allocation and run in-process; else if \code{sbatch} is on \code{PATH} we submit a
@@ -43,11 +42,6 @@
 #' @param cluster \code{"auto"} (default), \code{"slurm"}, or \code{"local"}.
 #' @param time,qos,partition,account,mem,chdir SLURM directives (PIK defaults: 24h / short /
 #'   standard / default account / node-default mem / \code{resultsDir/<group>}).
-#' @param outputDir Character or NULL. Where rendered reports are written when \code{render =
-#'   TRUE} (defaults to \code{resultsDir}). Rendering shells out to the installed \pkg{pfmreports}
-#'   package (ADR 0021); \code{pfm} gains no dependency on it.
-#' @param render Logical. After the run, shell out to render the pfm-reports outputs for the
-#'   group (requires \code{reportsDir}). Default \code{FALSE}.
 #' @param forceRefit Logical. Ignore cached fits. Default \code{FALSE}.
 #' @param verbose Logical. Default \code{TRUE}.
 #' @param ... Forwarded to \code{\link{runSweep}} (e.g. \code{selectFE}).
@@ -70,9 +64,8 @@ startRun <- function(group,
                      cluster = c("auto", "slurm", "local"),
                      time = "24:00:00", qos = "short", partition = "standard",
                      account = NULL, mem = NULL, chdir = NULL,
-                     outputDir = NULL, render = FALSE,
                      bootstrapResamples = 200L, bootstrapDetail = "channel", bootstrapTopK = 40L,
-                     forceRefit = FALSE, resume = FALSE, renderCores = NULL, verbose = TRUE, ...) {
+                     forceRefit = FALSE, resume = FALSE, verbose = TRUE, ...) {
   mode <- match.arg(mode)
   selectionMethod <- match.arg(selectionMethod)
   cluster <- match.arg(cluster)
@@ -140,8 +133,7 @@ startRun <- function(group,
       resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile,
       scenarios = scenarios, nCores = nCores,
       time = time, qos = qos, partition = partition, account = account, mem = mem, chdir = chdir,
-      outputDir = outputDir, render = render, forceRefit = forceRefit, resume = resume,
-      renderCores = renderCores,
+      forceRefit = forceRefit, resume = resume,
       bootstrapResamples = bootstrapResamples, bootstrapDetail = bootstrapDetail,
       bootstrapTopK = bootstrapTopK, say = say, dots = list(...)))
   }
@@ -161,46 +153,18 @@ startRun <- function(group,
 
   say(if (inJob) "running on SLURM node" else "running locally", " (nCores = ", nCores, "); steps: ",
       paste(steps, collapse = ", "))
-  # Collected across every runGroup() call (a phased render makes two) so the final line of
-  # the log can name any step that produced nothing. Without this the audit lives only in the
-  # middle of the log, which is exactly where it gets lost.
+  # Collected from the run's audit so the final line of the log can name any step that
+  # produced nothing. Without this the audit lives only in the middle of the log, which is
+  # exactly where it gets lost.
   auditIncomplete <- character(0)
-  runGroup <- function(stepsArg) {
-    r <- runModelGroupInner(stepsArg)
-    auditIncomplete <<- unique(c(auditIncomplete,
-                                 attr(r, "incomplete"), attr(r, "notRefreshed")))
-    invisible(r)
-  }
-  runModelGroupInner <- function(stepsArg) runModelGroup(group = group, steps = stepsArg,
-    resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile,
-    scenarios = scenarios,
-    mode = mode, selectionMethod = selectionMethod, nCores = nCores, forceRefit = forceRefit,
-    resume = resume, bootstrapResamples = bootstrapResamples, bootstrapDetail = bootstrapDetail,
-    bootstrapTopK = bootstrapTopK, verbose = verbose, ...)
-  doRender <- function(reps, stepsArg) .renderReports(group = group, resultsDir = resultsDir,
-    modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile,
-    outputDir = outputDir %||% resultsDir, steps = stepsArg, renderCores = renderCores,
-    reports = reps, say = say)
-
-  # When the run includes the multi-hour selection-bootstrap AND rendering, render every report that
-  # does NOT depend on it FIRST (right after the cheap steps), so they are available within minutes;
-  # only model-selection (the sole consumer of selection-bootstrap.rds) waits for the bootstrap.
-  bootStep <- "selection-bootstrap"
-  phased <- isTRUE(render) && (bootStep %in% steps)
   ok <- tryCatch({
-    if (phased) {
-      preSteps <- setdiff(steps, bootStep)
-      if (length(preSteps)) runGroup(preSteps)
-      say("rendering bootstrap-independent reports before the selection-bootstrap stage ...")
-      doRender(c("selection", "model-selection", "results-adoption", "results-stringency",
-                 "publication", "robustness", "subnational"), preSteps)
-      say("starting the selection-bootstrap stage (long) ...")
-      runGroup(bootStep)
-      say("rendering the bootstrap-dependent report (selection-stability) ...")
-      doRender("selection-stability", steps)
-    } else {
-      runGroup(steps)
-    }
+    r <- runModelGroup(group = group, steps = steps,
+      resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile,
+      scenarios = scenarios,
+      mode = mode, selectionMethod = selectionMethod, nCores = nCores, forceRefit = forceRefit,
+      resume = resume, bootstrapResamples = bootstrapResamples, bootstrapDetail = bootstrapDetail,
+      bootstrapTopK = bootstrapTopK, verbose = verbose, ...)
+    auditIncomplete <- unique(c(attr(r, "incomplete"), attr(r, "notRefreshed")))
     TRUE
   }, error = function(e) { say("RUN FAILED: ", conditionMessage(e)); FALSE })
 
@@ -214,7 +178,6 @@ startRun <- function(group,
     incompleteSteps = as.list(auditIncomplete),
     seconds = round(as.numeric(difftime(endedAt, t0, units = "secs")), 1)))
 
-  if (ok && isTRUE(render) && !phased) doRender(NULL, steps)   # non-phased: render all at the end
   say(switch(runStatus, completed = "DONE", incomplete = "DONE WITH GAPS", failed = "FAILED"),
       " - ", groupDir)
   if (length(auditIncomplete)) {
@@ -252,8 +215,8 @@ startRun <- function(group,
 # list(submitted=TRUE, jobId=, script=).
 #' @keywords internal
 .submitSlurm <- function(group, steps, mode, selectionMethod, resultsDir, modelDir, cachefolder,
-                         gdxFile, scenarios = NULL, nCores, time, qos, partition, account, mem, chdir, outputDir,
-                         render, forceRefit, resume = FALSE, renderCores = NULL,
+                         gdxFile, scenarios = NULL, nCores, time, qos, partition, account, mem, chdir,
+                         forceRefit, resume = FALSE,
                          bootstrapResamples = 200L,
                          bootstrapDetail = "channel", bootstrapTopK = 40L, say, dots) {
   # normalizePath(mustWork = FALSE) returns a NON-EXISTENT path unchanged, so a
@@ -269,7 +232,7 @@ startRun <- function(group,
     normalizePath(p, winslash = "/", mustWork = FALSE)
   }
   resultsDir <- abspath(resultsDir); modelDir <- abspath(modelDir)
-  cachefolder <- abspath(cachefolder); gdxFile <- abspath(gdxFile); outputDir <- abspath(outputDir)
+  cachefolder <- abspath(cachefolder); gdxFile <- abspath(gdxFile)
   user <- Sys.getenv("USER", Sys.getenv("USERNAME", "user"))
   if (is.null(chdir)) chdir <- file.path(resultsDir, group)
   dir.create(chdir, showWarnings = FALSE, recursive = TRUE)         # must exist before sbatch
@@ -284,12 +247,10 @@ startRun <- function(group,
     vapply(dots, .rlit, character(1))), collapse = ", ")) else ""
   call <- sprintf(paste0(
     "pfm::startRun(group=%s, steps=%s, mode=%s, selectionMethod=%s, resultsDir=%s, modelDir=%s, ",
-    "cachefolder=%s, gdxFile=%s, nCores=%d, cluster=\"local\", forceRefit=%s, resume=%s, render=%s, outputDir=%s, ",
-    "renderCores=%s, bootstrapResamples=%d, bootstrapDetail=%s, bootstrapTopK=%d%s)"),
+    "cachefolder=%s, gdxFile=%s, nCores=%d, cluster=\"local\", forceRefit=%s, resume=%s, ",
+    "bootstrapResamples=%d, bootstrapDetail=%s, bootstrapTopK=%d%s)"),
     .rlit(group), .rlit(steps), .rlit(mode), .rlit(selectionMethod), .rlit(resultsDir),
-    .rlit(modelDir), .rlit(cachefolder), .rlit(gdxFile), nCores, .rlit(forceRefit), .rlit(resume), .rlit(render),
-    .rlit(outputDir),
-    if (is.null(renderCores)) "NULL" else as.integer(renderCores),
+    .rlit(modelDir), .rlit(cachefolder), .rlit(gdxFile), nCores, .rlit(forceRefit), .rlit(resume),
     as.integer(bootstrapResamples), .rlit(bootstrapDetail), as.integer(bootstrapTopK),
     paste0(scenLit, dotsLit))
   jobR <- file.path(chdir, paste0("pfm-", group, "-job.R"))
@@ -362,56 +323,5 @@ startRun <- function(group,
     cluster = "slurm", slurmJobId = jobId, nCores = nCores,
     steps = as.list(steps), submitScript = subScript))
   invisible(list(submitted = TRUE, jobId = jobId, script = subScript))
-}
-
-# Internal: render the pfm-reports outputs for a group (optional shell-out, ADR 0018/0020).
-# Maps the steps that ran to the reports that consume them; never makes pfm depend on
-# pfm-reports (it only invokes run.R scripts in the supplied directory).
-#' @keywords internal
-.renderReports <- function(group, resultsDir, modelDir, cachefolder, gdxFile, outputDir,
-                           steps, say, renderCores = NULL, reports = NULL) {
-  # Retargeted shell-out (ADR 0021): render via the installed pfmreports package — pfm gains no
-  # dependency on it. Skipped (with a note) when pfmreports is not installed.
-  haveReports <- nzchar(system2("Rscript",
-    c("-e", shQuote("cat(requireNamespace('pfmreports', quietly=TRUE))")),
-    stdout = TRUE, stderr = FALSE)[1] == "TRUE")
-  if (!isTRUE(haveReports)) {
-    say("render = TRUE but the 'pfmreports' package is not installed; skipping report rendering.")
-    return(invisible(NULL))
-  }
-  # A PSM-only run (ADR 0036) renders only the PSM report; the price-model report set would
-  # read the PSM group's differently-shaped artifacts and render empty/misleading sections.
-  psmSteps <- c("psm-sweep", "psm-projection", "psm-agreement", "psm-temporal",
-                "psm-frontier", "psm-iv", "psm-influence", "psm-sector-speeds",
-                "psm-selection-bootstrap", "psm-replay",
-                "psm-donor", "psm-coupling-bound", "psm-remind-inputs",
-                "psm-downstream", "psm-all")
-  reps <- if (all(steps %in% psmSteps)) character(0) else
-    c("selection", "model-selection", "results-adoption", "results-stringency", "publication")
-  if (any(c("robustness", "temporal", "difference-first") %in% steps)) reps <- c(reps, "robustness")
-  if ("subnational" %in% steps) reps <- c(reps, "subnational")
-  if ("selection-bootstrap" %in% steps) reps <- c(reps, "selection-stability")
-  if (any(psmSteps %in% steps)) reps <- c(reps, "psm-results")
-  if (!is.null(reports)) reps <- intersect(reps, reports)   # render only this subset (phased render)
-  if (!length(reps)) return(invisible(NULL))
-  lit <- function(x) if (is.null(x)) "NULL" else paste0('"', gsub('"', '\\\\"', x), '"')
-  nCoresArg <- if (is.null(renderCores)) "NULL" else as.integer(renderCores)
-  expr <- sprintf(paste0(
-    "suppressMessages(library(pfmreports)); ",
-    "pfmreports::renderGroup(group=%s, reports=c(%s), resultsDir=%s, modelDir=%s, ",
-    "cachefolder=%s, gdxFile=%s, reportName=%s, outputDir=%s, nCores=%s)"),
-    lit(group), paste(vapply(reps, lit, character(1)), collapse = ", "),
-    lit(resultsDir), lit(modelDir), lit(cachefolder), lit(gdxFile), lit(group), lit(outputDir),
-    nCoresArg)
-  say("rendering reports via pfmreports::renderGroup (", paste(reps, collapse = ", "), ") ...")
-  # Stream the child render output to this run's log (stdout=""/stderr="" instead of capturing) so the
-  # per-report "[pfmreports] rendering <name> -> ..." lines land in the .err live. runStatus parses
-  # those (plus this "rendering reports via ..." marker) to draw the reports progress bar.
-  st <- tryCatch(system2("Rscript", c("-e", shQuote(expr)), stdout = "", stderr = ""),
-                 error = function(e) { say("render-error: ", conditionMessage(e)); NA_integer_ })
-  if (is.numeric(st) && !is.na(st) && st != 0) {
-    say("report rendering returned a non-zero status (see the rendering log above).")
-  }
-  invisible(NULL)
 }
 # nolint end

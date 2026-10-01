@@ -162,7 +162,7 @@ psmCleanSteps("psm-country-v4", "psm-projection", dryRun = TRUE)
 | the deployed specification | `clean = "group"` |
 | nothing | leave `clean = "none"` and let `resume` skip |
 
-**Reinstall after editing the package.** `pfm-reports/start.R` and the steps load the
+**Reinstall after editing the package.** `pfmRun()` and the steps load the
 *installed* pfm, not your working tree — source edits do nothing until
 `devtools::install("pfm")`. This has silently cost real debugging time.
 

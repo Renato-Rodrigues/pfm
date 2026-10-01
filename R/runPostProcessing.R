@@ -4,7 +4,7 @@
 # sweep result) and write their own artifact beside it. runModelGroup chains the steps.
 # The heavy statistical primitives live in pfm already (computeLORO, computeTemporalSplit,
 # computeMaximinScore, ...); these functions are the orchestration that used to sit in the
-# pfm-reports build-*.R scripts. (`%||%` is provided package-wide by buildPFMModel.R.)
+# old report layer's build-*.R scripts. (`%||%` is provided package-wide by buildPFMModel.R.)
 
 # Internal: build the historical panel the way the deliverable was trained (+ GDP^2).
 #' @keywords internal

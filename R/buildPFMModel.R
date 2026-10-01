@@ -245,6 +245,6 @@ buildPFMModel <- function(fit, training_data, sector, stage, family, useFirth, l
   )
 }
 
-# Null-coalescing helper (local to this file; pfm-reports also defines one)
+# Null-coalescing helper, package-wide
 `%||%` <- function(x, y) if (!is.null(x)) x else y
 # nolint end

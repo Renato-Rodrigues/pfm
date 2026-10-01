@@ -2,7 +2,7 @@
 #!/usr/bin/env Rscript
 # PFM run status checker (ADR 0020). Reads results/<group>/manifest.json (+ live SLURM when a
 # job id is recorded) and prints the run's status, per-step timings, and remaining steps.
-# Run from the pfm-reports working directory.
+# Run from the project root (where config.yml lives).
 #   Rscript status.R --group=exhaustive
 #   Rscript status.R --group=guided --resultsDir=/p/tmp/$USER/results
 suppressMessages(library(pfm))

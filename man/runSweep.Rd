@@ -77,7 +77,7 @@ given, the scenario panel), runs the full specification sweep + maximin / Projec
 selection (parallel-capable, ADR 0019), and writes the curated artifacts into
 \code{<resultsDir>/<group>/}: \code{sweep.rds}, \code{selected-models.yml} (or
 \code{selected-models-difference-first.yml}), the sweep config, and \code{manifest.json}.
-Renders no reports — that is the report layer's job (pfm-reports reads this Run-Group).
+Renders nothing (\code{pfm} computes and never renders).
 }
 \seealso{
 \code{\link{runChannelsWorkflow}}, \code{\link{runModelGroup}}, ADR 0018, ADR 0019

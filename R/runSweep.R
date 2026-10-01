@@ -7,7 +7,7 @@
 #' selection (parallel-capable, ADR 0019), and writes the curated artifacts into
 #' \code{<resultsDir>/<group>/}: \code{sweep.rds}, \code{selected-models.yml} (or
 #' \code{selected-models-difference-first.yml}), the sweep config, and \code{manifest.json}.
-#' Renders no reports — that is the report layer's job (pfm-reports reads this Run-Group).
+#' Renders nothing (\code{pfm} computes and never renders).
 #'
 #' @param group Character. Run-Group name (e.g. \code{"exhaustive"}, \code{"guided"}, or a
 #'   custom experiment name). Required.
@@ -112,8 +112,8 @@ runSweep <- function(group,
     )
   }
 
-  # Sweep + selection. No reports / findings; the selected-models YAML and sweep config are
-  # written into the Run-Group via configDir.
+  # Sweep + selection. The selected-models YAML and sweep config are written into the
+  # Run-Group via configDir.
   res <- runChannelsWorkflow(
     mode = mode, panelData = panelData, scenarioData = scenarioData, sectors = sectors,
     configDir = groupDir, modelDir = modelDir, nCores = nCores, forceRefit = forceRefit,
@@ -121,9 +121,7 @@ runSweep <- function(group,
     # A fresh sweep (runSweep only runs when NOT resuming) must REGENERATE the auto-generated spec
     # config from the current channelSpecs() — otherwise code changes to the spec grid (e.g. the
     # ADR 0028 saturating `| satP` twins) are silently ignored because the stale YAML is reused.
-    overwriteConfig = TRUE,
-    reportsDir = NULL, renderReports = FALSE, renderRobustness = FALSE,
-    updateFindings = FALSE, saveRds = FALSE, writeSelectedConfig = TRUE,
+    overwriteConfig = TRUE, writeSelectedConfig = TRUE,
     verbose = verbose, ...
   )
 

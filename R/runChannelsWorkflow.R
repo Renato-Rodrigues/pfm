@@ -12,11 +12,7 @@
 #'     (\code{\link{computeMaximinScore}}) per stage, and reports the
 #'     independently-best model per sector/stage as a secondary view;
 #'   \item writes \code{selected-models-channels-<mode>.yml} with the winning
-#'     shared spec per stage (both sectors), report-ready (\code{model_type} entries);
-#'   \item optionally renders the pfm-reports outputs (model-selection sweep report,
-#'     adoption / stringency / publication reports for the selected models);
-#'   \item optionally updates \code{findings.md} with an auto-generated, marker-delimited
-#'     results section.
+#'     shared spec per stage (both sectors), report-ready (\code{model_type} entries).
 #' }
 #'
 #' @param mode Character. \code{"guided"} (ADR 0004 staged algorithm config, 19 specs)
@@ -27,12 +23,8 @@
 #' @param outputRegionMappingFile Character. Region mapping for data aggregation.
 #'   Default \code{"regionmapping_54.csv"} (the model-selection report convention).
 #' @param sectors Character vector. Default \code{c("Bulk", "Diffuse")}.
-#' @param reportsDir Character or NULL. Path to the pfm-reports repository root.
-#'   Required for writing configs into the reports tree, rendering reports, and
-#'   updating findings.md. When NULL, configs go to \code{tempdir()} and the
-#'   render/findings steps are skipped.
 #' @param configDir Character or NULL. Directory for the sweep YAML and the selected-models
-#'   YAML. When NULL, derived from \code{reportsDir} (else \code{tempdir()}). \code{runSweep}
+#'   YAML. When NULL, \code{tempdir()}. \code{runSweep}
 #'   sets this to the Run-Group directory so the selected spec lands beside the other
 #'   artifacts (ADR 0018).
 #' @param modelDir Character or NULL. PFM model store for fit caching.
@@ -56,9 +48,6 @@
 #'   Default \code{20}.
 #' @param sanityThresholds Named list. Overrides for
 #'   \code{\link{computeProjectionSanity}} thresholds.
-#' @param saveRds Logical. Save the workflow results to
-#'   \code{<reportsDir>/output/channels_workflow_<mode>.rds} before rendering
-#'   (the selection report consumes this file). Default \code{TRUE}.
 #' @param selectModels Logical. Run maximin selection. Default \code{TRUE}.
 #' @param selectionMethod Character. \code{"levels-first"} (default — the current
 #'   behaviour: maximin over levels specs, then the Projection Sanity gate) or
@@ -112,14 +101,6 @@
 #'   is reported as the Temporal-Stability Frontier in the robustness step instead.
 #' @param writeSelectedConfig Logical. Write \code{selected-models-channels-<mode>.yml}.
 #'   Default \code{TRUE}.
-#' @param renderReports Logical. Render the pfm-reports outputs (requires
-#'   \code{reportsDir} and Rscript on PATH). Default \code{TRUE}.
-#' @param renderRobustness Logical. After the consumer reports, build the robustness
-#'   artifact (\code{build-robustness.R}) and render \code{reports/robustness/}
-#'   (ADR 0012). Heavy (control specification-curve); set \code{FALSE} to skip.
-#'   Default \code{TRUE}.
-#' @param updateFindings Logical. Update the auto-generated section of findings.md.
-#'   Default \code{TRUE}.
 #' @param overwriteConfig Logical. Regenerate the sweep YAML even if present.
 #'   Default \code{FALSE}.
 #' @param verbose Logical. Progress messages. Default \code{TRUE}.
@@ -128,7 +109,7 @@
 #'   \code{screens} (Channel Screen per sector/stage), \code{maximin} (per-stage
 #'   ranking data.frames), \code{selected} (winning spec name per stage),
 #'   \code{bestPerSector} (secondary view), \code{configPath},
-#'   \code{selectedConfigPath}, \code{reportStatus} (named exit codes).
+#'   \code{selectedConfigPath}.
 #'
 #' @seealso ADR 0004, ADR 0005, \code{\link{computeMaximinScore}},
 #'   \code{\link{computeChannelScreen}}, \code{\link{channelSpecs}}
@@ -140,7 +121,6 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
                                 y = 2000:2022,
                                 outputRegionMappingFile = "regionmapping_54.csv",
                                 sectors = c("Bulk", "Diffuse"),
-                                reportsDir = NULL,
                                 configDir = NULL,
                                 modelDir = getOption("pfm.modelDir", "output"),
                                 nCores = 1L,
@@ -154,7 +134,6 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
                                 sanityBatchSize = 5,
                                 sanityMaxModels = 20,
                                 sanityThresholds = list(),
-                                saveRds = TRUE,
                                 selectModels = TRUE,
                                 selectionMethod = c("levels-first", "difference-first"),
                                 selectFE = c("H12", "OECDp", "Mundlak"),
@@ -172,9 +151,6 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
                                   OECDp   = list(fe = "regionmapping_EU_OECDp.csv", mundlak = FALSE),
                                   Mundlak = list(fe = NULL,                          mundlak = TRUE)),
                                 writeSelectedConfig = TRUE,
-                                renderReports = TRUE,
-                                renderRobustness = TRUE,
-                                updateFindings = TRUE,
                                 overwriteConfig = FALSE,
                                 verbose = TRUE) {
   mode <- match.arg(mode)
@@ -185,16 +161,9 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
   say <- function(...) if (isTRUE(verbose)) message("[channels:", mode, "] ", ...)
 
   # ── 1. Config ─────────────────────────────────────────────────────────────────
-  # configDir: where the sweep YAML and the selected-models YAML are written. Explicit
-  # override (used by runSweep to target the Run-Group) takes precedence; otherwise derive
-  # from reportsDir, falling back to a temp dir.
-  if (is.null(configDir)) {
-    configDir <- if (!is.null(reportsDir)) {
-      file.path(reportsDir, "reports", "model-selection", "model-configs")
-    } else {
-      tempdir()
-    }
-  }
+  # configDir: where the sweep YAML and the selected-models YAML are written. runSweep
+  # targets the Run-Group; otherwise a temp dir.
+  if (is.null(configDir)) configDir <- tempdir()
   dir.create(configDir, showWarnings = FALSE, recursive = TRUE)
   configPath <- createChannelConfigs(configDir, mode, overwrite = overwriteConfig)
 
@@ -408,7 +377,7 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
     say("Selected-models config written: ", selectedConfigPath)
   }
 
-  # ── 7. Assemble results and save the RDS (the selection report consumes it) ──
+  # ── 7. Assemble results ───────────────────────────────────────────────────────
   out <- list(
     mode = mode, results = results, coefficients = coefficients,
     screens = screens, maximin = maximin, selected = selected, sanity = sanity,
@@ -418,29 +387,6 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
     configPath = configPath, selectedConfigPath = selectedConfigPath,
     generated = Sys.time()
   )
-  rdsPath <- NULL
-  if (isTRUE(saveRds) && !is.null(reportsDir)) {
-    dir.create(file.path(reportsDir, "output"), showWarnings = FALSE, recursive = TRUE)
-    rdsPath <- file.path(reportsDir, "output", paste0("channels_workflow_", mode, ".rds"))
-    saveRDS(out, rdsPath)
-    say("Workflow RDS saved: ", rdsPath)
-  }
-  out$rdsPath <- rdsPath
-
-  # ── 8. Reports (pure consumers - ADR 0006) ────────────────────────────────────
-  reportStatus <- NULL
-  if (isTRUE(renderReports) && !is.null(reportsDir)) {
-    reportStatus <- .renderChannelReports(reportsDir, mode, rdsPath, selectedConfigPath,
-                                          verbose = verbose, robustness = renderRobustness)
-  }
-  out$reportStatus <- reportStatus
-
-  # ── 9. findings.md ────────────────────────────────────────────────────────────
-  if (isTRUE(updateFindings) && !is.null(reportsDir) && length(maximin) > 0) {
-    .updateFindingsChannels(reportsDir, mode, maximin, selected, bestPerSector, results)
-    say("findings.md updated.")
-  }
-
   invisible(out)
 }
 
@@ -825,143 +771,5 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
   )
   writeLines(paste0(header, yaml::as.yaml(entries, indent.mapping.sequence = TRUE)), out)
   out
-}
-
-# Internal: renders the redesigned pure-consumer reports (ADR 0006);
-# returns named exit codes.
-#' @keywords internal
-.renderChannelReports <- function(reportsDir, mode, rdsPath, selectedConfigPath,
-                                  verbose = TRUE, robustness = TRUE) {
-  oldwd <- setwd(reportsDir)
-  on.exit(setwd(oldwd), add = TRUE)
-  logDir <- file.path(reportsDir, "output", "logs")
-  dir.create(logDir, showWarnings = FALSE, recursive = TRUE)
-
-  runOne <- function(label, args) {
-    logFile <- file.path(logDir, paste0(label, "_channels-", mode, ".log"))
-    if (isTRUE(verbose)) message("[render] ", label, " ... (log: ", logFile, ")")
-    status <- tryCatch(
-      system2("Rscript", args, stdout = logFile, stderr = logFile),
-      error = function(e) -1L
-    )
-    if (isTRUE(verbose)) {
-      message("[render] ", label, if (identical(status, 0L)) " OK" else paste0(" FAILED (", status, ")"))
-    }
-    status
-  }
-
-  status <- c()
-  if (!is.null(rdsPath) && file.exists(file.path(reportsDir, "reports", "selection", "run.R"))) {
-    status <- c(status, selection = runOne("selection", c(
-      "reports/selection/run.R",
-      paste0("--workflowRds=", rdsPath),
-      paste0("--reportName=channels-", mode)
-    )))
-  }
-  if (!is.null(selectedConfigPath)) {
-    if (file.exists(file.path(reportsDir, "reports", "results-adoption", "run.R"))) {
-      status <- c(status, `results-adoption` = runOne("results-adoption", c(
-        "reports/results-adoption/run.R",
-        paste0("--reportName=channels-", mode),
-        paste0("--modelConfig=", selectedConfigPath)
-      )))
-    }
-    if (file.exists(file.path(reportsDir, "reports", "results-stringency", "run.R"))) {
-      status <- c(status, `results-stringency` = runOne("results-stringency", c(
-        "reports/results-stringency/run.R",
-        paste0("--reportName=channels-", mode),
-        paste0("--modelConfig=", selectedConfigPath)
-      )))
-    }
-    status <- c(status, publication = runOne("publication", c(
-      "reports/publication/run.R",
-      paste0("--reportName=channels-", mode),
-      paste0("--theoryConfig=", selectedConfigPath)
-    )))
-    # Robustness report (ADR 0012): build the artifact (Robustness Ladder, parsimony
-    # frontier, control specification-curve — heavy, hence a separate build step) then
-    # render the pure-consumer report. Skipped via robustness = FALSE.
-    if (isTRUE(robustness) &&
-        file.exists(file.path(reportsDir, "build-robustness.R")) &&
-        file.exists(file.path(reportsDir, "reports", "robustness", "run.R"))) {
-      status <- c(status, `robustness-build` = runOne("build-robustness", "build-robustness.R"))
-      status <- c(status, robustness = runOne("robustness", c(
-        "reports/robustness/run.R",
-        paste0("--reportName=channels-", mode)
-      )))
-    }
-  }
-  status
-}
-
-# Internal: replaces/appends the auto-generated channels section in findings.md.
-#' @keywords internal
-.updateFindingsChannels <- function(reportsDir, mode, maximin, selected, bestPerSector,
-                                    results) {
-  path <- file.path(reportsDir, "findings.md")
-  beginMark <- paste0("<!-- BEGIN channels-workflow:", mode, " (auto-generated) -->")
-  endMark <- paste0("<!-- END channels-workflow:", mode, " -->")
-
-  mdTable <- function(df, cols) {
-    df <- df[, cols, drop = FALSE]
-    fmt <- function(x) {
-      if (is.numeric(x)) ifelse(is.na(x), "", format(round(x, 3), trim = TRUE)) else as.character(x)
-    }
-    body <- apply(as.data.frame(lapply(df, fmt), stringsAsFactors = FALSE,
-                                check.names = FALSE), 1,
-                  function(r) paste0("| ", paste(r, collapse = " | "), " |"))
-    paste(c(
-      paste0("| ", paste(cols, collapse = " | "), " |"),
-      paste0("|", paste(rep("---", length(cols)), collapse = "|"), "|"),
-      body
-    ), collapse = "\n")
-  }
-
-  sec <- c(beginMark,
-           paste0("## Channels Workflow - ", mode, " (auto-generated ", format(Sys.Date()), ")"),
-           "")
-  for (stg in names(maximin)) {
-    mm <- utils::head(maximin[[stg]], 5)
-    sec <- c(sec,
-             paste0("### ", stg, " - Maximin ranking (top 5 of ", nrow(maximin[[stg]]), ")"),
-             "",
-             mdTable(mm, c("rank", "model", "minTier", "meanDeltaR2", "minDeltaR2",
-                           "tierBySector", "gatePass")),
-             "",
-             if (!is.null(selected[[stg]])) {
-               paste0("**Selected shared spec:** ", selected[[stg]])
-             } else {
-               "**No gate-passing shared spec.**"
-             },
-             "")
-  }
-  if (!is.null(bestPerSector) && nrow(bestPerSector) > 0) {
-    sec <- c(sec, "### Best per sector/stage (secondary view)", "",
-             mdTable(bestPerSector, c("stage", "sector", "model", "tier",
-                                      "deltaR2Theory", "maxVIF", "panelTransform")),
-             "")
-  }
-  sec <- c(sec,
-           paste0("_", nrow(results), " fits; see output/model_selection_channels-",
-                  mode, ".html for the full sweep._"),
-           endMark)
-  secText <- paste(sec, collapse = "\n")
-
-  existing <- if (file.exists(path)) {
-    readLines(path, warn = FALSE, encoding = "UTF-8")
-  } else {
-    character(0)
-  }
-  b <- which(existing == beginMark)
-  e <- which(existing == endMark)
-  newContent <- if (length(b) == 1 && length(e) == 1 && e > b) {
-    c(existing[seq_len(b - 1)], strsplit(secText, "\n")[[1]],
-      if (e < length(existing)) existing[(e + 1):length(existing)])
-  } else {
-    c(existing, "", strsplit(secText, "\n")[[1]])
-  }
-  con <- file(path, open = "wt", encoding = "UTF-8")
-  on.exit(close(con), add = TRUE)
-  writeLines(newContent, con)
 }
 # nolint end

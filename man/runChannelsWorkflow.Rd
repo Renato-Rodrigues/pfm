@@ -10,7 +10,6 @@ runChannelsWorkflow(
   y = 2000:2022,
   outputRegionMappingFile = "regionmapping_54.csv",
   sectors = c("Bulk", "Diffuse"),
-  reportsDir = NULL,
   configDir = NULL,
   modelDir = getOption("pfm.modelDir", "output"),
   nCores = 1L,
@@ -20,7 +19,6 @@ runChannelsWorkflow(
   sanityBatchSize = 5,
   sanityMaxModels = 20,
   sanityThresholds = list(),
-  saveRds = TRUE,
   selectModels = TRUE,
   selectionMethod = c("levels-first", "difference-first"),
   selectFE = c("H12", "OECDp", "Mundlak"),
@@ -37,9 +35,6 @@ runChannelsWorkflow(
     list(fe = "regionmapping_EU_OECDp.csv", mundlak = FALSE), Mundlak = list(fe = NULL,
     mundlak = TRUE)),
   writeSelectedConfig = TRUE,
-  renderReports = TRUE,
-  renderRobustness = TRUE,
-  updateFindings = TRUE,
   overwriteConfig = FALSE,
   verbose = TRUE
 )
@@ -58,13 +53,8 @@ Default \code{"regionmapping_54.csv"} (the model-selection report convention).}
 
 \item{sectors}{Character vector. Default \code{c("Bulk", "Diffuse")}.}
 
-\item{reportsDir}{Character or NULL. Path to the pfm-reports repository root.
-Required for writing configs into the reports tree, rendering reports, and
-updating findings.md. When NULL, configs go to \code{tempdir()} and the
-render/findings steps are skipped.}
-
 \item{configDir}{Character or NULL. Directory for the sweep YAML and the selected-models
-YAML. When NULL, derived from \code{reportsDir} (else \code{tempdir()}). \code{runSweep}
+YAML. When NULL, \code{tempdir()}. \code{runSweep}
 sets this to the Run-Group directory so the selected spec lands beside the other
 artifacts (ADR 0018).}
 
@@ -96,10 +86,6 @@ Default \code{20}.}
 
 \item{sanityThresholds}{Named list. Overrides for
 \code{\link{computeProjectionSanity}} thresholds.}
-
-\item{saveRds}{Logical. Save the workflow results to
-\code{<reportsDir>/output/channels_workflow_<mode>.rds} before rendering
-(the selection report consumes this file). Default \code{TRUE}.}
 
 \item{selectModels}{Logical. Run maximin selection. Default \code{TRUE}.}
 
@@ -167,17 +153,6 @@ gate (hybridFD specs carry no FE). Default \code{{H12, OECDp, Mundlak}}; see
 \item{writeSelectedConfig}{Logical. Write \code{selected-models-channels-<mode>.yml}.
 Default \code{TRUE}.}
 
-\item{renderReports}{Logical. Render the pfm-reports outputs (requires
-\code{reportsDir} and Rscript on PATH). Default \code{TRUE}.}
-
-\item{renderRobustness}{Logical. After the consumer reports, build the robustness
-artifact (\code{build-robustness.R}) and render \code{reports/robustness/}
-(ADR 0012). Heavy (control specification-curve); set \code{FALSE} to skip.
-Default \code{TRUE}.}
-
-\item{updateFindings}{Logical. Update the auto-generated section of findings.md.
-Default \code{TRUE}.}
-
 \item{overwriteConfig}{Logical. Regenerate the sweep YAML even if present.
 Default \code{FALSE}.}
 
@@ -188,7 +163,7 @@ Invisible list: \code{results} (per-fit metrics data.frame),
 \code{screens} (Channel Screen per sector/stage), \code{maximin} (per-stage
 ranking data.frames), \code{selected} (winning spec name per stage),
 \code{bestPerSector} (secondary view), \code{configPath},
-\code{selectedConfigPath}, \code{reportStatus} (named exit codes).
+\code{selectedConfigPath}.
 }
 \description{
 End-to-end driver for the Institutional Quality Channels model
@@ -203,11 +178,7 @@ sector and stage — no fits, correlation pruning + accountability ranking;
 (\code{\link{computeMaximinScore}}) per stage, and reports the
 independently-best model per sector/stage as a secondary view;
 \item writes \code{selected-models-channels-<mode>.yml} with the winning
-shared spec per stage (both sectors), report-ready (\code{model_type} entries);
-\item optionally renders the pfm-reports outputs (model-selection sweep report,
-adoption / stringency / publication reports for the selected models);
-\item optionally updates \code{findings.md} with an auto-generated, marker-delimited
-results section.
+shared spec per stage (both sectors), report-ready (\code{model_type} entries).
 }
 }
 \seealso{

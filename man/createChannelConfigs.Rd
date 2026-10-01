@@ -24,8 +24,8 @@ Invisible character: path to the YAML file.
 }
 \description{
 Writes the \code{channels-<mode>.yml} sweep configuration built by
-\code{\link{channelSpecs}} to a directory (typically
-\code{pfm-reports/reports/model-selection/model-configs/}).
+\code{\link{channelSpecs}} to a directory (typically the
+Run-Group directory, via \code{\link{runSweep}}).
 }
 \author{
 Renato Rodrigues

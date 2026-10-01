@@ -22,14 +22,11 @@ startRun(
   account = NULL,
   mem = NULL,
   chdir = NULL,
-  outputDir = NULL,
-  render = FALSE,
   bootstrapResamples = 200L,
   bootstrapDetail = "channel",
   bootstrapTopK = 40L,
   forceRefit = FALSE,
   resume = FALSE,
-  renderCores = NULL,
   verbose = TRUE,
   ...
 )
@@ -78,13 +75,6 @@ the \code{$scenarios} of \code{\link{parseScenarioRegistry}}. Forwarded to the
 \item{time, qos, partition, account, mem, chdir}{SLURM directives (PIK defaults: 24h / short /
 standard / default account / node-default mem / \code{resultsDir/<group>}).}
 
-\item{outputDir}{Character or NULL. Where rendered reports are written when \code{render =
-  TRUE} (defaults to \code{resultsDir}). Rendering shells out to the installed \pkg{pfmreports}
-package (ADR 0021); \code{pfm} gains no dependency on it.}
-
-\item{render}{Logical. After the run, shell out to render the pfm-reports outputs for the
-group (requires \code{reportsDir}). Default \code{FALSE}.}
-
 \item{forceRefit}{Logical. Ignore cached fits. Default \code{FALSE}.}
 
 \item{verbose}{Logical. Default \code{TRUE}.}
@@ -98,8 +88,7 @@ local run, \code{list(group=, status=, dir=)}.
 \description{
 The single entry point for running a model group (ADR 0020). Detects whether to submit a
 SLURM job (PIK cluster) or run in-process, sizes parallelism to the available cores, runs
-\code{\link{runModelGroup}}, records run statistics + status in the Run-Group manifest, and
-optionally renders the pfm-reports outputs afterwards.
+\code{\link{runModelGroup}}, and records run statistics + status in the Run-Group manifest.
 
 Cluster detection (\code{cluster = "auto"}): if \code{SLURM_JOB_ID} is set we are already
 inside an allocation and run in-process; else if \code{sbatch} is on \code{PATH} we submit a

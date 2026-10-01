@@ -344,7 +344,7 @@ pfmRun <- function(group = NULL,
   }
 
   # ── priority QOS (ADR 0031) ─────────────────────────────────────────────────
-  # This logic used to live only in pfm-reports/start.R, so pfmRun — which calls
+  # This logic used to live only in an external launcher script, so pfmRun — which calls
   # startRun directly — submitted on the default `short` QOS. A 127-core job on
   # `short` sits behind everything; the priority QOS exists precisely so a job this
   # size starts now rather than tomorrow. Detection is best-effort and never throws:
