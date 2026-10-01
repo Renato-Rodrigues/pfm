@@ -4,7 +4,8 @@
 #' @description
 #' The last step of the PFM pipeline: copy exactly what the coupling reads out of a
 #' Run-Group into a self-contained folder that REMIND's \code{preparePFM.R} picks up
-#' (its \code{cfg$pfm$source}, default \code{../pfm-data}).
+#' (its \code{cfg$pfm$source}, default \code{../../output/remind-inputs} from a checkout
+#' in \code{models/}).
 #'
 #' Only the six artifacts \code{\link{iterativePFM}} actually opens are copied, plus
 #' the one panel named by \code{manifest.json:panel_hash}. Copying the whole Run-Group
@@ -20,8 +21,8 @@
 #' is the most misleading state to leave it in.
 #'
 #' @param group Run-Group name.
-#' @param dest Destination root. Default \code{"pfm-data"} beside the working
-#'   directory, matching REMIND's \code{../pfm-data} default from a run folder.
+#' @param dest Destination root. Default \code{"output/remind-inputs"} under the project
+#'   root, matching the REMIND fork's default \code{cfg$pfm$source}.
 #' @param resultsDir,modelDir,cachefolder Standard Run-Group locations.
 #' @param overwrite Overwrite an existing destination group folder.
 #' @param verbose Logical.
@@ -30,7 +31,7 @@
 #' @author Renato Rodrigues
 #' @export
 runPSMExportREMINDInputs <- function(group,
-                                     dest = "pfm-data",
+                                     dest = "output/remind-inputs",
                                      resultsDir = getOption("pfm.resultsDir", "output"),
                                      modelDir = getOption("pfm.modelDir", "output"),
                                      cachefolder = NULL,
@@ -61,9 +62,7 @@ runPSMExportREMINDInputs <- function(group,
          "deployed spec was fitted on cannot be identified.", call. = FALSE)
   }
   panel <- paste0("panel_", hash, ".rds")
-  panelCand <- c(file.path(dirname(groupDir), "panels", panel),
-                 file.path(groupDir, "panels", panel),
-                 file.path(groupDir, panel))
+  panelCand <- .psmPanelCandidates(groupDir, hash, modelDir = modelDir)
   panelSrc <- panelCand[file.exists(panelCand)][1]
   if (is.na(panelSrc)) {
     stop("runPSMExportREMINDInputs: panel '", panel, "' not found in any of:\n  ",

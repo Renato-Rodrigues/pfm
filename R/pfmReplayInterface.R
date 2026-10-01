@@ -27,8 +27,9 @@
 #' not a pass: it means the check is incapable of detecting the defect it exists for.
 #'
 #' @param remindDir Path to the REMIND fork carrying the module. Default: the
-#'   \code{pfm.remindDir} option, else \code{"../remind_pfm"} relative to the working
-#'   directory.
+#'   \code{pfm.remindDir} option, else the first REMIND checkout found from the project root
+#'   (\code{models/remind_pfm}, \code{models/remind_pfm-EU21}, \code{models/remind_pfm-H12}),
+#'   else \code{"../remind_pfm"} (the layout before 2026-10-01).
 #' @param dir Working directory for the generated stub, gdx and listing. Default a session
 #'   temporary directory; pass a real path to keep the artefacts.
 #' @param negativeControl Also run the transposed-symbol control (default \code{TRUE}).
@@ -43,7 +44,7 @@
 #' @seealso \code{\link{iterativePFM}}, \code{COUPLING.md} §7 and §11, ADR 0042
 #' @export
 #' @author Renato Rodrigues
-pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", "../remind_pfm"),
+pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", NULL),
                                dir = file.path(tempdir(), "pfm-replay-interface"),
                                negativeControl = TRUE,
                                gams = Sys.which("gams"),
@@ -59,6 +60,12 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", "../remind
   if (!nzchar(gams) || !file.exists(gams)) {
     return(skip("no GAMS executable found - pass gams= or put it on PATH"))
   }
+  if (is.null(remindDir)) {
+    cand <- c("models/remind_pfm", "models/remind_pfm-EU21", "models/remind_pfm-H12", "../remind_pfm")
+    hit <- cand[file.exists(file.path(cand, "modules", "45_carbonprice", "functionalForm", "declarations.gms"))]
+    remindDir <- if (length(hit)) hit[1] else cand[1]
+  }
+  say("REMIND checkout: ", normalizePath(remindDir, mustWork = FALSE))
   declGms <- file.path(remindDir, "modules", "45_carbonprice", "functionalForm",
                        "declarations.gms")
   if (!file.exists(declGms)) {
