@@ -23,7 +23,7 @@
 #'     Run-Group is quotable, and before any coupled claim.}
 #'   \item{\code{downstream}}{Everything the coupling needs from a finished sweep:
 #'     donor assumptions, projection fan-out, coupling bound, selection bootstrap.}
-#'   \item{\code{remind}}{Assemble the self-contained \code{pfm-data} folder REMIND's
+#'   \item{\code{remind}}{Assemble the self-contained \code{output/remind-inputs} folder REMIND's
 #'     \code{preparePFM.R} consumes.}
 #'   \item{\code{all}}{Every step above, in dependency order — raw data to REMIND
 #'     inputs.}
@@ -70,7 +70,7 @@
 #' pfmRun(group = "v1", stage = "downstream")
 #' pfmRun(group = "v1", stage = "diagnostics", cluster = "slurm")
 #' pfmRun(group = "v1", stage = "all", cluster = "slurm")
-#' pfmRun(group = "v1", stage = "remind", remindDir = "../pfm-data")
+#' pfmRun(group = "v5", stage = "remind", remindDir = "output/remind-inputs")
 #' }
 #' @author Renato Rodrigues
 #' @export
@@ -272,7 +272,7 @@ pfmRun <- function(group = NULL,
                 "estimate and select the model",
                 "agreement/p-values, IV, influence, replay gate",
                 "donor, projection, coupling bound, bootstrap",
-                "assemble the REMIND pfm-data folder",
+                "assemble the REMIND inputs folder (output/remind-inputs)",
                 "pick individual steps")
       # Default to the first thing this group still needs, rather than to a fixed
       # stage: on a finished sweep "all" would re-offer work already done.
@@ -375,7 +375,7 @@ pfmRun <- function(group = NULL,
       config <- if (nzchar(v)) v else NULL
     }
     if (is.null(remindDir) && "psm-remind-inputs" %in% steps) {
-      remindDir <- askText("REMIND input folder to write", "pfm-data")
+      remindDir <- askText("REMIND input folder to write", "output/remind-inputs")
     }
   }
   clean <- match.arg(clean %||% "none", c("none", "steps", "group"))
@@ -383,7 +383,7 @@ pfmRun <- function(group = NULL,
   # the step because the artifact is missing would leave the group worse than before.
   resume <- resume %||% TRUE
   if (!identical(clean, "none")) resume <- FALSE
-  remindDir <- remindDir %||% "pfm-data"
+  remindDir <- remindDir %||% "output/remind-inputs"
 
   settings <- list(group = group, steps = steps, cluster = cluster,
                    resultsDir = resultsDir, modelDir = modelDir,
