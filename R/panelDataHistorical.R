@@ -83,10 +83,17 @@ panelDataHistorical <- function(aggregate = TRUE,
 
   # Policy Stringency (PFM outcomes, ADR 0036)
   if (isTRUE(includePolicyStringency)) {
-    ps <- calcOutput("PolicyStringency",
-      aggregate = aggregate, regionmapping = outputRegionMappingFile,
-      sectorResolution = psSectorResolution, weighting = psWeighting
-    )
+    # The coverage filter's regions are passed explicitly, so they enter madrat's cache key: read
+    # from the global setting, they did not, and a shared cluster cache supplied a copy filtered by
+    # other regions (37 countries instead of 48, 2026-10-03). Left out of the legacy (v5) call -
+    # IEA 2024 edition, no geothermal - so its cache file keeps its name; v5's copy was computed
+    # under the country mapping and is correct.
+    psArgs <- list("PolicyStringency", aggregate = aggregate, regionmapping = outputRegionMappingFile,
+                   sectorResolution = psSectorResolution, weighting = psWeighting)
+    if (!(identical(ieaVersion, "default") && !isTRUE(geothermal))) {
+      psArgs$coverageMapping <- basename(outputRegionMappingFile)
+    }
+    ps <- do.call(calcOutput, psArgs)
     psVars <- if (identical(psSectorResolution, "four")) {
       c(Electricity = "Policy Stringency|Electricity", Industry = "Policy Stringency|Industry",
         Buildings = "Policy Stringency|Buildings", Transport = "Policy Stringency|Transport")
