@@ -124,3 +124,19 @@ test_that("submitPFM: dry run checks and plans; a submission writes the batch ma
   expect_true(any(vapply(calls, function(a) identical(a[length(a)], "startgroup=G1") && !"--test" %in% a,
                          logical(1))))
 })
+
+test_that("mappings: the resolved H12 must be REMIND's own regions", {
+  rd <- withr::local_tempdir()
+  dir.create(file.path(rd, "config"))
+  h12 <- utils::read.csv(system.file("extdata", "regional", "regionmappingH12.csv", package = "mrpfm"),
+                         sep = ";", stringsAsFactors = FALSE)
+  utils::write.table(h12, file.path(rd, "config", "regionmappingH12.csv"), sep = ";", row.names = FALSE, quote = FALSE)
+  m <- Filter(function(x) x$name == "regionmappingH12.csv", pfm:::.pfmMappingMismatches(rd))[[1]]
+  expect_true(m$ok)
+  expect_match(m$detail, "REMIND's own regions")
+  h12$RegionCode[h12$CountryCode == "UKR"] <- "NEU"                 # REMIND solving on other regions
+  utils::write.table(h12, file.path(rd, "config", "regionmappingH12.csv"), sep = ";", row.names = FALSE, quote = FALSE)
+  m <- Filter(function(x) x$name == "regionmappingH12.csv", pfm:::.pfmMappingMismatches(rd))[[1]]
+  expect_false(m$ok)
+  expect_match(m$detail, "/config")
+})

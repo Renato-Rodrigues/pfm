@@ -16,7 +16,8 @@
 #'     in the REMIND inputs folder with everything \code{preparePFM.R} copies (spec file,
 #'     manifest, frontier, temporal validation, donor bands, the panel named by the manifest);
 #'   \item \strong{mappings}: every region mapping bundled with \code{mrpfm} resolves, through
-#'     the resolver the model uses, to the same content (section 1);
+#'     the resolver the model uses, to the same content; and where a REMIND checkout carries the
+#'     mapping in its \code{config/} (H12, EU21), to the regions REMIND solves on (section 1);
 #'   \item \strong{SSP}: each coupled row's SSP (\code{cm_GDPpopScen}) equals its reference
 #'     run's (\code{path_gdx_ref}), as D9 requires; the anchor donor joins this check with the
 #'     anchor artifact (F6);
@@ -107,7 +108,7 @@ pfmPreflight <- function(config = "config.yml", startGroup = NULL, scenarioConfi
     }
   }
   if ("mappings" %in% checks) {
-    for (m in .pfmMappingMismatches()) add("mappings", m$name, m$ok, m$detail)
+    for (m in .pfmMappingMismatches(remindDirs)) add("mappings", m$name, m$ok, m$detail)
   }
   if ("ssp" %in% checks && length(rows) && nrow(rows)) {
     for (i in seq_len(nrow(rows))) {
@@ -265,23 +266,35 @@ pfmPreflight <- function(config = "config.yml", startGroup = NULL, scenarioConfi
 }
 
 # Every region mapping bundled with mrpfm, resolved the way the model resolves it, against the
-# bundled copy. A difference means the mappingfolder holds another version than the repository.
-.pfmMappingMismatches <- function() {
+# bundled copy and - where a REMIND checkout carries it in config/ - against REMIND's own copy,
+# the regions REMIND solves on (decided 2026-10-02: the PFM follows REMIND's regions).
+.pfmMappingMismatches <- function(remindDirs = character(0)) {
   dir <- system.file("extdata", "regional", package = "mrpfm")
   files <- list.files(dir, pattern = "^regionmapping.*[.]csv$")
+  key <- function(m) {
+    if (is.null(m) || !all(c("CountryCode", "RegionCode") %in% names(m))) return(NULL)
+    m <- m[order(m$CountryCode), c("CountryCode", "RegionCode")]
+    paste(m$CountryCode, m$RegionCode)
+  }
+  rd <- function(f) utils::read.csv(f, sep = ";", stringsAsFactors = FALSE)
   lapply(files, function(f) {
-    own <- utils::read.csv(file.path(dir, f), sep = ";", stringsAsFactors = FALSE)
     got <- tryCatch(suppressMessages(mrpfm::toolPFMMapping(f, type = "regional", verbose = FALSE)),
                     error = function(e) NULL)
-    key <- function(m) {
-      if (is.null(m) || !all(c("CountryCode", "RegionCode") %in% names(m))) return(NULL)
-      m <- m[order(m$CountryCode), c("CountryCode", "RegionCode")]
-      paste(m$CountryCode, m$RegionCode)
+    bad <- character(0)
+    remindChecked <- FALSE
+    if (!identical(key(rd(file.path(dir, f))), key(got))) bad <- c(bad, "mrpfm's copy")
+    for (rd0 in remindDirs) {
+      rf <- file.path(rd0, "config", f)
+      if (!file.exists(rf)) next
+      remindChecked <- TRUE
+      if (!identical(key(rd(rf)), key(got))) bad <- c(bad, paste0(basename(rd0), "/config"))
     }
-    ok <- !is.null(got) && identical(key(own), key(got))
-    list(name = f, ok = ok,
-         detail = if (ok) "resolves to the repository's content" else
-           "the resolved mapping differs from mrpfm's copy (PITFALLS section 1)")
+    list(name = f, ok = !is.null(got) && !length(bad),
+         detail = if (is.null(got)) "does not resolve" else if (length(bad)) {
+           paste0("the resolved mapping differs from ", paste(bad, collapse = " and "),
+                  " (PITFALLS section 1; tools/compareMappings.R lists the countries)")
+         } else if (remindChecked) "resolves to mrpfm's copy and to REMIND's own regions" else
+           "resolves to mrpfm's copy (not in REMIND's config/)")
   })
 }
 # nolint end

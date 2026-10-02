@@ -59,7 +59,8 @@ change (section 23);
 in the REMIND inputs folder with everything \code{preparePFM.R} copies (spec file,
 manifest, frontier, temporal validation, donor bands, the panel named by the manifest);
 \item \strong{mappings}: every region mapping bundled with \code{mrpfm} resolves, through
-the resolver the model uses, to the same content (section 1);
+the resolver the model uses, to the same content; and where a REMIND checkout carries the
+mapping in its \code{config/} (H12, EU21), to the regions REMIND solves on (section 1);
 \item \strong{SSP}: each coupled row's SSP (\code{cm_GDPpopScen}) equals its reference
 run's (\code{path_gdx_ref}), as D9 requires; the anchor donor joins this check with the
 anchor artifact (F6);
