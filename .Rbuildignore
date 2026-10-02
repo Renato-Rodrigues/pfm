@@ -17,4 +17,3 @@
 ^_pkgdown\.yml$
 ^.*CITATION.cff$
 ^vignettes/.lintr$
-^README-quickstart\.md$

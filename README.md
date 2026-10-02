@@ -32,7 +32,7 @@ pfmRun(group = "v6", stage = "remind")       # export REMIND inputs only
 pfmRun(group = "v6", stage = "all", dryRun = TRUE)   # show the plan
 ```
 
-Stages: `all`, `sweep`, `downstream`, `remind`, `custom`. On a cluster it submits with
+Stages: `all`, `sweep`, `diagnostics`, `downstream`, `remind`, `custom`. On a cluster it submits with
 `sbatch` by default; `cluster = "local"` runs in the current session.
 
 Fits and panels are cached across Run-Groups, so a new group over an unchanged panel
