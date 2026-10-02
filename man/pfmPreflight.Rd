@@ -11,7 +11,7 @@ pfmPreflight(
   remindDirs = NULL,
   remindInputs = NULL,
   checks = c("repos", "installed", "groups", "mappings", "ssp", "replay"),
-  fetch = FALSE,
+  fetch = TRUE,
   stopOnFail = TRUE,
   verbose = TRUE
 )
@@ -33,8 +33,10 @@ as REMIND's \code{startgroup}). \code{NULL} checks every coupled row.}
 
 \item{checks}{Which checks to run; default all.}
 
-\item{fetch}{Logical. \code{git fetch} each repository first, so "pushed" is judged against
-the remote as it is now. Default \code{FALSE} (no network).}
+\item{fetch}{Logical. \code{git fetch} each repository first, so "pushed" and "up to date"
+are judged against the remote as it is now. Default \code{TRUE}: without it a checkout that
+was never updated passes as "clean and pushed" against its stale view of the remote (the
+cluster, 2026-10-02). A fetch that fails is a failed check.}
 
 \item{stopOnFail}{Logical. Raise an error when any check fails. Default \code{TRUE}.}
 

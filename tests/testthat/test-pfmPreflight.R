@@ -32,6 +32,22 @@ test_that("repository state: clean and pushed, dirty, ahead, no upstream", {
   s <- pfm:::.pfmGitState(dir)
   expect_false(s$ok)
   expect_match(s$detail, "1 commit\\(s\\) not pushed")
+  g("push", "-q")
+  expect_true(pfm:::.pfmGitState(dir)$ok)
+  # another clone pushes: this one is now BEHIND, and only a fetch can see it
+  other <- withr::local_tempdir()
+  suppressWarnings(system2("git", c("clone", "-q", shQuote(remote), shQuote(other)), stdout = TRUE, stderr = TRUE))
+  go <- function(...) suppressWarnings(system2("git", c("-C", shQuote(other), ...), stdout = TRUE, stderr = TRUE))
+  go("config", "user.email", "t@t")
+  go("config", "user.name", "t")
+  writeLines("c", file.path(other, "g.txt"))
+  go("add", "-A")
+  go("commit", "-q", "-m", "three")
+  go("push", "-q")
+  expect_true(pfm:::.pfmGitState(dir, fetch = FALSE)$ok)   # the stale view passes
+  s <- pfm:::.pfmGitState(dir)
+  expect_false(s$ok)
+  expect_match(s$detail, "1 commit\\(s\\) behind the remote")
 })
 
 writeConf <- function(path, df) utils::write.table(df, path, sep = ";", row.names = FALSE, quote = FALSE, na = "")

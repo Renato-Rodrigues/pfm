@@ -35,8 +35,10 @@
 #' @param remindInputs The REMIND inputs folder (one subfolder per Run-Group). Default
 #'   \code{output/remind-inputs} under the project root.
 #' @param checks Which checks to run; default all.
-#' @param fetch Logical. \code{git fetch} each repository first, so "pushed" is judged against
-#'   the remote as it is now. Default \code{FALSE} (no network).
+#' @param fetch Logical. \code{git fetch} each repository first, so "pushed" and "up to date"
+#'   are judged against the remote as it is now. Default \code{TRUE}: without it a checkout that
+#'   was never updated passes as "clean and pushed" against its stale view of the remote (the
+#'   cluster, 2026-10-02). A fetch that fails is a failed check.
 #' @param stopOnFail Logical. Raise an error when any check fails. Default \code{TRUE}.
 #' @param verbose Logical.
 #' @return Invisibly, a data frame with one row per check: \code{check}, \code{target},
@@ -47,7 +49,7 @@
 pfmPreflight <- function(config = "config.yml", startGroup = NULL, scenarioConfig = NULL,
                          remindDirs = NULL, remindInputs = NULL,
                          checks = c("repos", "installed", "groups", "mappings", "ssp", "replay"),
-                         fetch = FALSE, stopOnFail = TRUE, verbose = TRUE) {
+                         fetch = TRUE, stopOnFail = TRUE, verbose = TRUE) {
   checks <- match.arg(checks, several.ok = TRUE)
   say <- function(...) if (isTRUE(verbose)) message("[preflight] ", ...)
   root <- normalizePath(dirname(config), winslash = "/", mustWork = TRUE)
@@ -155,20 +157,27 @@ pfmPreflight <- function(config = "config.yml", startGroup = NULL, scenarioConfi
 }
 
 # Clean and pushed? Untracked files count: a new source file not committed does not run either.
-.pfmGitState <- function(path, fetch = FALSE) {
+.pfmGitState <- function(path, fetch = TRUE) {
   git <- function(...) suppressWarnings(system2("git", c("-C", shQuote(path), ...), stdout = TRUE, stderr = TRUE))
-  if (isTRUE(fetch)) git("fetch", "--quiet")
   st <- git("status", "--porcelain")
   if (!is.null(attr(st, "status"))) return(list(ok = FALSE, detail = paste(st, collapse = " ")))
+  up <- git("rev-parse", "--abbrev-ref", "@{u}")
+  if (!is.null(attr(up, "status"))) return(list(ok = FALSE, detail = "no upstream branch"))
+  if (isTRUE(fetch)) {
+    f <- git("fetch", "--quiet")
+    if (!is.null(attr(f, "status"))) {
+      return(list(ok = FALSE, detail = paste("git fetch failed:", paste(f, collapse = " "))))
+    }
+  }
   cnt <- git("rev-list", "--left-right", "--count", "@{u}...HEAD")
-  if (!is.null(attr(cnt, "status"))) return(list(ok = FALSE, detail = "no upstream branch"))
   n <- as.integer(strsplit(trimws(cnt[1]), "[[:space:]]+")[[1]])
   branch <- git("rev-parse", "--abbrev-ref", "HEAD")[1]
   problems <- c(if (length(st)) paste0(length(st), " uncommitted/untracked file(s)"),
                 if (n[2] > 0) paste0(n[2], " commit(s) not pushed"),
-                if (n[1] > 0) paste0(n[1], " commit(s) behind the remote"))
+                if (n[1] > 0) paste0(n[1], " commit(s) behind the remote - update (setup.sh --update)"))
   list(ok = !length(problems),
-       detail = if (length(problems)) paste(problems, collapse = "; ") else paste0(branch, ", clean and pushed"))
+       detail = if (length(problems)) paste(problems, collapse = "; ") else
+         paste0(branch, ", clean, pushed and up to date", if (!isTRUE(fetch)) " (as of the last fetch)" else ""))
 }
 
 # A fingerprint of a package's code: every function's formals and body, deparsed without source
