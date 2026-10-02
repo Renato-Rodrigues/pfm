@@ -5,14 +5,14 @@
 \title{The cost-optimal price path for the mode-2 bound, taken from a symbol the cap
 cannot touch.}
 \usage{
-.pfmCouplingOptimalPath(gdx, pR, TCO2, say = function(...) NULL)
+.pfmCouplingOptimalPath(gdx, pR, tco2, say = function(...) NULL)
 }
 \arguments{
 \item{gdx}{The run's own gdx.}
 
 \item{pR}{The reference price path (magpie), used for the region list.}
 
-\item{TCO2}{Unit conversion from T$/GtC to US$/tCO2.}
+\item{tco2}{Unit conversion from T$/GtC to US$/tCO2.}
 
 \item{say}{Progress reporter.}
 }
