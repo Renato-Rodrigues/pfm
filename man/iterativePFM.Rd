@@ -7,7 +7,7 @@
 iterativePFM(
   gdx = "fulldata.gdx",
   outputFile = "p45_regiDiff_phi.gdx",
-  group = getOption("pfm.couplingGroup", "psm-country-v3"),
+  group = getOption("pfm.couplingGroup", "v5"),
   resultsDir = getOption("pfm.resultsDir", "pfm"),
   modelDir = getOption("pfm.modelDir", "pfm"),
   couplingConfig = getOption("pfm.couplingConfig", "pfm-coupling.yml"),
@@ -21,7 +21,7 @@ iterativePFM(
   lambda = NULL,
   mapping = getOption("pfm.couplingMapping", "regionmapping_21_EU11.csv"),
   weights = getOption("pfm.couplingWeights", "finalEnergy"),
-  weightYear = getOption("pfm.couplingWeightYear", 2050),
+  weightYear = getOption("pfm.couplingWeightYear", 2025),
   weightScenario = getOption("pfm.couplingWeightScenario", "SSP2"),
   runtimeConfig = getOption("pfm.couplingRuntimeConfig", "pfm-coupling-runtime.yml"),
   tierYear = getOption("pfm.couplingTierYear", NULL),
@@ -38,9 +38,11 @@ written by the time presolve runs.}
 \code{45_carbonprice/functionalForm/presolve.gms}.}
 
 \item{group, resultsDir, modelDir}{The PFM Run-Group supplying the deployed
-specification, frontier and speeds. Defaults read the
-\code{pfm.couplingGroup} / \code{pfm.resultsDir} / \code{pfm.modelDir}
-options so the REMIND run can set them once in its \code{.Rprofile}.}
+specification, frontier and speeds. Inside a REMIND run they come from
+\code{couplingConfig} (\code{pfm-coupling.yml}, written into the run folder by
+REMIND's \code{scripts/start/preparePFM.R}); REMIND's own \code{.Rprofile} is not
+used. The defaults, read from the \code{pfm.couplingGroup} / \code{pfm.resultsDir}
+/ \code{pfm.modelDir} options, only serve offline calls.}
 
 \item{couplingConfig}{Path to the run-local YAML written by REMIND's
 \code{scripts/start/preparePFM.R}, holding the \strong{static} settings with
@@ -50,7 +52,8 @@ madrat cache (see \code{\link{pfmPrepareCache}}).}
 
 \item{theta, nTiers, lambda}{Coupling knobs, passed through to
 \code{\link{aggregateFeasibilityToRegions}}. \code{theta} is a declared
-scenario parameter, not an estimate — sweep it.}
+scenario parameter, not an estimate — sweep it. \code{nTiers} is used only with
+\code{phiRule = "tiered"}; the deployed rule is \code{"continuous"}.}
 
 \item{gdxRegionMapping}{Mapping matching the REMIND gdx's OWN resolution
 (\code{"regionmapping_21_EU11.csv"} for EU21 runs, \code{"regionmappingH12.csv"}
@@ -66,18 +69,23 @@ price path \eqn{P^{ref}}. Required for \code{bindMode = 2}; option
 
 \item{bindMode}{\code{1} = phi bounds the price ratio, \code{2} = phi caps the
 absolute level. Must match GAMS \code{cm_pfmBindMode}. Mode 2 \strong{errors}
-rather than continue without a bound - see
-\code{docs/psm-coupling-scenario-design.md}.}
+rather than continue without a bound - see the project's
+\code{docs/COUPLING.md}.}
 
 \item{mapping}{Country-to-REMIND-region mapping (file name or data.frame).}
 
-\item{weights}{Aggregation weights by country; emissions for a price-side
-constraint. \code{NULL} warns and uses equal weights.}
+\item{weights}{Aggregation weights. \code{"finalEnergy"} (default) resolves
+country-level \code{fe_total} via \code{\link{pfmCouplingWeights}} - the closest
+available correlate of the emissions a carbon price acts on. A named numeric
+vector is used as given. \code{NULL} means \strong{equal} country weights, which
+over-represent small emitters and should only be used deliberately.}
 
 \item{weightYear, weightScenario}{Year and SSP used to project the final-energy
-weights (see \code{\link{pfmCouplingWeights}}). Default 2050 / \code{"SSP2"}:
-mid-century is where the bound bites and where SSP growth paths have visibly
-diverged. \strong{\code{weightScenario} must match the SSP the coupled run uses},
+weights (see \code{\link{pfmCouplingWeights}}). Default 2025 / \code{"SSP2"}, the
+values the deployed runs use (\code{cfg$pfm$weightYear} in REMIND's
+\code{default.cfg}, written into \code{pfm-coupling.yml}). Inside a REMIND run
+the SSP is the run's own \code{cm_GDPpopScen}; offline,
+\strong{\code{weightScenario} must match the SSP the coupled run uses},
 or the weights describe a different world than the model does.}
 
 \item{runtimeConfig}{Path to the small YAML \strong{written by GAMS}

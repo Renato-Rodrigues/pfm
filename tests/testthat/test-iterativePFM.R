@@ -119,7 +119,7 @@ test_that("differential GDP growth is what actually moves the weights", {
 
 test_that("the weight year and scenario are exposed and defaulted sensibly", {
   fm <- formals(iterativePFM)
-  expect_equal(eval(fm$weightYear), 2050)
+  expect_equal(eval(fm$weightYear), 2025)   # the deployed value (REMIND default.cfg)
   expect_equal(eval(fm$weightScenario), "SSP2")
   expect_equal(eval(formals(pfmCouplingWeights)$scaleBy)[1], "gdp")
 })
