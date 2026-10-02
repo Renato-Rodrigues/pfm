@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: If you use this software, please cite it using the metadata from this file.
 type: software
 title: 'pfm: Political Feasibility Module (PFM) for IAMs'
-version: 0.5.0
+version: 0.5.1
 date-released: '2026-10-02'
 abstract: 'Econometric model for the political feasibility of climate policy in integrated
   assessment models. The deployed model is the Political Feasibility Model (PFM):
