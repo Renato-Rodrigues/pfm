@@ -16,7 +16,7 @@ remindDir <- function() {
                                     "declarations.gms"))]
   if (length(hit)) normalizePath(hit[1]) else NA_character_
 }
-skip_unless_gams <- function() {
+skipUnlessGams <- function() {
   skip_if_not_installed("gamstransfer")
   if (!nzchar(Sys.which("gams"))) skip("no GAMS on PATH")
   if (is.na(remindDir())) skip("remind_pfm not found next to the package")
@@ -50,7 +50,7 @@ test_that("a renamed or missing declaration is an error, not a silent pass", {
 })
 
 test_that("GAMS loads every coupling symbol, rank 3 included, with the right values", {
-  skip_unless_gams()
+  skipUnlessGams()
   res <- pfmReplayInterface(remindDir = remindDir(), negativeControl = FALSE, quiet = TRUE)
   skip_if(!is.null(res$skipped), res$skipped %||% "skipped")
   expect_true(res$positive$loadedCleanly)
@@ -62,7 +62,7 @@ test_that("the harness FAILS on a transposed rank-3 symbol", {
   # The load-bearing test. A transposed symbol has the right rank, raises no GAMS error at
   # all, and loads as ( ALL 0.000 ) - defect 4, one dimension up. If this ever passes
   # silently, the positive replay above proves nothing.
-  skip_unless_gams()
+  skipUnlessGams()
   res <- pfmReplayInterface(remindDir = remindDir(), negativeControl = TRUE, quiet = TRUE)
   skip_if(!is.null(res$skipped), res$skipped %||% "skipped")
   expect_false(res$negative$loadedCleanly)

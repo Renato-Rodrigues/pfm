@@ -4,7 +4,7 @@ author: "Renato Rodrigues"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{From data to a REMIND-coupled PFM run}
-  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEngine{knitr::rmarkdown_notangle}
   %\VignetteEncoding{UTF-8}
 ---
 

@@ -28,7 +28,7 @@
 # real domain names. The version of this file that read back through magclass could not
 # catch either defect, because magclass rebuilds a magpie from any rank.
 
-skip_if_no_gt <- function() skip_if_not_installed("gamstransfer")
+skipIfNoGt <- function() skip_if_not_installed("gamstransfer")
 
 # What GAMS sees, straight out of the file.
 symInfo <- function(f, name) {
@@ -60,7 +60,7 @@ writeSyms <- function(f, ...) pfm:::.pfmWriteCouplingGdx(f, list(...))
 # --- rank ---------------------------------------------------------------------
 
 test_that("phi is written at rank 1, as all_regi is declared", {
-  skip_if_no_gt()
+  skipIfNoGt()
   f <- withr::local_tempfile(fileext = ".gdx")
   writeSyms(f, mkPhi())
   i <- symInfo(f, "p45_regiDiff_phi")
@@ -70,7 +70,7 @@ test_that("phi is written at rank 1, as all_regi is declared", {
 })
 
 test_that("the delta is rank 1, over regions, and not GLO", {
-  skip_if_no_gt()
+  skipIfNoGt()
   # GAMS computes sum(regi, aux)/card(regi). A GLO-only symbol sums to nothing there,
   # reading as delta = 0 - FALSE CONVERGENCE on the first call.
   f <- withr::local_tempfile(fileext = ".gdx")
@@ -85,7 +85,7 @@ test_that("the delta is rank 1, over regions, and not GLO", {
 })
 
 test_that("the price bound is written at rank 2", {
-  skip_if_no_gt()
+  skipIfNoGt()
   f <- withr::local_tempfile(fileext = ".gdx")
   writeSyms(f, pfm:::.pfmCouplingSym2d("p45_pfmPriceBound", mkBound(), "priceBound"))
   i <- symInfo(f, "p45_pfmPriceBound")
@@ -96,14 +96,14 @@ test_that("the price bound is written at rank 2", {
 # --- index order, domains and labels ------------------------------------------
 
 test_that("the 2-d symbols are indexed (ttot, all_regi), year first", {
-  skip_if_no_gt()
+  skipIfNoGt()
   f <- withr::local_tempfile(fileext = ".gdx")
   writeSyms(f, pfm:::.pfmCouplingSym2d("p45_pfmPriceBound", mkBound(), "priceBound"))
   expect_identical(symInfo(f, "p45_pfmPriceBound")$domains, c("ttot", "all_regi"))
 })
 
 test_that("domains are real GAMS sets, not the universe", {
-  skip_if_no_gt()
+  skipIfNoGt()
   # "regular" is what makes the write-time domain check possible at all; a domain-less
   # symbol ("none"/*) accepts any record, which is how the order defect got through.
   f <- withr::local_tempfile(fileext = ".gdx")
@@ -114,7 +114,7 @@ test_that("domains are real GAMS sets, not the universe", {
 })
 
 test_that("year labels are bare ttot elements, not magclass 'y2030'", {
-  skip_if_no_gt()
+  skipIfNoGt()
   # ttot elements are 2030. "y2030" is not in the set, so every record would be
   # dropped on load and the bound would read as zero everywhere.
   f <- withr::local_tempfile(fileext = ".gdx")
@@ -125,7 +125,7 @@ test_that("year labels are bare ttot elements, not magclass 'y2030'", {
 })
 
 test_that("ttot elements are ordered numerically, not as text", {
-  skip_if_no_gt()
+  skipIfNoGt()
   # "2100" sorts before "255" as text. REMIND's ttot runs to 2150, so a text sort puts
   # the century boundary in the wrong place.
   f <- withr::local_tempfile(fileext = ".gdx")
@@ -140,7 +140,7 @@ test_that("ttot elements are ordered numerically, not as text", {
 # --- values -------------------------------------------------------------------
 
 test_that("values land on the right year-region cell", {
-  skip_if_no_gt()
+  skipIfNoGt()
   f <- withr::local_tempfile(fileext = ".gdx")
   d <- mkBound()
   writeSyms(f, pfm:::.pfmCouplingSym2d("p45_pfmPriceBound", d, "priceBound"))
@@ -150,7 +150,7 @@ test_that("values land on the right year-region cell", {
 })
 
 test_that("shuffled and ragged input still lands correctly", {
-  skip_if_no_gt()
+  skipIfNoGt()
   f <- withr::local_tempfile(fileext = ".gdx")
   d <- data.frame(region = c("USA", "EUR", "USA", "EUR"),
                   year = c(2050, 2030, 2030, 2050),
@@ -164,18 +164,20 @@ test_that("shuffled and ragged input still lands correctly", {
 })
 
 test_that("phi keeps its values, matched by region name", {
-  skip_if_no_gt()
+  skipIfNoGt()
   f <- withr::local_tempfile(fileext = ".gdx")
-  regs <- c("EUR", "USA", "CHA"); v <- c(0.7, 0.45, 0.9)
+  regs <- c("EUR", "USA", "CHA")
+  v <- c(0.7, 0.45, 0.9)
   writeSyms(f, mkPhi(regs, v))
   got <- cells(symInfo(f, "p45_regiDiff_phi"))
   expect_equal(got[regs], stats::setNames(v, regs), tolerance = 1e-12)
 })
 
 test_that("all symbols the coupling needs coexist with the right ranks", {
-  skip_if_no_gt()
+  skipIfNoGt()
   f <- withr::local_tempfile(fileext = ".gdx")
-  d <- mkBound(); names(d)[names(d) == "priceBound"] <- "price"
+  d <- mkBound()
+  names(d)[names(d) == "priceBound"] <- "price"
   writeSyms(f,
             mkPhi(c("EUR", "USA"), c(0.7, 0.45)),
             pfm:::.pfmCouplingSym1d("p45_pfmDelta", c(EUR = 0.004, USA = 0.004)),
@@ -191,7 +193,7 @@ test_that("all symbols the coupling needs coexist with the right ranks", {
 # --- what GAMS Transfer buys over the predecessor -----------------------------
 
 test_that("GAMS Transfer refuses records that violate the declared domain", {
-  skip_if_no_gt()
+  skipIfNoGt()
   # The defect that reached a cluster run, handed straight to the writer: a
   # (ttot, all_regi) parameter given region-first records. gdxrrw::wgdx.lst wrote this
   # happily and GAMS read it as all zeros WITHOUT any error.
@@ -207,7 +209,7 @@ test_that("GAMS Transfer refuses records that violate the declared domain", {
 })
 
 test_that("the post-write check reads the FILE, not the objects that made it", {
-  skip_if_no_gt()
+  skipIfNoGt()
   # Cheap insurance that does not depend on the writer's own bookkeeping. Point it at a
   # file whose symbol is indexed the wrong way round and it must object.
   f <- withr::local_tempfile(fileext = ".gdx")
@@ -221,12 +223,14 @@ test_that("the post-write check reads the FILE, not the objects that made it", {
   m$write(f)
   expect_error(
     pfm:::.pfmVerifyCouplingGdx(
-      f, list(pfm:::.pfmCouplingSym2d("p45_pfmPriceBound", mkBound(), "priceBound"))),
-    "indexed \\(all_regi, ttot\\)")
+      f, list(pfm:::.pfmCouplingSym2d("p45_pfmPriceBound", mkBound(), "priceBound"))
+    ),
+    "indexed \\(all_regi, ttot\\)"
+  )
 })
 
 test_that("the post-write check catches a wrong rank", {
-  skip_if_no_gt()
+  skipIfNoGt()
   f <- withr::local_tempfile(fileext = ".gdx")
   m <- gamstransfer::Container$new()
   sr <- m$addSet("all_regi", records = c("EUR", "USA"))
@@ -239,7 +243,8 @@ test_that("the post-write check catches a wrong rank", {
   m$write(f)
   expect_error(
     pfm:::.pfmVerifyCouplingGdx(f, list(mkPhi(c("EUR", "USA"), c(0.2, 0.5)))),
-    "rank 2 but REMIND declares rank 1")
+    "rank 2 but REMIND declares rank 1"
+  )
 })
 
 # --- the market dimension (ADR 0042, symmetric markup) ------------------------
@@ -249,9 +254,11 @@ mkPhiSector <- function() {
        Diffuse = c(EUR = 0.50, USA = 0.95))
 }
 mkBndSector <- function() {
-  d <- function(v) data.frame(region = c("EUR", "EUR", "USA", "USA"),
-                              year = c(2030, 2050, 2030, 2050),
-                              priceBound = v, stringsAsFactors = FALSE)
+  d <- function(v) {
+    data.frame(region = c("EUR", "EUR", "USA", "USA"),
+               year = c(2030, 2050, 2030, 2050),
+               priceBound = v, stringsAsFactors = FALSE)
+  }
   list(Bulk = d(c(10, 20, 30, 40)), Diffuse = d(c(11, 21, 31, 41)))
 }
 
@@ -267,7 +274,7 @@ test_that("the sector-to-market map covers every market exactly once", {
 })
 
 test_that("phi per market is rank 2, indexed (all_regi, all_emiMkt)", {
-  skip_if_no_gt()
+  skipIfNoGt()
   f <- withr::local_tempfile(fileext = ".gdx")
   writeSyms(f, pfm:::.pfmCouplingSymMkt1d("p45_pfmPhiMkt", mkPhiSector()))
   i <- symInfo(f, "p45_pfmPhiMkt")
@@ -278,7 +285,7 @@ test_that("phi per market is rank 2, indexed (all_regi, all_emiMkt)", {
 })
 
 test_that("Diffuse fans out to BOTH ES and other, with the same value", {
-  skip_if_no_gt()
+  skipIfNoGt()
   # "other = ES" is the decision recorded in .pfmSectorMarkets(): REMIND's own
   # convention (47_regipol postsolve) and ADR 0042's stated mapping. Before the
   # symmetric markup, "other" silently kept the floor.
@@ -294,7 +301,7 @@ test_that("Diffuse fans out to BOTH ES and other, with the same value", {
 })
 
 test_that("the per-market bound is rank 3, indexed (ttot, all_regi, all_emiMkt)", {
-  skip_if_no_gt()
+  skipIfNoGt()
   f <- withr::local_tempfile(fileext = ".gdx")
   writeSyms(f, pfm:::.pfmCouplingSymMkt2d("p45_pfmPriceBoundMkt", mkBndSector(),
                                           "priceBound"))
@@ -306,7 +313,7 @@ test_that("the per-market bound is rank 3, indexed (ttot, all_regi, all_emiMkt)"
 })
 
 test_that("rank-3 values land on the right year-region-market cell", {
-  skip_if_no_gt()
+  skipIfNoGt()
   f <- withr::local_tempfile(fileext = ".gdx")
   writeSyms(f, pfm:::.pfmCouplingSymMkt2d("p45_pfmPriceBoundMkt", mkBndSector(),
                                           "priceBound"))
@@ -318,7 +325,7 @@ test_that("rank-3 values land on the right year-region-market cell", {
 })
 
 test_that("rank-3 year labels stay bare and sort numerically", {
-  skip_if_no_gt()
+  skipIfNoGt()
   f <- withr::local_tempfile(fileext = ".gdx")
   b <- list(Bulk = data.frame(region = "EUR", year = c(2100, 2030, 2150),
                               priceBound = c(2, 1, 3), stringsAsFactors = FALSE))
@@ -331,7 +338,7 @@ test_that("rank-3 year labels stay bare and sort numerically", {
 })
 
 test_that("the post-write check catches a transposed rank-3 symbol", {
-  skip_if_no_gt()
+  skipIfNoGt()
   # The order defect, one dimension up: correct rank, no GAMS error, all zeros on load.
   f <- withr::local_tempfile(fileext = ".gdx")
   m <- gamstransfer::Container$new()
@@ -345,16 +352,21 @@ test_that("the post-write check catches a transposed rank-3 symbol", {
   m$write(f)
   expect_error(
     pfm:::.pfmVerifyCouplingGdx(f, list(pfm:::.pfmCouplingSymMkt2d(
-      "p45_pfmPriceBoundMkt", mkBndSector(), "priceBound"))),
-    "indexed \\(all_regi, ttot, all_emiMkt\\)")
+      "p45_pfmPriceBoundMkt", mkBndSector(), "priceBound"
+    ))),
+    "indexed \\(all_regi, ttot, all_emiMkt\\)"
+  )
 })
 
 test_that("all coupling symbols coexist at their declared ranks", {
-  skip_if_no_gt()
+  skipIfNoGt()
   f <- withr::local_tempfile(fileext = ".gdx")
-  d <- mkBound(); names(d)[names(d) == "priceBound"] <- "price"
+  d <- mkBound()
+  names(d)[names(d) == "priceBound"] <- "price"
   mp <- lapply(mkBndSector(), function(x) {
-    names(x)[names(x) == "priceBound"] <- "price"; x })
+    names(x)[names(x) == "priceBound"] <- "price"
+    x
+  })
   writeSyms(f,
             mkPhi(c("EUR", "USA"), c(0.7, 0.45)),
             pfm:::.pfmCouplingSym1d("p45_pfmDelta", c(EUR = 0.004, USA = 0.004)),
@@ -384,7 +396,8 @@ test_that("an unnamed phi vector is refused rather than written as junk", {
 test_that("the market helpers refuse unnamed vectors and bad years", {
   expect_error(
     pfm:::.pfmCouplingSymMkt1d("p45_pfmPhiMkt", list(Bulk = c(0.1, 0.2))),
-    "fully named")
+    "fully named"
+  )
   expect_error(
     pfm:::.pfmCouplingSymMkt2d("p45_pfmPriceBoundMkt",
                                list(Bulk = data.frame(region = "EUR",
@@ -392,7 +405,8 @@ test_that("the market helpers refuse unnamed vectors and bad years", {
                                                       priceBound = 1,
                                                       stringsAsFactors = FALSE)),
                                "priceBound"),
-    "non-numeric years")
+    "non-numeric years"
+  )
 })
 
 test_that("a sector with no market mapping is refused, not silently dropped", {
@@ -400,7 +414,8 @@ test_that("a sector with no market mapping is refused, not silently dropped", {
   # floor - that is the failure the symmetric markup exists to remove.
   expect_error(
     pfm:::.pfmCouplingSymMkt1d("p45_pfmPhiMkt", list(Nonsense = c(EUR = 0.5))),
-    "no market maps to sector")
+    "no market maps to sector"
+  )
 })
 
 test_that("non-numeric years are refused", {
@@ -418,8 +433,9 @@ test_that("non-numeric years are refused", {
 # spread collapsed from 1.98x to 1.12x. SCENARIOS.md 1.1a.
 
 test_that("the economy-wide closure rate is rank 1 on all_regi, like phi", {
-  skip_if_no_gt()
-  f <- file.path(tempdir(), "lamfloor.gdx"); on.exit(unlink(f), add = TRUE)
+  skipIfNoGt()
+  f <- file.path(tempdir(), "lamfloor.gdx")
+  on.exit(unlink(f), add = TRUE)
   v <- c(EUR = 0.073, USA = 0.073, CHA = 0.073)
   writeSyms(f, mkPhi(), pfm:::.pfmCouplingSym1d("p45_regiDiff_lambda", v))
   i <- symInfo(f, "p45_regiDiff_lambda")

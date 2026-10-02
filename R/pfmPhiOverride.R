@@ -42,54 +42,86 @@
     stop("phi-override.yml in '", dir, "': mode must be uniform, permute or set, got '", mode, "'")
   }
   need <- c("region", "sector", "phi")
-  if (!all(need %in% names(feas))) stop(".pfmApplyPhiOverride: feas lacks ", paste(setdiff(need, names(feas)), collapse = ", "))
-  reg <- as.character(feas$region); sec <- as.character(feas$sector)
+  if (!all(need %in% names(feas))) {
+    stop(".pfmApplyPhiOverride: feas lacks ", paste(setdiff(need, names(feas)), collapse = ", "))
+  }
   before <- feas$phi
-  # one value per region and sector (phi does not vary over years)
-  cur <- function(s) {
-    x <- feas[sec == s & is.finite(feas$phi), c("region", "phi")]
-    v <- tapply(x$phi, as.character(x$region), function(p) p[1])
-    stats::setNames(as.numeric(v), names(v))
+  applyMode <- switch(mode, uniform = .pfmPhiUniform, permute = .pfmPhiPermute, set = .pfmPhiSet)
+  feas <- applyMode(feas, ov, say)
+  attr(feas, "phiOverride") <- list(mode = mode, file = f,
+                                    maxChange = max(abs(feas$phi - before), na.rm = TRUE))
+  feas
+}
+
+# Internal: one share per region in sector `s` (phi does not vary over years).
+#' @keywords internal
+.pfmPhiBySector <- function(feas, s) {
+  x <- feas[as.character(feas$sector) == s & is.finite(feas$phi), c("region", "phi")]
+  v <- tapply(x$phi, as.character(x$region), function(p) p[1])
+  stats::setNames(as.numeric(v), names(v))
+}
+
+# Internal: mode `uniform` - every region gets the same share in a sector.
+#' @keywords internal
+.pfmPhiUniform <- function(feas, ov, say) {
+  sec <- as.character(feas$sector)
+  val <- ov$value %||% "mean"
+  for (s in sort(unique(sec))) {
+    target <- if (identical(tolower(as.character(val)), "mean")) {
+      mean(.pfmPhiBySector(feas, s))
+    } else {
+      as.numeric(val)
+    }
+    if (!is.finite(target) || target < 0 || target > 1) {
+      stop("phi override uniform: value for ", s, " is not in [0, 1]")
+    }
+    feas$phi[sec == s] <- target
+    say(sprintf("PHI OVERRIDE (uniform): %s share set to %.4f in every region", s, target))
   }
+  feas
+}
+
+# Internal: mode `permute` - the shares are reassigned across regions by one fixed permutation.
+#' @keywords internal
+.pfmPhiPermute <- function(feas, ov, say) {
+  reg <- as.character(feas$region)
+  sec <- as.character(feas$sector)
+  seed <- as.integer(ov$seed %||% 1L)
+  regs <- sort(unique(reg))
+  old <- if (exists(".Random.seed", envir = globalenv())) get(".Random.seed", envir = globalenv()) else NULL
+  set.seed(seed)
+  perm <- stats::setNames(sample(regs), regs)       # region r takes the share of region perm[r]
+  if (!is.null(old)) assign(".Random.seed", old, envir = globalenv())
+  for (s in sort(unique(sec))) {
+    v <- .pfmPhiBySector(feas, s)
+    take <- perm[names(v)]
+    # value of the donor region, re-labelled to the receiving region (the names of v[take] are
+    # the DONORS' - indexing by region with them would hand every region its own value back)
+    newv <- stats::setNames(unname(v[take]), names(v))
+    if (anyNA(newv)) stop("phi override permute: a region has no share in ", s)
+    feas$phi[sec == s] <- unname(newv[reg[sec == s]])
+  }
+  say(sprintf("PHI OVERRIDE (permute, seed %d): %s", seed,
+              paste(sprintf("%s<-%s", names(perm), perm), collapse = " ")))
+  feas
+}
+
+# Internal: mode `set` - named regions get fixed shares per sector; every other region is left
+# alone.
+#' @keywords internal
+.pfmPhiSet <- function(feas, ov, say) {
+  reg <- as.character(feas$region)
+  sec <- as.character(feas$sector)
   sectors <- sort(unique(sec))
-  if (mode == "uniform") {
-    val <- ov$value %||% "mean"
-    for (s in sectors) {
-      target <- if (identical(tolower(as.character(val)), "mean")) mean(cur(s)) else as.numeric(val)
-      if (!is.finite(target) || target < 0 || target > 1) stop("phi override uniform: value for ", s, " is not in [0, 1]")
-      feas$phi[sec == s] <- target
-      say(sprintf("PHI OVERRIDE (uniform): %s share set to %.4f in every region", s, target))
-    }
-  } else if (mode == "permute") {
-    seed <- as.integer(ov$seed %||% 1L)
-    regs <- sort(unique(reg))
-    old <- if (exists(".Random.seed", envir = globalenv())) get(".Random.seed", envir = globalenv()) else NULL
-    set.seed(seed)
-    perm <- stats::setNames(sample(regs), regs)       # region r takes the share of region perm[r]
-    if (!is.null(old)) assign(".Random.seed", old, envir = globalenv())
-    for (s in sectors) {
-      v <- cur(s)
-      take <- perm[names(v)]
-      # value of the donor region, re-labelled to the receiving region (the names of v[take] are
-      # the DONORS' - indexing by region with them would hand every region its own value back)
-      newv <- stats::setNames(unname(v[take]), names(v))
-      if (anyNA(newv)) stop("phi override permute: a region has no share in ", s)
-      feas$phi[sec == s] <- unname(newv[reg[sec == s]])
-    }
-    say(sprintf("PHI OVERRIDE (permute, seed %d): %s", seed,
-                paste(sprintf("%s<-%s", names(perm), perm), collapse = " ")))
-  } else {
-    for (r in names(ov$regions)) {
-      if (!r %in% reg) stop("phi override set: region '", r, "' is not in this run's regions")
-      for (s in names(ov$regions[[r]])) {
-        if (!s %in% sectors) stop("phi override set: sector '", s, "' unknown")
-        v <- as.numeric(ov$regions[[r]][[s]])
-        if (!is.finite(v) || v < 0 || v > 1) stop("phi override set: ", r, "/", s, " not in [0, 1]")
-        feas$phi[reg == r & sec == s] <- v
-        say(sprintf("PHI OVERRIDE (set): %s %s share %.4f", r, s, v))
-      }
+  for (r in names(ov$regions)) {
+    if (!r %in% reg) stop("phi override set: region '", r, "' is not in this run's regions")
+    for (s in names(ov$regions[[r]])) {
+      if (!s %in% sectors) stop("phi override set: sector '", s, "' unknown")
+      v <- as.numeric(ov$regions[[r]][[s]])
+      if (!is.finite(v) || v < 0 || v > 1) stop("phi override set: ", r, "/", s, " not in [0, 1]")
+      feas$phi[reg == r & sec == s] <- v
+      say(sprintf("PHI OVERRIDE (set): %s %s share %.4f", r, s, v))
     }
   }
-  attr(feas, "phiOverride") <- list(mode = mode, file = f, maxChange = max(abs(feas$phi - before), na.rm = TRUE))
   feas
 }

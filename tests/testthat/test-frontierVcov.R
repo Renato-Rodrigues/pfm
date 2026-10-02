@@ -28,11 +28,11 @@
 }
 
 .alsParts <- function(fit, fml, df) {
-  X <- stats::model.matrix(fml, data = df)
+  xMat <- stats::model.matrix(fml, data = df)
   y <- stats::model.response(stats::model.frame(fml, data = df))
   cf <- stats::coef(fit)
-  b <- cf[setdiff(names(cf), c("sigmaSq", "gamma"))][colnames(X)]
-  list(X = X, y = y,
+  b <- cf[setdiff(names(cf), c("sigmaSq", "gamma"))][colnames(xMat)]
+  list(X = xMat, y = y,
        par = c(b, log(cf[["sigmaSq"]]), stats::qlogis(cf[["gamma"]])))
 }
 
@@ -59,7 +59,8 @@ test_that("the analytic score matches a numeric gradient and is ~0 at the MLE", 
   # route from the one under test
   h <- pmax(abs(p$par), 1e-2) * 1e-6
   numeric <- vapply(seq_along(p$par), function(j) {
-    e <- numeric(length(p$par)); e[j] <- h[j]
+    e <- numeric(length(p$par))
+    e[j] <- h[j]
     (pfm:::.pfmFrontierLogLik(p$par + e, p$X, p$y) -
        pfm:::.pfmFrontierLogLik(p$par - e, p$X, p$y)) / (2 * h[j])
   }, numeric(1))
@@ -76,13 +77,13 @@ test_that("the Hessian is negative definite and step-size stable at the MLE", {
   fit <- frontier::sfa(fml, data = df)
   p <- .alsParts(fit, fml, df)
 
-  H4 <- pfm:::.pfmFrontierHessian(p$par, p$X, p$y, rel = 1e-4)
-  H6 <- pfm:::.pfmFrontierHessian(p$par, p$X, p$y, rel = 1e-6)
-  expect_true(all(eigen(H4, symmetric = TRUE, only.values = TRUE)$values < 0))
+  h4 <- pfm:::.pfmFrontierHessian(p$par, p$X, p$y, rel = 1e-4)
+  h6 <- pfm:::.pfmFrontierHessian(p$par, p$X, p$y, rel = 1e-6)
+  expect_true(all(eigen(h4, symmetric = TRUE, only.values = TRUE)$values < 0))
   # Differencing the analytic score is stable across 100x in step size. This is why
   # the score is differenced rather than the log-likelihood: doing the latter with
   # numDeriv's defaults was 0.9% off on the v4 Diffuse fit and NaN at r = 2.
-  expect_equal(H4, H6, tolerance = 1e-4)
+  expect_equal(h4, h6, tolerance = 1e-4)
 })
 
 test_that("a healthy fit is reported ok and agrees with frontier's own vcov", {
@@ -109,9 +110,9 @@ vcov.pfmStubFit <- function(object, ...) object$vc
 
 .stubFit <- function(fml, df, inflate = 15) {
   real <- frontier::sfa(fml, data = df)
-  V <- as.matrix(stats::vcov(real))
+  vcReal <- as.matrix(stats::vcov(real))
   structure(list(cf = stats::coef(real), ll = stats::logLik(real),
-                 vc = V * inflate^2), class = "pfmStubFit")
+                 vc = vcReal * inflate^2), class = "pfmStubFit")
 }
 
 test_that("an inflated reported vcov is detected and overridden", {

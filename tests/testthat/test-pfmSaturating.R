@@ -227,7 +227,8 @@ test_that("an excluded country is removed and the removal is announced", {
   expect_true(target %in% as.character(keptAll$region))
   expect_message(
     dropped <- do.call(preparePanelData, c(args, list(excludeCountries = target))),
-    "excluding")
+    "excluding"
+  )
   expect_false(target %in% as.character(dropped$region))
   expect_lt(nrow(dropped), nrow(keptAll))
 })

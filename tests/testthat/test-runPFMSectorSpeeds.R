@@ -7,7 +7,8 @@ make4SectorMagpie <- function() {
   set.seed(48)
   regions <- paste0("R", 1:12)
   years <- 2000:2019
-  nR <- length(regions); nY <- length(years)
+  nR <- length(regions)
+  nY <- length(years)
   four <- c("Electricity", "Industry", "Buildings", "Transport")
   vars <- c(paste0("Policy Stringency|", four),
             "Actor Power Index|Bulk", "Actor Power Index|Diffuse",

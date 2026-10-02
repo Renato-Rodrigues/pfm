@@ -68,8 +68,8 @@ test_that("computeEstimatorAgreement compares the suite on signs and natural-sca
     instQualityDrivers = "Rule of Law (VDem)", controlDrivers = NULL,
     regionMappingFixedEffects = NULL, verbose = FALSE
   ))
-  fitted_est <- names(agr$fits)
-  expect_true(all(c("satP", "fractional", "levels") %in% fitted_est))
+  fittedEst <- names(agr$fits)
+  expect_true(all(c("satP", "fractional", "levels") %in% fittedEst))
   expect_true(all(c("estimator", "term", "estimate", "ameIndex", "ameSE") %in% colnames(agr$table)))
   # theory terms: all fitted estimators agree on the (positive) sign
   agrTheory <- agr$agreement[agr$agreement$term %in% theoryTerms, ]

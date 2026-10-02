@@ -81,76 +81,120 @@
 
   cf <- stats::coef(fit)
   if (!all(c("sigmaSq", "gamma") %in% names(cf))) return(out)
-  gamma <- cf[["gamma"]]
-  sigmaSq <- cf[["sigmaSq"]]
 
   # At the boundary the likelihood is degenerate; neither matrix is interpretable.
-  if (!is.finite(gamma) || !is.finite(sigmaSq) || gamma >= gammaBoundary || gamma <= 0 ||
-      sigmaSq <= 0) {
+  if (.pfmFrontierAtBoundary(cf[["gamma"]], cf[["sigmaSq"]], gammaBoundary)) {
     out$status <- "boundary"
     return(out)
   }
 
-  X <- tryCatch(stats::model.matrix(fml, data = df), error = function(e) NULL)
-  y <- tryCatch(stats::model.response(stats::model.frame(fml, data = df)),
-                error = function(e) NULL)
-  if (is.null(X) || is.null(y) || !is.numeric(y) || nrow(X) != length(y)) return(out)
-
-  beta <- cf[setdiff(names(cf), c("sigmaSq", "gamma"))]
-  if (!all(colnames(X) %in% names(beta))) return(out)
-  beta <- beta[colnames(X)]
-  k <- ncol(X)
-  par <- c(beta, log(sigmaSq), stats::qlogis(gamma))
+  inp <- .pfmFrontierDesign(cf, fml, df)
+  if (is.null(inp)) return(out)
+  k <- ncol(inp$design)
 
   llReported <- tryCatch(as.numeric(stats::logLik(fit)), error = function(e) NA_real_)
-  llCheck <- .pfmFrontierLogLik(par, X, y)
+  llCheck <- .pfmFrontierLogLik(inp$theta, inp$design, inp$y)
   out$logLikReported <- llReported
   out$logLikCheck <- llCheck
   # If our likelihood is not the one that was maximised, the recomputation is
   # meaningless. Say so and keep frontier's matrix rather than quietly substituting.
-  if (!is.finite(llCheck) || !is.finite(llReported) ||
-      abs(llCheck - llReported) > 1e-4 * max(1, abs(llReported))) {
+  if (!.pfmLogLikAgree(llCheck, llReported)) {
     out$status <- "likelihood-mismatch"
     return(out)
   }
 
-  H <- .pfmFrontierHessian(par, X, y)
-  if (is.null(H) || any(!is.finite(H))) return(out)
-  V <- tryCatch(solve(-H), error = function(e) NULL)
-  if (is.null(V) || any(!is.finite(V)) || any(diag(V)[seq_len(k)] <= 0)) {
+  hess <- .pfmFrontierHessian(inp$theta, inp$design, inp$y)
+  if (is.null(hess) || any(!is.finite(hess))) return(out)
+  vOwn <- tryCatch(solve(-hess), error = function(e) NULL)
+  if (is.null(vOwn) || any(!is.finite(vOwn)) || any(diag(vOwn)[seq_len(k)] <= 0)) {
     # A genuinely flat likelihood: the large reported standard errors are honest.
     out$status <- "flat"
     return(out)
   }
 
-  seOwn <- sqrt(diag(V))[seq_len(k)]
-  seRep <- sqrt(pmax(diag(out$vcov)[names(beta)], 0))
-  out$ratio <- if (all(is.finite(seRep)) && stats::median(seOwn) > 0) {
-    stats::median(seRep) / stats::median(seOwn)
-  } else NA_real_
+  out$ratio <- .pfmSeRatio(seReported = sqrt(pmax(diag(out$vcov)[names(inp$beta)], 0)),
+                           seOwn = sqrt(diag(vOwn))[seq_len(k)])
 
-  dimnames(V) <- list(c(colnames(X), "logSigmaSq", "logitGamma"),
-                      c(colnames(X), "logSigmaSq", "logitGamma"))
-  out$vcov <- V
+  parNames <- c(colnames(inp$design), "logSigmaSq", "logitGamma")
+  dimnames(vOwn) <- list(parNames, parNames)
+  out$vcov <- vOwn
   out$source <- "recomputed"
   if (is.finite(out$ratio) && out$ratio > ratioWarn) out$status <- "corrupt"
   out
 }
 
+#' gamma at (or beyond) the boundary, or a non-positive variance
+#'
+#' @param gamma,sigmaSq The fit's \code{gamma} and \code{sigmaSq}.
+#' @param gammaBoundary See \code{.pfmFrontierVcov}.
+#' @return Logical scalar.
+#' @keywords internal
+#' @noRd
+.pfmFrontierAtBoundary <- function(gamma, sigmaSq, gammaBoundary) {
+  !is.finite(gamma) || !is.finite(sigmaSq) || gamma >= gammaBoundary || gamma <= 0 ||
+    sigmaSq <= 0
+}
+
+#' Do the recomputed and the reported log-likelihood agree?
+#'
+#' @param llCheck,llReported The two log-likelihoods.
+#' @return Logical scalar: both finite and within a relative 1e-4.
+#' @keywords internal
+#' @noRd
+.pfmLogLikAgree <- function(llCheck, llReported) {
+  is.finite(llCheck) && is.finite(llReported) &&
+    abs(llCheck - llReported) <= 1e-4 * max(1, abs(llReported))
+}
+
+#' Reported over recomputed median standard error
+#'
+#' @param seReported,seOwn The two standard-error vectors for the coefficients.
+#' @return The ratio of medians, or \code{NA} when it is not defined.
+#' @keywords internal
+#' @noRd
+.pfmSeRatio <- function(seReported, seOwn) {
+  if (all(is.finite(seReported)) && stats::median(seOwn) > 0) {
+    stats::median(seReported) / stats::median(seOwn)
+  } else {
+    NA_real_
+  }
+}
+
+#' Design matrix, response and parameter vector for the likelihood check
+#'
+#' @param cf The fit's coefficients (\code{beta}, \code{sigmaSq}, \code{gamma}).
+#' @param fml,df Formula and data the fit was built on.
+#' @return \code{list(design, y, beta, theta)} with \code{theta} on the unconstrained
+#'   scale \code{c(beta, log(sigmaSq), qlogis(gamma))}, or \code{NULL} when the design
+#'   cannot be rebuilt or does not match the fit's coefficients.
+#' @keywords internal
+#' @noRd
+.pfmFrontierDesign <- function(cf, fml, df) {
+  design <- tryCatch(stats::model.matrix(fml, data = df), error = function(e) NULL)
+  y <- tryCatch(stats::model.response(stats::model.frame(fml, data = df)),
+                error = function(e) NULL)
+  if (is.null(design) || is.null(y) || !is.numeric(y) || nrow(design) != length(y)) return(NULL)
+  beta <- cf[setdiff(names(cf), c("sigmaSq", "gamma"))]
+  if (!all(colnames(design) %in% names(beta))) return(NULL)
+  beta <- beta[colnames(design)]
+  list(design = design, y = y, beta = beta,
+       theta = c(beta, log(cf[["sigmaSq"]]), stats::qlogis(cf[["gamma"]])))
+}
+
 #' ALS normal/half-normal log-likelihood
 #'
-#' @param par \code{c(beta, log(sigmaSq), qlogis(gamma))}.
-#' @param X,y Design matrix and response.
+#' @param theta \code{c(beta, log(sigmaSq), qlogis(gamma))}.
+#' @param design,y Design matrix and response.
 #' @return Scalar log-likelihood.
 #' @keywords internal
 #' @noRd
-.pfmFrontierLogLik <- function(par, X, y) {
-  k <- ncol(X)
-  b <- par[seq_len(k)]
-  s <- sqrt(exp(par[k + 1L]))
-  g <- stats::plogis(par[k + 2L])
+.pfmFrontierLogLik <- function(theta, design, y) {
+  k <- ncol(design)
+  b <- theta[seq_len(k)]
+  s <- sqrt(exp(theta[k + 1L]))
+  g <- stats::plogis(theta[k + 2L])
   if (!is.finite(s) || s <= 0 || !is.finite(g) || g <= 0 || g >= 1) return(NA_real_)
-  e <- as.numeric(y - X %*% b)
+  e <- as.numeric(y - design %*% b)
   sum(log(2) - log(s) + stats::dnorm(e / s, log = TRUE) +
         stats::pnorm(-e * sqrt(g / (1 - g)) / s, log.p = TRUE))
 }
@@ -163,21 +207,21 @@
 #' trouble.
 #'
 #' @inheritParams .pfmFrontierLogLik
-#' @return Numeric vector, same length as \code{par}.
+#' @return Numeric vector, same length as \code{theta}.
 #' @keywords internal
 #' @noRd
-.pfmFrontierScore <- function(par, X, y) {
-  k <- ncol(X)
-  b <- par[seq_len(k)]
-  s2 <- exp(par[k + 1L])
-  g <- stats::plogis(par[k + 2L])
+.pfmFrontierScore <- function(theta, design, y) {
+  k <- ncol(design)
+  b <- theta[seq_len(k)]
+  s2 <- exp(theta[k + 1L])
+  g <- stats::plogis(theta[k + 2L])
   s <- sqrt(s2)
   lam <- sqrt(g / (1 - g))
-  e <- as.numeric(y - X %*% b)
+  e <- as.numeric(y - design %*% b)
   a <- e / s
   cc <- -a * lam
   m <- exp(stats::dnorm(cc, log = TRUE) - stats::pnorm(cc, log.p = TRUE))
-  gBeta <- as.numeric(crossprod(X, a + lam * m)) / s
+  gBeta <- as.numeric(crossprod(design, a + lam * m)) / s
   gLogS2 <- sum(-0.5 + 0.5 * a^2 + 0.5 * m * a * lam)
   # lambda = sqrt(g/(1-g))  =>  dlambda/dgamma = 1 / (2 sqrt(g(1-g)) (1-g))
   dLamDG <- 1 / (2 * sqrt(g * (1 - g)) * (1 - g))
@@ -196,17 +240,17 @@
 #' @return Symmetric matrix, or \code{NULL} if the score cannot be evaluated.
 #' @keywords internal
 #' @noRd
-.pfmFrontierHessian <- function(par, X, y, rel = 1e-5) {
-  n <- length(par)
-  h <- pmax(abs(par), 1e-2) * rel
-  J <- matrix(NA_real_, n, n)
+.pfmFrontierHessian <- function(theta, design, y, rel = 1e-5) {
+  n <- length(theta)
+  h <- pmax(abs(theta), 1e-2) * rel
+  jac <- matrix(NA_real_, n, n)
   for (j in seq_len(n)) {
     ej <- numeric(n)
     ej[j] <- h[j]
-    up <- tryCatch(.pfmFrontierScore(par + ej, X, y), error = function(e) NULL)
-    dn <- tryCatch(.pfmFrontierScore(par - ej, X, y), error = function(e) NULL)
+    up <- tryCatch(.pfmFrontierScore(theta + ej, design, y), error = function(e) NULL)
+    dn <- tryCatch(.pfmFrontierScore(theta - ej, design, y), error = function(e) NULL)
     if (is.null(up) || is.null(dn)) return(NULL)
-    J[, j] <- (up - dn) / (2 * h[j])
+    jac[, j] <- (up - dn) / (2 * h[j])
   }
-  (J + t(J)) / 2
+  (jac + t(jac)) / 2
 }

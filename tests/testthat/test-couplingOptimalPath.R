@@ -4,7 +4,7 @@
 # pm_taxCO2eq, which under bind mode 2 has already been capped by the previous
 # iteration's bound. Each coupling call then computed
 #
-#     bound(i+1) = P_ref + phi * (bound(i) - P_ref)
+#     next bound = P_ref + phi x (this bound - P_ref)
 #
 # a contraction that multiplies the distance above P_ref by phi every call. At
 # phi = 0.21 the gap fell to 21%, 4%, 0.9%: the bound collapsed onto the current-policy
@@ -14,7 +14,7 @@
 #
 # p45_taxCO2eq_anchor is the uncapped global anchor, so it breaks the recursion.
 
-skip_if_no_gt <- function() skip_if_not_installed("gamstransfer")
+skipIfNoGt <- function() skip_if_not_installed("gamstransfer")
 
 # A minimal gdx carrying the two symbols the helper chooses between. Real domain sets,
 # because gdx::readGDX resolves years and regions from them.
@@ -37,7 +37,7 @@ mkRunGdx <- function(file, anchor = c("2030" = 0.1, "2050" = 0.2),
 }
 
 test_that("P_opt comes from the uncapped anchor, not the run's capped price", {
-  skip_if_no_gt()
+  skipIfNoGt()
   skip_if_not_installed("gdx")
   f <- withr::local_tempfile(fileext = ".gdx")
   # The capped price is deliberately near zero - the ratchet's fixed point.
@@ -45,7 +45,7 @@ test_that("P_opt comes from the uncapped anchor, not the run's capped price", {
            capped = c(0.0001, 0.0002, 0.0001, 0.0002))
 
   pR <- magclass::new.magpie(c("EUR", "USA"), c(2030, 2050), fill = 0)
-  got <- pfm:::.pfmCouplingOptimalPath(f, pR, TCO2 = 1000 / (44 / 12))
+  got <- pfm:::.pfmCouplingOptimalPath(f, pR, tco2 = 1000 / (44 / 12))
 
   expect_s3_class(got, "data.frame")
   expect_setequal(names(got), c("region", "year", "value"))
@@ -59,12 +59,12 @@ test_that("P_opt comes from the uncapped anchor, not the run's capped price", {
 })
 
 test_that("a region-free anchor is broadcast without recycling onto the wrong years", {
-  skip_if_no_gt()
+  skipIfNoGt()
   skip_if_not_installed("gdx")
   f <- withr::local_tempfile(fileext = ".gdx")
   mkRunGdx(f, anchor = c("2030" = 0.1, "2050" = 0.9), regs = c("EUR", "USA", "CHA"))
   pR <- magclass::new.magpie(c("EUR", "USA", "CHA"), c(2030, 2050), fill = 0)
-  got <- pfm:::.pfmCouplingOptimalPath(f, pR, TCO2 = 1)
+  got <- pfm:::.pfmCouplingOptimalPath(f, pR, tco2 = 1)
   # Every region must see the SAME value in a given year - the anchor is global.
   for (y in c(2030L, 2050L)) {
     expect_equal(length(unique(got$value[got$year == y])), 1L)
@@ -74,13 +74,13 @@ test_that("a region-free anchor is broadcast without recycling onto the wrong ye
 })
 
 test_that("a missing anchor warns loudly rather than falling back in silence", {
-  skip_if_no_gt()
+  skipIfNoGt()
   skip_if_not_installed("gdx")
   f <- withr::local_tempfile(fileext = ".gdx")
   # Anchor present but all-zero: the fallback path must still fire.
   mkRunGdx(f, anchor = c("2030" = 0, "2050" = 0),
            capped = c(0.5, 0.5, 0.5, 0.5))
   pR <- magclass::new.magpie(c("EUR", "USA"), c(2030, 2050), fill = 0)
-  expect_warning(pfm:::.pfmCouplingOptimalPath(f, pR, TCO2 = 1),
+  expect_warning(pfm:::.pfmCouplingOptimalPath(f, pR, tco2 = 1),
                  "ALREADY\\s+CAPPED|ratchet")
 })

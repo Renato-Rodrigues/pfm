@@ -145,7 +145,8 @@ test_that("PFM tier attribution credits significant interactions to their groups
   set.seed(77)
   regions <- paste0("R", 1:12)
   years <- 2000:2019
-  nR <- length(regions); nY <- length(years)
+  nR <- length(regions)
+  nY <- length(years)
   m <- magclass::new.magpie(regions, years,
                             c("Policy Stringency|Bulk", "Actor Power Index|Bulk",
                               "Rule of Law (VDem)"), fill = NA)

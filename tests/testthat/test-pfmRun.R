@@ -63,7 +63,10 @@ test_that("several stages are one chain, in dependency order, with the export in
 
   # the export travels with the other steps, to an absolute destination
   got <- NULL
-  testthat::local_mocked_bindings(startRun = function(...) { got <<- list(...); invisible(NULL) })
+  testthat::local_mocked_bindings(startRun = function(...) {
+    got <<- list(...)
+    invisible(NULL)
+  })
   suppressMessages(run(c("downstream", "remind"), dryRun = FALSE))
   expect_true("pfm-remind-inputs" %in% got$steps)
   expect_equal(got$dest, normalizePath(file.path(tempdir(), "ri"), winslash = "/", mustWork = FALSE))

@@ -6,15 +6,17 @@
 #       there and be transformed once at the end;
 #   (2) the attractor is the ECM equilibrium, not the SFA frontier.
 
-specFP <- function() list(
-  actorPowerDrivers = "Actor Power Index",
-  actorPowerIndex = "Actor Power Index",
-  instQualityDrivers = "Rule of Law (VDem)",
-  controlDrivers = NULL,
-  regionMappingFixedEffects = NULL,
-  panelTransform = "levels",
-  logisticTimeTrend = FALSE
-)
+specFP <- function() {
+  list(
+    actorPowerDrivers = "Actor Power Index",
+    actorPowerIndex = "Actor Power Index",
+    instQualityDrivers = "Rule of Law (VDem)",
+    controlDrivers = NULL,
+    regionMappingFixedEffects = NULL,
+    panelTransform = "levels",
+    logisticTimeTrend = FALSE
+  )
+}
 
 fpFixture <- function() {
   list(spec = specFP(), hist = makePFMagpie(), scen = makePFMScenarioMagpie())
@@ -322,7 +324,8 @@ test_that("an assignment missing the required columns fails loudly", {
                            frontierBeta = c("(Intercept)" = 0.8), modelDir = NULL)
   bad <- data.frame(region = "R99", efficiencyRatio = 0.5, stringsAsFactors = FALSE)
   expect_error(suppressWarnings(
-    aggregateFeasibilityToRegions(p, mapFP(), assignment = bad)), "basis")
+    aggregateFeasibilityToRegions(p, mapFP(), assignment = bad)
+  ), "basis")
 })
 
 # --- gapMeasure: tiers must rank the shortfall, not the ceiling ----------------
@@ -345,10 +348,13 @@ test_that("a low-ceiling region is not credited for having little absolute room"
                            frontierBeta = c("(Intercept)" = 0.8), modelDir = NULL)
   p <- p[!p$outOfCoverage, , drop = FALSE]
   regs <- unique(as.character(p$region))   # the path has many YEARS per country
-  hi <- regs[1]; lo <- regs[2]
+  hi <- regs[1]
+  lo <- regs[2]
   p <- p[p$region %in% c(hi, lo), , drop = FALSE]
-  p$ceilingIndex[p$region == hi] <- 8; p$feasibleIndex[p$region == hi] <- 6  # E .75, abs 2.0
-  p$ceilingIndex[p$region == lo] <- 4; p$feasibleIndex[p$region == lo] <- 2.4 # E .60, abs 1.6
+  p$ceilingIndex[p$region == hi] <- 8
+  p$feasibleIndex[p$region == hi] <- 6  # E .75, abs 2.0
+  p$ceilingIndex[p$region == lo] <- 4
+  p$feasibleIndex[p$region == lo] <- 2.4 # E .60, abs 1.6
   m <- data.frame(CountryCode = c(hi, lo), RegionCode = c("HI", "LO"),
                   stringsAsFactors = FALSE)
   pick <- function(d, reg, col) d[[col]][d$region == reg][1]
@@ -369,7 +375,8 @@ test_that("an unknown gapMeasure fails loudly", {
   p <- projectFeasiblePath(f$spec, "Bulk", f$hist, f$scen,
                            frontierBeta = c("(Intercept)" = 0.8), modelDir = NULL)
   expect_error(suppressWarnings(
-    aggregateFeasibilityToRegions(p, mapFP(), gapMeasure = "nonsense")), "arg")
+    aggregateFeasibilityToRegions(p, mapFP(), gapMeasure = "nonsense")
+  ), "arg")
 })
 
 # --- phiRule: phi must not jump on a small change in E ------------------------
@@ -442,7 +449,8 @@ test_that("a supplied fit reproduces the fitted-in-place result exactly", {
     regionMappingFixedEffects = f$spec$regionMappingFixedEffects,
     logisticTimeTrend = isTRUE(f$spec$logisticTimeTrend),
     apTransform = f$spec$apTransform %||% "linear",
-    modelDir = NULL, updateIndex = FALSE, verbose = FALSE)
+    modelDir = NULL, updateIndex = FALSE, verbose = FALSE
+  )
   b <- projectFeasiblePath(f$spec, "Bulk", f$hist, f$scen, frontierBeta = fb,
                            fit = ecm, modelDir = NULL)
   expect_equal(a$feasibleIndex, b$feasibleIndex, tolerance = 1e-12)

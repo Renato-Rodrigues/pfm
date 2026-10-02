@@ -865,12 +865,12 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 #'
 #' @param gdx The run's own gdx.
 #' @param pR The reference price path (magpie), used for the region list.
-#' @param TCO2 Unit conversion from T$/GtC to US$/tCO2.
+#' @param tco2 Unit conversion from T$/GtC to US$/tCO2.
 #' @param say Progress reporter.
 #' @return A long data.frame of \code{region, year, value} in US$/tCO2.
 #' @keywords internal
 #' @author Renato Rodrigues
-.pfmCouplingOptimalPath <- function(gdx, pR, TCO2, say = function(...) NULL) {
+.pfmCouplingOptimalPath <- function(gdx, pR, tco2, say = function(...) NULL) {
   regs <- magclass::getItems(pR, dim = 1)
   anc <- tryCatch(gdx::readGDX(gdx, "p45_taxCO2eq_anchor", react = "silent"),
                   error = function(e) NULL)
@@ -889,15 +889,16 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     return(data.frame(
       region = rep(regs, times = length(av)),
       year   = rep(as.integer(names(av)), each = length(regs)),
-      value  = rep(as.numeric(av) * TCO2, each = length(regs)),
-      stringsAsFactors = FALSE))
+      value  = rep(as.numeric(av) * tco2, each = length(regs)),
+      stringsAsFactors = FALSE
+    ))
   }
   warning("iterativePFM: p45_taxCO2eq_anchor is missing or all-zero, so P_opt falls ",
           "back to the run's own pm_taxCO2eq - which under bind mode 2 is ALREADY ",
           "CAPPED and makes the bound ratchet down onto the reference price. Do not ",
           "quote a price level from this run.", call. = FALSE)
   say("bind mode 2: WARNING - P_opt fell back to the capped pm_taxCO2eq")
-  gdx::readGDX(gdx, "pm_taxCO2eq") * TCO2
+  gdx::readGDX(gdx, "pm_taxCO2eq") * tco2
 }
 
 #' @keywords internal
@@ -1047,7 +1048,8 @@ iterativePFM <- function(gdx = "fulldata.gdx",
   }
   sets <- stats::setNames(
     lapply(names(uels), function(d) m$addSet(d, records = .pfmCouplingUels(d, uels[[d]]))),
-    names(uels))
+    names(uels)
+  )
   for (s in syms) {
     m$addParameter(s$name, domain = unname(sets[s$domain]), records = s$records)
   }

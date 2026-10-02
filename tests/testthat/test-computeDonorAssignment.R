@@ -12,7 +12,8 @@ donorFit <- function() {
     actorPowerDrivers = "Actor Power Index", actorPowerIndex = "Actor Power Index",
     instQualityDrivers = "Rule of Law (VDem)", controlDrivers = NULL,
     regionMappingFixedEffects = NULL, logisticTimeTrend = FALSE,
-    modelDir = NULL, updateIndex = FALSE, verbose = FALSE)
+    modelDir = NULL, updateIndex = FALSE, verbose = FALSE
+  )
 }
 
 # A design containing the covered regions plus extra "uncovered" ones.

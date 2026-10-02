@@ -25,7 +25,8 @@ test_that("a missing band assignment is an error, not a silent fallback", {
   expect_warning(
     iterativePFM(gdx = gdxFile, group = "grp", resultsDir = d, modelDir = d,
                  outputFile = file.path(d, "p45_regiDiff_phi.gdx")),
-    "FAILED")
+    "FAILED"
+  )
   expect_false(file.exists(file.path(d, "p45_regiDiff_phi.gdx")))
 })
 
@@ -76,7 +77,8 @@ test_that("the GAMS runtime config overrides the local settings", {
   expect_equal(as.integer(cfg$bindMode), 2L)
   expect_equal(as.numeric(cfg$theta), 0.79)
   # Precedence is what matters: whatever was passed locally loses to the file.
-  bindMode <- 1L; theta <- 0.5
+  bindMode <- 1L
+  theta <- 0.5
   if (!is.null(cfg$bindMode)) bindMode <- as.integer(cfg$bindMode)
   if (!is.null(cfg$theta)) theta <- as.numeric(cfg$theta)
   expect_equal(bindMode, 2L)
@@ -134,16 +136,19 @@ test_that("gdp scaling without a target year warns rather than silently no-oppin
 
 test_that("mode 3 refuses to run without a seed", {
   d <- withr::local_tempdir()
-  gd <- file.path(d, "grp"); dir.create(gd, recursive = TRUE)
+  gd <- file.path(d, "grp")
+  dir.create(gd, recursive = TRUE)
   writeLines("[]", file.path(gd, "selected-models-pfm.yml"))
   writeLines('{"panel_hash":"nope"}', file.path(gd, "manifest.json"))
-  g <- file.path(d, "fulldata.gdx"); file.create(g)
+  g <- file.path(d, "fulldata.gdx")
+  file.create(g)
   # No refGdx: the seed price cannot be read, so it must not silently start at zero.
   expect_warning(
     iterativePFM(gdx = g, group = "grp", resultsDir = d, modelDir = d,
                  bindMode = 3L, refGdx = NULL,
                  outputFile = file.path(d, "p45_regiDiff_phi.gdx")),
-    "FAILED")
+    "FAILED"
+  )
   expect_false(file.exists(file.path(d, "p45_regiDiff_phi.gdx")))
 })
 
@@ -155,7 +160,8 @@ test_that("the worse-sector rule picks one stringency path per region-year", {
     year   = c(2030, 2030, 2030, 2030),
     feasibleIndex = c(5, 3, 6, 7),          # EUR worse = 3, USA worse = 6
     ceilingIndex  = c(8, 8, 9, 9),
-    sector = c("Bulk", "Diffuse", "Bulk", "Diffuse"), stringsAsFactors = FALSE)
+    sector = c("Bulk", "Diffuse", "Bulk", "Diffuse"), stringsAsFactors = FALSE
+  )
   key <- paste(feas$region, feas$year)
   ord <- order(key, feas$feasibleIndex)
   one <- feas[ord, ][!duplicated(key[ord]), ]

@@ -1,12 +1,15 @@
 feasFixture <- function() {
   regs <- c("CHA", "EUR", "IND", "REF", "USA")
-  do.call(rbind, lapply(c("Bulk", "Diffuse"), function(s) do.call(rbind, lapply(c(2030, 2050), function(y)
-    data.frame(region = regs, year = y, sector = s,
-               phi = if (s == "Bulk") c(1.00, 0.80, 0.70, 0.50, 0.66) else c(0.78, 0.90, 0.95, 0.60, 0.55),
-               stringsAsFactors = FALSE)))))
+  phi <- list(Bulk = c(1.00, 0.80, 0.70, 0.50, 0.66), Diffuse = c(0.78, 0.90, 0.95, 0.60, 0.55))
+  do.call(rbind, lapply(c("Bulk", "Diffuse"), function(s) {
+    do.call(rbind, lapply(c(2030, 2050), function(y) {
+      data.frame(region = regs, year = y, sector = s, phi = phi[[s]], stringsAsFactors = FALSE)
+    }))
+  }))
 }
 withOverride <- function(lines, code) {
-  d <- tempfile("grp"); dir.create(d)
+  d <- tempfile("grp")
+  dir.create(d)
   on.exit(unlink(d, recursive = TRUE))
   if (length(lines)) writeLines(lines, file.path(d, "phi-override.yml"))
   code(d)
@@ -51,9 +54,12 @@ test_that("permute keeps each sector's set of values, moves them, and pairs the 
     }
     expect_false(isTRUE(all.equal(out$phi, f$phi)))
     # the same donor region supplies both sectors of a region
-    b <- f[f$year == 2030 & f$sector == "Bulk", ]; dd <- f[f$year == 2030 & f$sector == "Diffuse", ]
-    ob <- out[out$year == 2030 & out$sector == "Bulk", ]; od <- out[out$year == 2030 & out$sector == "Diffuse", ]
-    donorB <- b$region[match(ob$phi, b$phi)]; donorD <- dd$region[match(od$phi, dd$phi)]
+    b <- f[f$year == 2030 & f$sector == "Bulk", ]
+    dd <- f[f$year == 2030 & f$sector == "Diffuse", ]
+    ob <- out[out$year == 2030 & out$sector == "Bulk", ]
+    od <- out[out$year == 2030 & out$sector == "Diffuse", ]
+    donorB <- b$region[match(ob$phi, b$phi)]
+    donorD <- dd$region[match(od$phi, dd$phi)]
     expect_identical(donorB, donorD)
     # constant over years, deterministic for a seed
     expect_equal(out$phi[out$year == 2030], out$phi[out$year == 2050])
@@ -64,8 +70,11 @@ test_that("permute keeps each sector's set of values, moves them, and pairs the 
 test_that("permute does not disturb the caller's random stream", {
   f <- feasFixture()
   withOverride(c("mode: permute", "seed: 1"), function(d) {
-    set.seed(99); a <- stats::runif(1)
-    set.seed(99); invisible(pfm:::.pfmApplyPhiOverride(f, d, quiet)); b <- stats::runif(1)
+    set.seed(99)
+    a <- stats::runif(1)
+    set.seed(99)
+    invisible(pfm:::.pfmApplyPhiOverride(f, d, quiet))
+    b <- stats::runif(1)
     expect_identical(a, b)
   })
 })

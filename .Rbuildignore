@@ -16,3 +16,4 @@
 ^tests/.lintr$
 ^_pkgdown\.yml$
 ^.*CITATION.cff$
+^vignettes/.lintr$

@@ -27,15 +27,18 @@ computePFMCrossDataset <- function(eps = NULL, climapp = NULL, capmf = NULL) {
   withinR <- function(d, a, b) {
     z <- do.call(rbind, by(d, d$iso3, function(g) {
       g[[a]] <- g[[a]] - mean(g[[a]], na.rm = TRUE)
-      g[[b]] <- g[[b]] - mean(g[[b]], na.rm = TRUE); g
+      g[[b]] <- g[[b]] - mean(g[[b]], na.rm = TRUE)
+      g
     }))
     stats::cor(z[[a]], z[[b]], use = "complete.obs")
   }
   xsecR   <- function(d, a, b, yr = max(d$year)) {
-    s <- d[d$year == yr, ]; stats::cor(s[[a]], s[[b]], use = "complete.obs")
+    s <- d[d$year == yr, ]
+    stats::cor(s[[a]], s[[b]], use = "complete.obs")
   }
   rankCon <- function(d, a, b, yr = max(d$year)) {
-    s <- d[d$year == yr, ]; stats::cor(s[[a]], s[[b]], method = "spearman", use = "complete.obs")
+    s <- d[d$year == yr, ]
+    stats::cor(s[[a]], s[[b]], method = "spearman", use = "complete.obs")
   }
   rows <- list()
   if (!is.null(eps)) {

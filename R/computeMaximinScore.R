@@ -161,113 +161,17 @@ computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range 
 
   allSectors <- sort(unique(df$sector))
   rows <- lapply(split(df, df$model), function(m) {
-    model <- m$model[1]
-    haveSectors <- sort(unique(m$sector))
-    missingSectors <- setdiff(allSectors, haveSectors)
-
+    missingSectors <- setdiff(allSectors, sort(unique(m$sector)))
     # One row per sector (if duplicated, keep the first occurrence)
     m <- m[!duplicated(m$sector), , drop = FALSE]
     m <- m[order(m$sector), , drop = FALSE]
-
-    tierVec <- stats::setNames(m$tier, m$sector)
-    dr2Vec  <- stats::setNames(m$deltaR2Theory, m$sector)
-
-    failReasons <- character(0)
-    if (length(missingSectors) > 0) {
-      failReasons <- c(failReasons,
-                       paste0("missing sector(s): ", paste(missingSectors, collapse = ", ")))
-    }
-    badVIF <- m$sector[!is.na(m$maxVIF) & m$maxVIF >= vifGate]
-    if (length(badVIF) > 0) {
-      failReasons <- c(failReasons, paste0("VIF >= ", vifGate, ": ", paste(badVIF, collapse = ", ")))
-    }
-    notConv <- m$sector[!m$converged %in% TRUE]
-    if (length(notConv) > 0) {
-      failReasons <- c(failReasons, paste0("not converged: ", paste(notConv, collapse = ", ")))
-    }
-    lagged <- m$sector[m$usesLagged %in% TRUE]
-    if (length(lagged) > 0) {
-      failReasons <- c(failReasons, paste0("lagged terms: ", paste(lagged, collapse = ", ")))
-    }
-    tol <- 1e-6
-    inflated <- m$sector[!is.na(m$deltaR2Theory) & m$deltaR2Theory > deltaR2Max + tol]
-    if (length(inflated) > 0) {
-      failReasons <- c(failReasons,
-                       paste0("deltaR2(theory) > ", deltaR2Max,
-                              " (inflated/degenerate fit): ", paste(inflated, collapse = ", ")))
-    }
-    # Trend-dominance hard gate (ADR 0033): reject specs where the atheoretical time trend carries
-    # more than `trendDominanceGate` of the fitted linear-predictor variance in any sector — the
-    # model is extrapolating a time curve rather than explaining via drivers. Naturally stringency-
-    # only (the adoption trend is disabled, ADR 0010, so trendShare is NA there). Column-/NA-guarded
-    # and disabled at `trendDominanceGate = NULL`.
-    if (!is.null(trendDominanceGate) && "trendShare" %in% colnames(m)) {
-      trendy <- m$sector[!is.na(m$trendShare) & m$trendShare > trendDominanceGate]
-      if (length(trendy) > 0) {
-        failReasons <- c(failReasons, paste0("trend-dominated (trendShare > ", trendDominanceGate,
-                                             "): ", paste(trendy, collapse = ", ")))
-      }
-    }
-    # Tier gate (ADR 0039, Tournament v2): the deployment must reach `tierGate` in
-    # its WORSE sector; below it the spec fails the hard gate (tier stops ranking).
-    if (!is.null(tierGate)) {
-      minTR <- min(tierRank[m$tier])
-      if (minTR < tierRank[[tierGate]]) {
-        failReasons <- c(failReasons,
-                         paste0("worse-sector tier below ", tierGate, " gate (",
-                                names(tierRank)[match(minTR, tierRank)], ")"))
-      }
-    }
-    if (!is.null(pseudoR2Range) && "pseudoR2" %in% colnames(m)) {
-      badPR2 <- m$sector[!is.na(m$pseudoR2) &
-                           (m$pseudoR2 < pseudoR2Range[1] - tol | m$pseudoR2 > pseudoR2Range[2] + tol)]
-      if (length(badPR2) > 0) {
-        failReasons <- c(failReasons,
-                         paste0("pseudoR2 outside [", pseudoR2Range[1], ", ", pseudoR2Range[2],
-                                "]: ", paste(badPR2, collapse = ", ")))
-      }
-    }
-
-    minTierRank <- min(tierRank[m$tier])
-    data.frame(
-      model = model,
-      minTier = names(tierRank)[match(minTierRank, tierRank)],
-      meanDeltaR2 = mean(m$deltaR2Theory, na.rm = TRUE),
-      minDeltaR2 = suppressWarnings(min(m$deltaR2Theory, na.rm = TRUE)),
-      sumBIC = if ("bic" %in% colnames(m)) {
-        # FE-discounted BIC (2026-06-24): subtract the region-FE share of the BIC penalty
-        # so FE-dummy count does not dominate the parsimony tie-break across FE resolutions.
-        feDisc <- if (all(c("nFE", "nObs") %in% colnames(m))) {
-          (1 - feParsimonyWeight) * ifelse(is.na(m$nFE), 0, m$nFE) * log(pmax(m$nObs, 1))
-        } else 0
-        sum(m$bic - feDisc)
-      } else NA_real_,
-      # Idle control = a control present in the spec but never significant across sectors.
-      idleControl = if (all(c("nControl", "sigControl") %in% colnames(m))) {
-        any(m$nControl > 0, na.rm = TRUE) && !any(m$sigControl > 0, na.rm = TRUE)
-      } else FALSE,
-      # Fragility demotions (0/1 each, binary): high collinearity, temporal sign-instability,
-      # and inference fragility (ADR 0037: weakest significant theory term below inferenceTGate).
-      # (Trend reliance is handled separately as a *relative* within-band key, not a demotion.)
-      fragility = {
-        vifBad <- !is.null(softVifGate) && "maxVIF" %in% colnames(m) &&
-          any(!is.na(m$maxVIF) & m$maxVIF > softVifGate)
-        tempBad <- !is.null(temporalSignGate) && "temporalSignStable" %in% colnames(m) &&
-          any(!is.na(m$temporalSignStable) & m$temporalSignStable < temporalSignGate)
-        inferBad <- !is.null(inferenceTGate) && "minSigTheoryT" %in% colnames(m) &&
-          any(!is.na(m$minSigTheoryT) & m$minSigTheoryT < inferenceTGate)
-        as.integer(isTRUE(vifBad)) + as.integer(isTRUE(tempBad)) + as.integer(isTRUE(inferBad))
-      },
-      # Relative trend-reliance key (lower preferred); NA (no trend term) -> 0 (best, no reliance).
-      trendKey = if ("trendShare" %in% colnames(m)) {
-        v <- suppressWarnings(max(m$trendShare, na.rm = TRUE)); if (is.finite(v)) v else 0
-      } else 0,
-      tierBySector = paste(paste0(names(tierVec), ": ", tierVec), collapse = "; "),
-      deltaR2BySector = paste(paste0(names(dr2Vec), ": ", round(dr2Vec, 3)), collapse = "; "),
-      gatePass = length(failReasons) == 0,
-      gateFailReason = if (length(failReasons) > 0) paste(failReasons, collapse = "; ") else "",
-      stringsAsFactors = FALSE
-    )
+    failReasons <- .maximinGateFailures(m, missingSectors, tierRank, vifGate = vifGate,
+                                        deltaR2Max = deltaR2Max, pseudoR2Range = pseudoR2Range,
+                                        trendDominanceGate = trendDominanceGate,
+                                        tierGate = tierGate)
+    .maximinModelRow(m, failReasons, tierRank, feParsimonyWeight = feParsimonyWeight,
+                     softVifGate = softVifGate, temporalSignGate = temporalSignGate,
+                     inferenceTGate = inferenceTGate)
   })
   out <- do.call(rbind, rows)
   rownames(out) <- NULL
@@ -293,47 +197,181 @@ computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range 
   # unavailable or nearTieEps == 0.
   haveBIC <- "sumBIC" %in% colnames(out) && any(is.finite(out$sumBIC))
   if (haveBIC && nearTieEps > 0) {
-    bicKey <- ifelse(is.finite(out$sumBIC), out$sumBIC, Inf)
-    # Drop-idle-control key: within a band, idle-control specs (1) rank behind clean ones (0).
-    idleKey <- if (isTRUE(dropIdleControls) && "idleControl" %in% colnames(out)) {
-      as.integer(out$idleControl %in% TRUE)
-    } else rep(0L, nrow(out))
-    # Fragility key: fewer binary demotions (high VIF / temporal sign-instability) preferred.
-    fragKey <- if ("fragility" %in% colnames(out)) {
-      ifelse(is.na(out$fragility), 0L, out$fragility)
-    } else rep(0L, nrow(out))
-    # Relative trend-reliance key: lower trendShare preferred (a mild within-band nudge).
-    trendKey <- if ("trendKey" %in% colnames(out)) {
-      ifelse(is.na(out$trendKey), 0, out$trendKey)
-    } else rep(0, nrow(out))
-    # recompute after the base reorder so band membership indexes the sorted frame
-    worseKey <- ifelse(is.finite(out$minDeltaR2), out$minDeltaR2, -Inf)
-    placed <- integer(0)
-    remaining <- which(out$gatePass)            # already base-ordered
-    while (length(remaining) > 0) {
-      lead <- remaining[1]
-      band <- if (identical(rankBy, "worseDeltaR2")) {
-        dl <- worseKey[lead]
-        if (!is.finite(dl)) lead else
-          remaining[is.finite(worseKey[remaining]) & worseKey[remaining] >= dl - nearTieEps]
-      } else {
-        dl <- out$meanDeltaR2[lead]
-        if (is.na(dl)) lead else
-          remaining[out$minTier[remaining] == out$minTier[lead] &
-                      !is.na(out$meanDeltaR2[remaining]) &
-                      out$meanDeltaR2[remaining] >= dl - nearTieEps]
-      }
-      # clean-control first, then low-fragility (VIF/temporal), then low trend-reliance,
-      # then parsimony (FE-discounted BIC), then name.
-      band <- band[order(idleKey[band], fragKey[band], trendKey[band], bicKey[band],
-                         out$model[band])]
-      placed <- c(placed, band)
-      remaining <- setdiff(remaining, band)
-    }
-    out <- out[c(placed, which(!out$gatePass)), , drop = FALSE]
-    rownames(out) <- NULL
+    out <- .maximinNearTieOrder(out, rankBy, nearTieEps, dropIdleControls)
   }
   out$rank <- seq_len(nrow(out))
   rownames(out) <- NULL
   out
+}
+
+# Internal: the hard-gate failure reasons for one model (one row per sector in `m`), in a
+# fixed order. character(0) means the model passes every gate.
+#' @keywords internal
+.maximinGateFailures <- function(m, missingSectors, tierRank, vifGate, deltaR2Max,
+                                 pseudoR2Range, trendDominanceGate, tierGate) {
+  tol <- 1e-6
+  # The reason for a gate that `sectors` fail, or NULL when none does.
+  hit <- function(sectors, label) {
+    if (length(sectors) > 0) paste0(label, paste(sectors, collapse = ", ")) else NULL
+  }
+  failReasons <- c(
+    hit(missingSectors, "missing sector(s): "),
+    hit(m$sector[!is.na(m$maxVIF) & m$maxVIF >= vifGate], paste0("VIF >= ", vifGate, ": ")),
+    hit(m$sector[!m$converged %in% TRUE], "not converged: "),
+    hit(m$sector[m$usesLagged %in% TRUE], "lagged terms: "),
+    hit(m$sector[!is.na(m$deltaR2Theory) & m$deltaR2Theory > deltaR2Max + tol],
+        paste0("deltaR2(theory) > ", deltaR2Max, " (inflated/degenerate fit): "))
+  )
+  # Trend-dominance hard gate (ADR 0033): reject specs where the atheoretical time trend carries
+  # more than `trendDominanceGate` of the fitted linear-predictor variance in any sector — the
+  # model is extrapolating a time curve rather than explaining via drivers. Naturally stringency-
+  # only (the adoption trend is disabled, ADR 0010, so trendShare is NA there). Column-/NA-guarded
+  # and disabled at `trendDominanceGate = NULL`.
+  if (!is.null(trendDominanceGate) && "trendShare" %in% colnames(m)) {
+    failReasons <- c(failReasons,
+                     hit(m$sector[!is.na(m$trendShare) & m$trendShare > trendDominanceGate],
+                         paste0("trend-dominated (trendShare > ", trendDominanceGate, "): ")))
+  }
+  # Tier gate (ADR 0039, Tournament v2): the deployment must reach `tierGate` in
+  # its WORSE sector; below it the spec fails the hard gate (tier stops ranking).
+  if (!is.null(tierGate)) {
+    minTR <- min(tierRank[m$tier])
+    if (minTR < tierRank[[tierGate]]) {
+      failReasons <- c(failReasons,
+                       paste0("worse-sector tier below ", tierGate, " gate (",
+                              names(tierRank)[match(minTR, tierRank)], ")"))
+    }
+  }
+  if (!is.null(pseudoR2Range) && "pseudoR2" %in% colnames(m)) {
+    outside <- m$pseudoR2 < pseudoR2Range[1] - tol | m$pseudoR2 > pseudoR2Range[2] + tol
+    failReasons <- c(failReasons,
+                     hit(m$sector[!is.na(m$pseudoR2) & outside],
+                         paste0("pseudoR2 outside [", pseudoR2Range[1], ", ", pseudoR2Range[2],
+                                "]: ")))
+  }
+  as.character(failReasons)
+}
+
+# Internal: the scored row for one model.
+#' @keywords internal
+.maximinModelRow <- function(m, failReasons, tierRank, feParsimonyWeight, softVifGate,
+                             temporalSignGate, inferenceTGate) {
+  tierVec <- stats::setNames(m$tier, m$sector)
+  dr2Vec  <- stats::setNames(m$deltaR2Theory, m$sector)
+  minTierRank <- min(tierRank[m$tier])
+  data.frame(
+    model = m$model[1],
+    minTier = names(tierRank)[match(minTierRank, tierRank)],
+    meanDeltaR2 = mean(m$deltaR2Theory, na.rm = TRUE),
+    minDeltaR2 = suppressWarnings(min(m$deltaR2Theory, na.rm = TRUE)),
+    sumBIC = .maximinSumBIC(m, feParsimonyWeight),
+    idleControl = .maximinIdleControl(m),
+    fragility = .maximinFragility(m, softVifGate, temporalSignGate, inferenceTGate),
+    trendKey = .maximinTrendKey(m),
+    tierBySector = paste(paste0(names(tierVec), ": ", tierVec), collapse = "; "),
+    deltaR2BySector = paste(paste0(names(dr2Vec), ": ", round(dr2Vec, 3)), collapse = "; "),
+    gatePass = length(failReasons) == 0,
+    gateFailReason = if (length(failReasons) > 0) paste(failReasons, collapse = "; ") else "",
+    stringsAsFactors = FALSE
+  )
+}
+
+# Internal: summed BIC across sectors, FE-discounted (2026-06-24): the region-FE share of the
+# BIC penalty is subtracted so FE-dummy count does not dominate the parsimony tie-break across
+# FE resolutions. NA without a bic column.
+#' @keywords internal
+.maximinSumBIC <- function(m, feParsimonyWeight) {
+  if (!"bic" %in% colnames(m)) return(NA_real_)
+  feDisc <- if (all(c("nFE", "nObs") %in% colnames(m))) {
+    (1 - feParsimonyWeight) * ifelse(is.na(m$nFE), 0, m$nFE) * log(pmax(m$nObs, 1))
+  } else {
+    0
+  }
+  sum(m$bic - feDisc)
+}
+
+# Internal: idle control = a control present in the spec but never significant across sectors.
+#' @keywords internal
+.maximinIdleControl <- function(m) {
+  if (!all(c("nControl", "sigControl") %in% colnames(m))) return(FALSE)
+  any(m$nControl > 0, na.rm = TRUE) && !any(m$sigControl > 0, na.rm = TRUE)
+}
+
+# Internal: fragility demotions (0/1 each, binary): high collinearity, temporal sign-instability,
+# and inference fragility (ADR 0037: weakest significant theory term below inferenceTGate).
+# (Trend reliance is handled separately as a *relative* within-band key, not a demotion.)
+#' @keywords internal
+.maximinFragility <- function(m, softVifGate, temporalSignGate, inferenceTGate) {
+  below <- function(gate, col, bad) {
+    !is.null(gate) && col %in% colnames(m) && any(!is.na(m[[col]]) & bad(m[[col]], gate))
+  }
+  vifBad <- below(softVifGate, "maxVIF", function(x, g) x > g)
+  tempBad <- below(temporalSignGate, "temporalSignStable", function(x, g) x < g)
+  inferBad <- below(inferenceTGate, "minSigTheoryT", function(x, g) x < g)
+  as.integer(isTRUE(vifBad)) + as.integer(isTRUE(tempBad)) + as.integer(isTRUE(inferBad))
+}
+
+# Internal: relative trend-reliance key (lower preferred); NA (no trend term) -> 0 (best).
+#' @keywords internal
+.maximinTrendKey <- function(m) {
+  if (!"trendShare" %in% colnames(m)) return(0)
+  v <- suppressWarnings(max(m$trendShare, na.rm = TRUE))
+  if (is.finite(v)) v else 0
+}
+
+# Internal: the within-band re-ordering of the gate-passers (ADR 0012), applied to the
+# base-ordered frame `out`. Gate-failers keep their base order at the end.
+#' @keywords internal
+.maximinNearTieOrder <- function(out, rankBy, nearTieEps, dropIdleControls) {
+  bicKey <- ifelse(is.finite(out$sumBIC), out$sumBIC, Inf)
+  # Drop-idle-control key: within a band, idle-control specs (1) rank behind clean ones (0).
+  idleKey <- if (isTRUE(dropIdleControls) && "idleControl" %in% colnames(out)) {
+    as.integer(out$idleControl %in% TRUE)
+  } else {
+    rep(0L, nrow(out))
+  }
+  # Fragility key: fewer binary demotions (high VIF / temporal sign-instability) preferred.
+  fragKey <- if ("fragility" %in% colnames(out)) {
+    ifelse(is.na(out$fragility), 0L, out$fragility)
+  } else {
+    rep(0L, nrow(out))
+  }
+  # Relative trend-reliance key: lower trendShare preferred (a mild within-band nudge).
+  trendKey <- if ("trendKey" %in% colnames(out)) {
+    ifelse(is.na(out$trendKey), 0, out$trendKey)
+  } else {
+    rep(0, nrow(out))
+  }
+  # recompute after the base reorder so band membership indexes the sorted frame
+  worseKey <- ifelse(is.finite(out$minDeltaR2), out$minDeltaR2, -Inf)
+  placed <- integer(0)
+  remaining <- which(out$gatePass)            # already base-ordered
+  while (length(remaining) > 0) {
+    band <- .maximinBand(out, remaining, worseKey, rankBy, nearTieEps)
+    # clean-control first, then low-fragility (VIF/temporal), then low trend-reliance,
+    # then parsimony (FE-discounted BIC), then name.
+    band <- band[order(idleKey[band], fragKey[band], trendKey[band], bicKey[band],
+                       out$model[band])]
+    placed <- c(placed, band)
+    remaining <- setdiff(remaining, band)
+  }
+  out <- out[c(placed, which(!out$gatePass)), , drop = FALSE]
+  rownames(out) <- NULL
+  out
+}
+
+# Internal: the near-tie band of the running leader `remaining[1]`.
+#' @keywords internal
+.maximinBand <- function(out, remaining, worseKey, rankBy, nearTieEps) {
+  lead <- remaining[1]
+  if (identical(rankBy, "worseDeltaR2")) {
+    dl <- worseKey[lead]
+    if (!is.finite(dl)) return(lead)
+    return(remaining[is.finite(worseKey[remaining]) & worseKey[remaining] >= dl - nearTieEps])
+  }
+  dl <- out$meanDeltaR2[lead]
+  if (is.na(dl)) return(lead)
+  remaining[out$minTier[remaining] == out$minTier[lead] &
+              !is.na(out$meanDeltaR2[remaining]) &
+              out$meanDeltaR2[remaining] >= dl - nearTieEps]
 }

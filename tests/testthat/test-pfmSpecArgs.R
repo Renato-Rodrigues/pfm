@@ -22,7 +22,8 @@ test_that("every estimator-accepted spec field is forwarded, apTransform above a
     indexMax = 10,
     # fields the estimator does not accept must be dropped, not passed through
     ridgeInteractions = FALSE,
-    nickellCorrection = FALSE)
+    nickellCorrection = FALSE
+  )
 
   args <- .pfmSpecArgs(cfg)
 
