@@ -144,7 +144,7 @@ cross-country ceiling SD) = −0.42).}
 
 \item{gammaGate}{Numeric or \code{NA}. Severe-gate threshold on the frontier's
 \eqn{\gamma}. \strong{On by default at 0.999 since 2026-09-15 (ADR 0046).}
-\eqn{\gamma     o 1} means \eqn{\sigma_v^2     o 0}: the variance decomposition
+\eqn{\gamma \to 1} means \eqn{\sigma_v^2 \to 0}: the variance decomposition
 attributes ALL composed error to slack and none to noise, so the \emph{stochastic}
 frontier has degenerated into a deterministic one, the likelihood sits on the
 boundary of its parameter space, and \code{frontier::sfa} itself warns that

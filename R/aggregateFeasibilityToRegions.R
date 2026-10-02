@@ -85,16 +85,16 @@
 #'   it Japan (ceiling 8.24) appears maximally constrained while Sub-Saharan Africa
 #'   (ceiling 6.21) appears unconstrained, which inverts the intended reading.
 #'   \code{"absolute"} is retained only as a disclosed sensitivity.
-#' @param phiRule \code{"continuous"} (default) makes \eqn{arphi} a linear
-#'   function of the region's position in the gap range, \eqn{arphi = 1 - 	heta u}
+#' @param phiRule \code{"continuous"} (default) makes \eqn{\varphi} a linear
+#'   function of the region's position in the gap range, \eqn{\varphi = 1 - \theta u}
 #'   with \eqn{u = (g - g_{\min})/(g_{\max} - g_{\min})}; \code{"tiered"} is the
-#'   original rank-quantile scheme, \eqn{arphi = 1 - 	heta (k-1)/(K-1)}.
-#'   Endpoints are identical under both - smallest gap 1, largest \eqn{1-	heta} -
-#'   so \eqn{	heta} keeps its meaning. \strong{Prefer continuous.} The tiered rule
-#'   moves \eqn{arphi} in steps of \eqn{	heta/(K-1)}, and the relative gaps
+#'   original rank-quantile scheme, \eqn{\varphi = 1 - \theta (k-1)/(K-1)}.
+#'   Endpoints are identical under both - smallest gap 1, largest \eqn{1-\theta} -
+#'   so \eqn{\theta} keeps its meaning. \strong{Prefer continuous.} The tiered rule
+#'   moves \eqn{\varphi} in steps of \eqn{\theta/(K-1)}, and the relative gaps
 #'   cluster tightly enough (six H12 regions inside 0.29-0.33) that a 0.05 change in
-#'   \eqn{E} can cross two boundaries and swing \eqn{arphi} by half of
-#'   \eqn{	heta}. \code{tier} is still reported as a descriptive label.
+#'   \eqn{E} can cross two boundaries and swing \eqn{\varphi} by half of
+#'   \eqn{\theta}. \code{tier} is still reported as a descriptive label.
 #' @param tierYear Integer or \code{NULL}. Year whose gaps define the tiers
 #'   (\code{NULL} = the earliest projected year). Tiers are assigned ONCE and held
 #'   fixed - tier migration is a sensitivity, not a default.
