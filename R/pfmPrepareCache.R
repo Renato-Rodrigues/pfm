@@ -62,6 +62,16 @@ pfmPrepareCache <- function(config = NULL, group = NULL, compute = NULL, force =
   cf <- m$cachefolder
   compute <- compute %||% m$compute
   rootPath <- function(p) if (is.null(p) || grepl("^([A-Za-z]:|/|\\\\)", p)) p else file.path(rc$dir, p)
+  # The group's own panel definition (years, IEA edition, ...) decides what the builders read, so
+  # it is resolved here rather than taken from the session: a standalone call
+  # (tools/prepareMadratCache.R --group v6) would otherwise prepare the legacy panel.
+  if (!is.null(group)) {
+    groupDir <- file.path(rootPath(rc$resultsDir %||% "output/pfm"), group)
+    pd <- .pfmPanelDefForGroup(groupDir, rc$panel)
+    oldPanel <- options(pfm.panel = pd[names(.pfmPanelDefLegacy())])
+    on.exit(options(oldPanel), add = TRUE)
+    say("panel: ", .pfmPanelDefLabel(pd), " (", attr(pd, "source"), ")")
+  }
 
   # madrat's own configuration, read BEFORE anything here changes it.
   old <- madrat::getConfig(verbose = FALSE)
@@ -217,16 +227,33 @@ pfmPrepareCache <- function(config = NULL, group = NULL, compute = NULL, force =
     list(id = "historical-panel-four", label = paste0("historical panel, 4 sectors (", res, ")"), f = function()
       panelDataHistorical(aggregate = TRUE, y = spec$histYears, outputRegionMappingFile = res,
                           includePolicyStringency = TRUE, psSectorResolution = "four")))
-  # The scenario panel's madrat calls do not depend on the gdx, so one gdx covers them.
+  # The scenario panel's madrat calls do not depend on the gdx, so one gdx covers them - but they
+  # do depend on the SSP: one builder per SSP the registry declares (SSP2 always). SSP2 keeps the
+  # unsuffixed ids every manifest up to v5 records.
+  ssps <- unique(c("SSP2", vapply(gdxs, function(s) s$ssp %||% "SSP2", character(1))))
+  sfx <- function(ssp) if (identical(ssp, "SSP2")) "" else paste0("-", ssp)
   if (length(gdxs)) {
     g <- gdxs[[1]]
-    b <- c(b, list(list(id = "scenario-panel", label = paste0("scenario panel (", g$id %||% basename(g$gdx), ")"),
-                        f = function() panelDataScenario(gdxFile = g$gdx, aggregate = TRUE,
-                                                         gdxRegionMappingFile = g$gdxRegionMapping %||% "regionmapping_21_EU11.csv",
-                                                         outputRegionMappingFile = "country"))))
+    for (ssp in ssps) {
+      b <- c(b, list(local({
+        sspHere <- ssp
+        list(id = paste0("scenario-panel", sfx(sspHere)),
+             label = paste0("scenario panel (", g$id %||% basename(g$gdx), ", ", sspHere, ")"),
+             f = function() panelDataScenario(gdxFile = g$gdx, aggregate = TRUE,
+                                              gdxRegionMappingFile = g$gdxRegionMapping %||% "regionmapping_21_EU11.csv",
+                                              outputRegionMappingFile = "country", ssp = sspHere))
+      })))
+    }
   }
-  c(b, list(list(id = "coupling-weights", label = paste0("coupling weights (", spec$weightYear, ", ", spec$weightScenario, ")"),
-                 f = function() pfmCouplingWeights(year = spec$weightYear, scenario = spec$weightScenario))))
+  for (ssp in unique(c(spec$weightScenario, ssps))) {
+    b <- c(b, list(local({
+      sspHere <- ssp
+      list(id = paste0("coupling-weights", if (identical(sspHere, spec$weightScenario)) "" else paste0("-", sspHere)),
+           label = paste0("coupling weights (", spec$weightYear, ", ", sspHere, ")"),
+           f = function() pfmCouplingWeights(year = spec$weightYear, scenario = sspHere))
+    })))
+  }
+  b
 }
 
 # --- watching madrat's cache lookups -------------------------------------------------------

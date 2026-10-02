@@ -125,3 +125,14 @@ test_that("geothermal enters the baseload control only when the panel definition
   withr::local_options(pfm.panel = NULL)
   expect_identical(suppressWarnings(iamCalculatedDrivers(x)), off)
 })
+
+test_that("the cache builders cover every SSP the registry declares, SSP2 under the v5 ids", {
+  spec <- list(histYears = 2000:2023, includePolicyStringency = TRUE, weightYear = 2025,
+               weightScenario = "SSP2")
+  gdxs <- list(list(id = "a", gdx = "a.gdx", ssp = "SSP2"), list(id = "b", gdx = "b.gdx", ssp = "SSP3"))
+  ids <- vapply(pfm:::.cacheBuilders(spec, "country", gdxs), `[[`, "", "id")
+  expect_identical(ids, c("historical-panel", "historical-panel-four", "scenario-panel",
+                          "scenario-panel-SSP3", "coupling-weights", "coupling-weights-SSP3"))
+  ids <- vapply(pfm:::.cacheBuilders(spec, "country", list()), `[[`, "", "id")
+  expect_identical(ids, c("historical-panel", "historical-panel-four", "coupling-weights"))
+})
