@@ -48,10 +48,24 @@
 #' It applies to a group that has not been swept yet; a swept group keeps the definition
 #' recorded in its manifest (\code{\link{pfmPanelDef}}).
 #'
+#' @section The sweep block:
+#' \preformatted{
+#' sweep:
+#'   apTransforms: [linear, saturating, saturating-innovator, saturating-incumbent]
+#'   dropCompositeAP: true
+#'   apExtrapolationGate: 0.275      # share of country-years; omit to leave the gate off
+#'   apExtrapolationSd: 1
+#'   apExtrapolationWindow: [2025, 2100]
+#'   groups: {}                      # per-Run-Group overrides, as for panel
+#' }
+#' Arguments of \code{\link{runPFMSweep}} (design note 0005 D7). Like \code{panel}, it applies
+#' only to a group not swept yet: the sweep records them in the manifest
+#' (\code{sweepOptions}), and a group swept before the record keeps the v5 grid.
+#'
 #' @return List with \code{scenarios} (or \code{NULL}), \code{gdxFile} (the gating
 #'   scenario's gdx, or \code{NULL}), \code{cachefolder}, \code{sourcefolder},
-#'   \code{madrat} (the resolved madrat block), \code{panel} (the panel block resolved for
-#'   \code{group}, or \code{NULL}), \code{group}, \code{recordsDir}, \code{resultsDir},
+#'   \code{madrat} (the resolved madrat block), \code{panel} and \code{sweep} (the blocks
+#'   resolved for \code{group}, or \code{NULL}), \code{group}, \code{recordsDir}, \code{resultsDir},
 #'   \code{modelDir}, \code{path} and \code{dir}.
 #' @author Renato Rodrigues
 #' @export
@@ -133,9 +147,18 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
     panel <- .pfmPanelDefNormalise(panel)
   }
 
+  # --- sweep: the actor-power axes and the extrapolation gate (0005 D7), same override rule ---
+  sweep <- cfg[["sweep"]]
+  if (!is.null(sweep)) {
+    override <- if (!is.null(group)) sweep[["groups"]][[group]] else NULL
+    sweep[["groups"]] <- NULL
+    if (!is.null(override)) sweep <- utils::modifyList(sweep, override)
+    sweep <- .pfmSweepOptionsNormalise(sweep)
+  }
+
   list(scenarios = scenarios, gdxFile = gdxFile,
        cachefolder = cachefolder, sourcefolder = sourcefolder, madrat = madratBlock,
-       panel = panel, group = group,
+       panel = panel, sweep = sweep, group = group,
        resultsDir = def("resultsDir", NULL), modelDir = def("modelDir", NULL),
        # Tracked reproduction records, one folder per Run-Group: the madrat pin and the list
        # of input files (pfmPrepareCache). Unlike output/, this folder is in git.
@@ -148,5 +171,62 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
        # units are in frame, so this changes the fitted object, not the display.
        outputRegionMappingFile = cfg[["outputRegionMappingFile"]] %||% "country",
        path = path, dir = confDir)
+}
+# The sweep options (runPFMSweep arguments, design note 0005 D7) in their R types. Accepts the
+# config form and the manifest form (lists, "off" for a disabled gate).
+#' @keywords internal
+.pfmSweepOptionsNormalise <- function(o) {
+  keys <- c("apTransforms", "dropCompositeAP", "apExtrapolationGate", "apExtrapolationSd",
+            "apExtrapolationWindow")
+  unknown <- setdiff(names(o), keys)
+  if (length(unknown)) {
+    stop("sweep options: unknown key(s) ", paste(unknown, collapse = ", "), "; known: ",
+         paste(keys, collapse = ", "), call. = FALSE)
+  }
+  if (!is.null(o$apTransforms)) {
+    o$apTransforms <- match.arg(as.character(unlist(o$apTransforms)),
+                                c("linear", "saturating", "saturating-innovator", "saturating-incumbent"),
+                                several.ok = TRUE)
+  }
+  if (!is.null(o$dropCompositeAP)) o$dropCompositeAP <- isTRUE(as.logical(o$dropCompositeAP))
+  if (!is.null(o$apExtrapolationGate)) {
+    g <- o$apExtrapolationGate
+    o$apExtrapolationGate <- if (identical(g, "off")) Inf else as.numeric(g)
+  }
+  if (!is.null(o$apExtrapolationSd)) o$apExtrapolationSd <- as.numeric(o$apExtrapolationSd)
+  if (!is.null(o$apExtrapolationWindow)) {
+    o$apExtrapolationWindow <- as.numeric(unlist(o$apExtrapolationWindow))
+  }
+  o
+}
+
+# A group's sweep options: the manifest record > none for a group swept before the record
+# (runPFMSweep's defaults, the v5 grid) > config.yml sweep: > none. As .pfmPanelDefForGroup.
+#' @keywords internal
+.pfmSweepOptionsForGroup <- function(groupDir, configSweep = NULL) {
+  mf <- file.path(groupDir, "manifest.json")
+  man <- if (file.exists(mf)) tryCatch(jsonlite::fromJSON(mf, simplifyVector = FALSE),
+                                       error = function(e) NULL) else NULL
+  if (!is.null(man[["sweepOptions"]])) {
+    return(structure(.pfmSweepOptionsNormalise(man[["sweepOptions"]]), source = "manifest"))
+  }
+  if (!is.null(man[["panel_hash"]])) {
+    return(structure(list(), source = "legacy (swept before the record): the v5 grid"))
+  }
+  if (!is.null(configSweep)) return(structure(configSweep, source = "config"))
+  structure(list(), source = "defaults: the v5 grid")
+}
+
+# One line for the plan.
+#' @keywords internal
+.pfmSweepOptionsLabel <- function(o) {
+  tf <- o$apTransforms %||% c("linear", "saturating")
+  gate <- o$apExtrapolationGate %||% Inf
+  paste0("actor power ", paste(tf, collapse = "/"),
+         if (isTRUE(o$dropCompositeAP)) ", no composite AP" else "",
+         if (is.finite(gate)) {
+           paste0(", AP-extrapolation gate ", gate, " (> ", o$apExtrapolationSd %||% 1, " SD, ",
+                  paste(o$apExtrapolationWindow %||% c(2025, 2100), collapse = "-"), ")")
+         } else ", no AP-extrapolation gate")
 }
 # nolint end

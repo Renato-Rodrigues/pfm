@@ -85,6 +85,21 @@ test_that("saturating transform uses the training median and is applied before s
   expect_equal(order(sat$Innovator.Power), order(raw$Innovator.Power))
 })
 
+test_that("the one-group forms saturate innovator or incumbent columns only (0005 D7)", {
+  m <- makePFMSplitMagpie()
+  satOf <- function(tf) {
+    sc <- attr(do.call(preparePanelData, prepArgs(data = m, apTransform = tf)), "driverScaling")
+    vapply(c("Innovator.Power", "Incumbent.Power"), function(cl) is.finite(sc[[cl]][["sat"]]), logical(1))
+  }
+  expect_identical(unname(satOf("saturating-innovator")), c(TRUE, FALSE))
+  expect_identical(unname(satOf("saturating-incumbent")), c(FALSE, TRUE))
+  expect_identical(unname(satOf("saturating")), c(TRUE, TRUE))
+  # the linear group is exactly the linear fit's column
+  lin <- do.call(preparePanelData, prepArgs(data = m))
+  inn <- do.call(preparePanelData, prepArgs(data = m, apTransform = "saturating-innovator"))
+  expect_equal(inn$Incumbent.Power, lin$Incumbent.Power)
+})
+
 test_that("IQ and control columns are NOT transformed", {
   m <- makePFMSplitMagpie()
   raw <- do.call(preparePanelData, prepArgs(data = m))

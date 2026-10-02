@@ -206,9 +206,11 @@ startRun <- function(group,
 #' @keywords internal
 .rlit <- function(x) {
   if (is.null(x)) return("NULL")
+  # Vectors first, whatever their type: a numeric c(2025, 2100) used to come back as two
+  # strings, which would have split the job script's call.
+  if (length(x) != 1) return(paste0("c(", paste(vapply(x, .rlit, character(1)), collapse = ", "), ")"))
   if (is.logical(x)) return(if (isTRUE(x)) "TRUE" else "FALSE")
   if (is.numeric(x)) return(as.character(x))
-  if (length(x) != 1) return(paste0("c(", paste(vapply(x, .rlit, character(1)), collapse = ", "), ")"))
   paste0('"', gsub('"', '\\\\"', x), '"')
 }
 

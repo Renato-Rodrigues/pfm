@@ -4,12 +4,27 @@
 \alias{pfmSpecs}
 \title{Adapt the shared channel spec grid for the Political Feasibility Model}
 \usage{
-pfmSpecs(specs, verbose = TRUE)
+pfmSpecs(
+  specs,
+  verbose = TRUE,
+  apTransforms = c("linear", "saturating"),
+  dropCompositeAP = FALSE
+)
 }
 \arguments{
 \item{specs}{List of spec lists (raw YAML entries or already normalised).}
 
 \item{verbose}{Logical.}
+
+\item{apTransforms}{The actor-power forms each SPLIT actor-power spec is fitted in
+(\code{\link{preparePanelData}}'s \code{apTransform}): \code{"linear"} keeps the spec as
+it is, the others append a twin with the suffix \code{" satAP"} (both groups saturating),
+\code{" satInn"} (innovator only) or \code{" satInc"} (incumbent only). Default
+\code{c("linear", "saturating")}, the grid of every Run-Group up to v5.}
+
+\item{dropCompositeAP}{Logical. Drop the specs whose actor power is the composite Actor
+Power Index (a difference that cannot be saturated; design note 0005 D7). Default
+\code{FALSE}, as up to v5.}
 }
 \value{
 The adapted, normalised spec list.

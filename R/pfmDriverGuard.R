@@ -79,6 +79,13 @@
     }
   }
   attr(ranges, "empirical") <- empirical
+  # Actor-power columns (they carry a `sat` element, NA when linear): what the actor-power
+  # extrapolation gate measures (design note 0005 D7).
+  if (!is.null(scaling)) {
+    attr(ranges, "apCols") <- names(ranges)[vapply(names(ranges), function(cl) {
+      "sat" %in% names(scaling[[cl]])
+    }, logical(1))]
+  }
   ranges
 }
 
@@ -91,7 +98,18 @@
   empirical <- attr(ranges, "empirical")
   if (length(guardCols) == 0) {
     return(list(df = df, outOfSupport = rep(NA_real_, nrow(df)),
-                outOfSample = rep(NA_real_, nrow(df))))
+                outOfSample = rep(NA_real_, nrow(df)), apExcess = rep(NA_real_, nrow(df))))
+  }
+  # Largest distance (standardized units = training SDs) by which an actor-power driver lies
+  # beyond its guard range, BEFORE clamping. The guard range of a saturating column is its
+  # physical domain, so only linear actor-power terms can extrapolate here.
+  apCols <- intersect(attr(ranges, "apCols"), guardCols)
+  apExcess <- if (length(apCols)) rep(0, nrow(df)) else rep(NA_real_, nrow(df))
+  for (cl in apCols) {
+    v <- df[[cl]]
+    ex <- pmax(v - ranges[[cl]][["max"]], ranges[[cl]][["min"]] - v, 0)
+    ex[!is.finite(ex)] <- 0
+    apExcess <- pmax(apExcess, ex)
   }
   for (cl in guardCols) {
     lo <- ranges[[cl]][["min"]]
@@ -122,7 +140,8 @@
   }
   list(df = df,
        outOfSupport = outCount / length(guardCols),
-       outOfSample = sampCount / length(guardCols))
+       outOfSample = sampCount / length(guardCols),
+       apExcess = apExcess)
 }
 
 # Spread of the estimated region-FE coefficients (the reference level enters as 0).

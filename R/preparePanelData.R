@@ -66,6 +66,9 @@
 #'   energy transition flattens instead of extrapolating linearly into a region no
 #'   country has occupied. Applies only to strictly-positive actor-power columns
 #'   (the composite Actor Power Index is a difference and is left linear).
+#'   \code{"saturating-innovator"} and \code{"saturating-incumbent"} apply it to the
+#'   innovator columns only or to the incumbent columns (share and per capita) only, and
+#'   leave the other group linear (design note 0005 D7: the sweep selects among the four).
 #'   \strong{Fit mode only}: \code{xBar} is frozen into the \code{"driverScaling"}
 #'   attribute as the \code{sat} element, so apply-mode callers reproduce the
 #'   transform by passing the stored \code{driverScaling} and need not set this
@@ -471,14 +474,15 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
   # positive - the composite Actor Power Index is a DIFFERENCE (innovator minus
   # incumbent, ~[-0.8, 0.1]) for which "diminishing returns in a share" is not
   # defined, so it is left linear and flagged with sat = NA.
-  apTransform <- match.arg(apTransform, c("linear", "saturating"))
+  apTransform <- match.arg(apTransform, c("linear", "saturating", "saturating-innovator",
+                                           "saturating-incumbent"))
   apVars <- intersect(make.names(unique(c(actorPowerDrivers, actorPowerIndex))), scaleVars)
   satOf <- function(col) {
     if (!is.null(driverScaling) && !is.null(driverScaling[[col]])) {
       s <- driverScaling[[col]]
       return(if ("sat" %in% names(s)) unname(s[["sat"]]) else NA_real_)
     }
-    if (!identical(apTransform, "saturating")) return(NA_real_)
+    if (!.apSaturates(apTransform, col)) return(NA_real_)
     v <- df[[col]]
     if (any(v < 0, na.rm = TRUE)) {
       warning("preparePanelData: apTransform = 'saturating' skipped for '", col,
@@ -552,3 +556,15 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
   return(df)
 }
 # nolint end
+
+# Whether an actor-power column is saturated under `apTransform` (design note 0005 D7).
+#' @keywords internal
+.apSaturates <- function(apTransform, col) {
+  switch(apTransform,
+    linear = FALSE,
+    saturating = TRUE,
+    "saturating-innovator" = grepl("^Innovator", col),
+    "saturating-incumbent" = grepl("^Incumbent", col),
+    stop("unknown apTransform '", apTransform, "'", call. = FALSE)
+  )
+}

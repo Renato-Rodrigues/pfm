@@ -89,6 +89,9 @@ applies the parameter-free diminishing-returns map \code{x / (x + xBar)} with
 energy transition flattens instead of extrapolating linearly into a region no
 country has occupied. Applies only to strictly-positive actor-power columns
 (the composite Actor Power Index is a difference and is left linear).
+\code{"saturating-innovator"} and \code{"saturating-incumbent"} apply it to the
+innovator columns only or to the incumbent columns (share and per capita) only, and
+leave the other group linear (design note 0005 D7: the sweep selects among the four).
 \strong{Fit mode only}: \code{xBar} is frozen into the \code{"driverScaling"}
 attribute as the \code{sat} element, so apply-mode callers reproduce the
 transform by passing the stored \code{driverScaling} and need not set this

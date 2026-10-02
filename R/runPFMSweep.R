@@ -123,6 +123,17 @@
 #'   window is mostly winsorized is scoring the extrapolation guard, not the
 #'   model - the diagnosed cause of the ceiling-feedback sign artifact. Set
 #'   \code{NA} to disable.
+#' @param apTransforms,dropCompositeAP The actor-power axes of the grid, see
+#'   \code{\link{pfmSpecs}}. Defaults reproduce every Run-Group up to v5; v6 sweeps all four
+#'   forms and drops the composite Actor Power Index (design note 0005 D7; \code{config.yml}
+#'   \code{sweep:}).
+#' @param apExtrapolationGate,apExtrapolationSd,apExtrapolationWindow The actor-power
+#'   extrapolation gate of the sanity walk (0005 D7): severe when more than
+#'   \code{apExtrapolationGate} of the in-coverage country-years in \code{apExtrapolationWindow}
+#'   have an actor-power driver more than \code{apExtrapolationSd} training SDs beyond its
+#'   guard range, on the gating or the reference projection. Saturating columns are guarded at
+#'   their physical domain and pass by construction. \code{Inf} (default) disables it, as up
+#'   to v5.
 #' @param minScenarioDelta,deltaWindow Responsiveness-gate knobs (default
 #'   \code{0.05} index points over \code{c(2040, 2060)}).
 #' @param sanityBatchSize,sanityMaxModels,sanityThresholds Sanity-walk knobs;
@@ -172,6 +183,11 @@ runPFMSweep <- function(group,
                         ceilingFallGate = 0.90,
                         gammaGate = 0.999,
                         vcovGate = c("likelihood-mismatch", "flat"),
+                        apTransforms = c("linear", "saturating"),
+                        dropCompositeAP = FALSE,
+                        apExtrapolationGate = Inf,
+                        apExtrapolationSd = 1,
+                        apExtrapolationWindow = c(2025, 2100),
                         gdxRegionMappingFile = "regionmappingH12.csv",
                         apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
                         sanityBatchSize = 5,
@@ -279,7 +295,8 @@ runPFMSweep <- function(group,
                                       overwrite = overwriteConfig)
     specs <- yaml::read_yaml(configPath)
   }
-  specs <- pfmSpecs(specs, verbose = verbose)
+  specs <- pfmSpecs(specs, verbose = verbose, apTransforms = apTransforms,
+                    dropCompositeAP = dropCompositeAP)
   say(length(specs), " PFM specs after adaptation.")
 
   # ── Fit grid: one stage, satP engine ─────────────────────────────────────────
@@ -370,6 +387,7 @@ runPFMSweep <- function(group,
                 if (is.finite(gammaGate)) "gammaGate",
                 if (length(vcovGate)) "vcovGate",
                 if (is.finite(supportShareGate)) "supportShareGate",
+                if (is.finite(apExtrapolationGate)) "apExtrapolationGate",
                 "sanity walk", "scenarioBlind")
     warning("runPFMSweep: no scenario panel - selecting on maximin ALONE. ",
             "Skipped: ", paste(active, collapse = ", "), ". ",
@@ -393,6 +411,8 @@ runPFMSweep <- function(group,
       ceilingFallGate = ceilingFallGate,
       gammaGate = gammaGate,
       vcovGate = vcovGate,
+      apExtrapolationGate = apExtrapolationGate, apExtrapolationSd = apExtrapolationSd,
+      apExtrapolationWindow = apExtrapolationWindow,
       say = say
     )
     # Tier-relaxed fallback (ADR 0039): if every Green-gate candidate fails the
@@ -417,6 +437,8 @@ runPFMSweep <- function(group,
           ceilingFallGate = ceilingFallGate,
           gammaGate = gammaGate,
           vcovGate = vcovGate,
+          apExtrapolationGate = apExtrapolationGate, apExtrapolationSd = apExtrapolationSd,
+          apExtrapolationWindow = apExtrapolationWindow,
           say = say
         )
         if (!isTRUE(selBlue$forced)) {
@@ -482,7 +504,11 @@ runPFMSweep <- function(group,
     groupDir, group = group, mode = paste0("pfm-", mode),
     panelData = panelData, scenarioData = scenarioData, gdxFile = gdxFile,
     selectionMethod = "pfm-maximin", nCores = nCores,
-    # What the group was fitted on, read back by every later step (pfmPanelDef).
+    # What the group was selected with and fitted on, read back by every later step
+    # (.pfmSweepOptionsForGroup, pfmPanelDef).
+    sweepOptions = list(apTransforms = as.list(apTransforms), dropCompositeAP = dropCompositeAP,
+                        apExtrapolationGate = apExtrapolationGate, apExtrapolationSd = apExtrapolationSd,
+                        apExtrapolationWindow = as.list(apExtrapolationWindow)),
     panelDef = list(firstYear = min(y), lastYear = max(y), movingAverage = movingAverage %||% 1L,
                     ieaVersion = pfmPanelDef()$ieaVersion, geothermal = pfmPanelDef()$geothermal)
   )
@@ -514,9 +540,20 @@ runPFMSweep <- function(group,
 #'
 #' @param specs List of spec lists (raw YAML entries or already normalised).
 #' @param verbose Logical.
+#' @param apTransforms The actor-power forms each SPLIT actor-power spec is fitted in
+#'   (\code{\link{preparePanelData}}'s \code{apTransform}): \code{"linear"} keeps the spec as
+#'   it is, the others append a twin with the suffix \code{" satAP"} (both groups saturating),
+#'   \code{" satInn"} (innovator only) or \code{" satInc"} (incumbent only). Default
+#'   \code{c("linear", "saturating")}, the grid of every Run-Group up to v5.
+#' @param dropCompositeAP Logical. Drop the specs whose actor power is the composite Actor
+#'   Power Index (a difference that cannot be saturated; design note 0005 D7). Default
+#'   \code{FALSE}, as up to v5.
 #' @return The adapted, normalised spec list.
 #' @export
-pfmSpecs <- function(specs, verbose = TRUE) {
+pfmSpecs <- function(specs, verbose = TRUE, apTransforms = c("linear", "saturating"),
+                     dropCompositeAP = FALSE) {
+  apTransforms <- match.arg(apTransforms, c("linear", "saturating", "saturating-innovator",
+                                            "saturating-incumbent"), several.ok = TRUE)
   normalize <- function(cfg) {
     for (f in c("actorPowerDrivers", "actorPowerIndex", "instQualityDrivers", "controlDrivers")) {
       if (!is.null(cfg[[f]])) cfg[[f]] <- unlist(cfg[[f]])
@@ -564,14 +601,32 @@ pfmSpecs <- function(specs, verbose = TRUE) {
     api <- unlist(cfg$actorPowerIndex)
     length(api) > 0 && !any(grepl("^Actor Power Index", api))
   }
-  twins <- lapply(Filter(isSplitAP, specs), function(cfg) {
-    cfg$apTransform <- "saturating"
-    cfg$name <- paste0(cfg$name, " satAP")
-    cfg$description <- paste0(cfg$description %||% "",
-                              if (nzchar(cfg$description %||% "")) " " else "",
-                              "[saturating actor power: x/(x+median), ADR 0040]")
-    cfg
-  })
+  isComposite <- function(cfg) any(grepl("^Actor Power Index", unlist(cfg$actorPowerIndex)))
+  if (isTRUE(dropCompositeAP)) {
+    nComp <- sum(vapply(specs, isComposite, logical(1)))
+    specs <- Filter(Negate(isComposite), specs)
+    if (isTRUE(verbose)) message("[pfmSpecs] ", nComp, " composite Actor Power Index specs dropped.")
+  }
+  # One twin per non-linear form (design note 0005 D7). The suffixes keep the names of the
+  # Run-Groups up to v5, where the only twin was " satAP" (both groups saturating).
+  twinForm <- list(
+    saturating = c(sfx = " satAP", txt = "[saturating actor power: x/(x+median), ADR 0040]"),
+    "saturating-innovator" = c(sfx = " satInn", txt = "[saturating innovator power, linear incumbents: 0005 D7]"),
+    "saturating-incumbent" = c(sfx = " satInc", txt = "[saturating incumbent power, linear innovators: 0005 D7]")
+  )
+  split <- Filter(isSplitAP, specs)
+  twins <- unlist(lapply(setdiff(apTransforms, "linear"), function(tf) {
+    lapply(split, function(cfg) {
+      cfg$apTransform <- tf
+      cfg$name <- paste0(cfg$name, twinForm[[tf]][["sfx"]])
+      cfg$description <- paste0(cfg$description %||% "",
+                                if (nzchar(cfg$description %||% "")) " " else "",
+                                twinForm[[tf]][["txt"]])
+      cfg
+    })
+  }), recursive = FALSE)
+  # Without "linear" the split originals leave the grid (composite specs are never twinned).
+  if (!"linear" %in% apTransforms) specs <- Filter(Negate(isSplitAP), specs)
   specs <- c(specs, twins)
   if (isTRUE(verbose)) {
     message("[pfmSpecs] ", length(twins), " saturating actor-power twins appended",

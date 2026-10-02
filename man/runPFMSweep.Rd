@@ -40,6 +40,11 @@ runPFMSweep(
   ceilingFallGate = 0.9,
   gammaGate = 0.999,
   vcovGate = c("likelihood-mismatch", "flat"),
+  apTransforms = c("linear", "saturating"),
+  dropCompositeAP = FALSE,
+  apExtrapolationGate = Inf,
+  apExtrapolationSd = 1,
+  apExtrapolationWindow = c(2025, 2100),
   gdxRegionMappingFile = "regionmappingH12.csv",
   apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
   sanityBatchSize = 5,
@@ -164,6 +169,19 @@ could not be checked or because the information matrix is not negative definite.
 evaluated spec either way. \code{character(0)} disables. Like \code{gammaGate}, it
 reads the frontier fit of the ceiling check, so it runs only while
 \code{ceilingFallGate} is set.}
+
+\item{apTransforms, dropCompositeAP}{The actor-power axes of the grid, see
+\code{\link{pfmSpecs}}. Defaults reproduce every Run-Group up to v5; v6 sweeps all four
+forms and drops the composite Actor Power Index (design note 0005 D7; \code{config.yml}
+\code{sweep:}).}
+
+\item{apExtrapolationGate, apExtrapolationSd, apExtrapolationWindow}{The actor-power
+extrapolation gate of the sanity walk (0005 D7): severe when more than
+\code{apExtrapolationGate} of the in-coverage country-years in \code{apExtrapolationWindow}
+have an actor-power driver more than \code{apExtrapolationSd} training SDs beyond its
+guard range, on the gating or the reference projection. Saturating columns are guarded at
+their physical domain and pass by construction. \code{Inf} (default) disables it, as up
+to v5.}
 
 \item{gdxRegionMappingFile}{Character. The \strong{gdx's own native resolution}, not a
 target (PITFALLS §5) — \code{"regionmappingH12.csv"} (default) for an H12 gdx,

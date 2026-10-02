@@ -91,7 +91,8 @@ show the theory channels survive within-year identification. \strong{Never a
 swept/projection option} (year FE cannot be extrapolated); estimator-agreement
 rung only. Default \code{FALSE}.}
 
-\item{apTransform}{Character. \code{"linear"} (default) or \code{"saturating"}
+\item{apTransform}{Character. \code{"linear"} (default), \code{"saturating"},
+\code{"saturating-innovator"} or \code{"saturating-incumbent"}
 — the functional form of the actor-power drivers (ADR 0040). See
 \code{\link{preparePanelData}}. The saturating form bounds the extrapolation
 of the actor-power slopes (and hence of the AP x IQ interactions) outside

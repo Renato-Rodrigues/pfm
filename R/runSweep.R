@@ -178,7 +178,8 @@ runSweep <- function(group,
 .writeRunGroupManifest <- function(groupDir, group, mode, step = NULL,
                                    panelData = NULL, scenarioData = NULL, gdxFile = NULL,
                                    selectionMethod = NULL, nCores = NULL,
-                                   stepStats = NULL, run = NULL, panelDef = NULL) {
+                                   stepStats = NULL, run = NULL, panelDef = NULL,
+                                   sweepOptions = NULL) {
   path <- file.path(groupDir, "manifest.json")
   man <- if (file.exists(path)) {
     tryCatch(jsonlite::fromJSON(path, simplifyVector = FALSE), error = function(e) list())
@@ -211,6 +212,11 @@ runSweep <- function(group,
   # The panel definition (years, smoothing, IEA edition): see pfmPanelDef. Recorded once, by
   # the sweep that fits the group; later steps only read it.
   if (!is.null(panelDef)) man$panel <- .pfmPanelDefNormalise(panelDef)
+  # The actor-power axes and the extrapolation gate the grid was selected with (0005 D7).
+  if (!is.null(sweepOptions)) {
+    if (!is.finite(sweepOptions$apExtrapolationGate %||% Inf)) sweepOptions$apExtrapolationGate <- "off"
+    man$sweepOptions <- sweepOptions
+  }
   if (!is.null(scenarioData)) man$scenario <- "present"
   if (!is.null(gdxFile)) {
     man$gdx <- if (file.exists(gdxFile)) {

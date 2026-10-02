@@ -283,6 +283,11 @@ pfmRun <- function(group = NULL,
   # and startRun() carries it into SLURM jobs.
   panelDef <- .pfmPanelDefForGroup(groupDir, rc$panel)
   options(pfm.panel = panelDef[c("firstYear", "lastYear", "movingAverage", "ieaVersion", "geothermal")])
+  # The sweep's actor-power axes and extrapolation gate (0005 D7), resolved the same way; they
+  # reach runPFMSweep as arguments below, and the caller's own arguments still win.
+  sweepOpts <- .pfmSweepOptionsForGroup(groupDir, rc$sweep)
+  sweepKeys <- c("apTransforms", "dropCompositeAP", "apExtrapolationGate", "apExtrapolationSd",
+                 "apExtrapolationWindow")
   hasSpec <- file.exists(.pfmSelectedModels(groupDir))
 
   # ── stage / steps ───────────────────────────────────────────────────────────
@@ -470,6 +475,9 @@ pfmRun <- function(group = NULL,
   message("  panel res   : ", list(...)$outputRegionMappingFile %||% rc$outputRegionMappingFile,
           if (is.null(list(...)$outputRegionMappingFile)) "  (config)" else "  (caller)")
   message("  panel       : ", .pfmPanelDefLabel(panelDef), "  (", attr(panelDef, "source"), ")")
+  callerSweep <- list(...)[intersect(names(list(...)), sweepKeys)]
+  message("  sweep       : ", .pfmSweepOptionsLabel(utils::modifyList(unclass(sweepOpts), callerSweep)),
+          "  (", if (length(callerSweep)) "caller + " else "", attr(sweepOpts, "source"), ")")
   ownCache <- !is.null(list(...)$cachefolder)
   message("  madrat cache: ", list(...)$cachefolder %||% rc$cachefolder,
           if (ownCache) "  (caller; not prepared)" else paste0("  [tag ", rc$madrat$tag, "]",
@@ -570,7 +578,7 @@ pfmRun <- function(group = NULL,
            # `outputRegionMappingFile`. Passing it once here is what keeps the fit
            # and the projection at the same resolution.
            outputRegionMappingFile = rc$outputRegionMappingFile),
-      list(...))
+      c(unclass(sweepOpts), list(...)))
     if (!is.null(rc$gdxFile)) args$gdxFile <- rc$gdxFile
     # Absolute: a SLURM job's working directory is not necessarily this one.
     if ("pfm-remind-inputs" %in% pipelineSteps) {

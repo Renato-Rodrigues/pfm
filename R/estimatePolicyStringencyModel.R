@@ -79,7 +79,8 @@
 #'   choice; they are part of the Fit-Cache key and are stored on the returned fit
 #'   as \code{trendParams}, which \code{\link{projectFeasiblePath}} reuses so a
 #'   projection can never be built on a different curve from the fit.
-#' @param apTransform Character. \code{"linear"} (default) or \code{"saturating"}
+#' @param apTransform Character. \code{"linear"} (default), \code{"saturating"},
+#'   \code{"saturating-innovator"} or \code{"saturating-incumbent"}
 #'   — the functional form of the actor-power drivers (ADR 0040). See
 #'   \code{\link{preparePanelData}}. The saturating form bounds the extrapolation
 #'   of the actor-power slopes (and hence of the AP x IQ interactions) outside
@@ -315,7 +316,8 @@ estimatePolicyStringencyModel <- function(
   # request made under the new one.
   cacheExtra <- paste0("pfm-", estimator, "+max", indexMax,
                        if (identical(form, "ecm")) "+ecm" else "",
-                       if (identical(apTransform, "saturating")) "+satAP" else "",
+                       switch(apTransform, saturating = "+satAP", "saturating-innovator" = "+satInn",
+                              "saturating-incumbent" = "+satInc", ""),
                        "+trend", trendMidpoint, "_", trendSteepness, "+scaledTrend")
   usesCache <- identical(estimator, "satP") && !is.null(modelDir)
   if (usesCache && !isTRUE(ignoreCache)) {

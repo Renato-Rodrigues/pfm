@@ -18,8 +18,8 @@ working directory and returns empty defaults if there is none.}
 \value{
 List with \code{scenarios} (or \code{NULL}), \code{gdxFile} (the gating
 scenario's gdx, or \code{NULL}), \code{cachefolder}, \code{sourcefolder},
-\code{madrat} (the resolved madrat block), \code{panel} (the panel block resolved for
-\code{group}, or \code{NULL}), \code{group}, \code{recordsDir}, \code{resultsDir},
+\code{madrat} (the resolved madrat block), \code{panel} and \code{sweep} (the blocks
+resolved for \code{group}, or \code{NULL}), \code{group}, \code{recordsDir}, \code{resultsDir},
 \code{modelDir}, \code{path} and \code{dir}.
 }
 \description{
@@ -65,6 +65,22 @@ panel:
 }
 It applies to a group that has not been swept yet; a swept group keeps the definition
 recorded in its manifest (\code{\link{pfmPanelDef}}).
+}
+
+\section{The sweep block}{
+
+\preformatted{
+sweep:
+  apTransforms: [linear, saturating, saturating-innovator, saturating-incumbent]
+  dropCompositeAP: true
+  apExtrapolationGate: 0.275      # share of country-years; omit to leave the gate off
+  apExtrapolationSd: 1
+  apExtrapolationWindow: [2025, 2100]
+  groups: {}                      # per-Run-Group overrides, as for panel
+}
+Arguments of \code{\link{runPFMSweep}} (design note 0005 D7). Like \code{panel}, it applies
+only to a group not swept yet: the sweep records them in the manifest
+(\code{sweepOptions}), and a group swept before the record keeps the v5 grid.
 }
 
 \author{

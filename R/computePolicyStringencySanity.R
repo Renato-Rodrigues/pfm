@@ -95,6 +95,7 @@ projectPFMSpecScenario <- function(cfg, sector, histData, scenarioData,
   guarded <- .pfmDriverGuard(sDf, ranges)
   driverOutOfSupport <- guarded$outOfSupport
   driverOutOfSample <- guarded$outOfSample
+  driverAPExcess <- guarded$apExcess %||% rep(NA_real_, nrow(sDf))
   if (identical(driverGuard, "winsorize")) {
     sDf <- guarded$df
   }
@@ -165,6 +166,7 @@ projectPFMSpecScenario <- function(cfg, sector, histData, scenarioData,
     outOfCoverage = ocRows,
     driverOutOfSupport = driverOutOfSupport,
     driverOutOfSample = driverOutOfSample,
+    driverAPExcess = driverAPExcess,
     stringsAsFactors = FALSE
   )
   cut <- minProjYear %||% (if (is.finite(lastHistYear)) lastHistYear else -Inf)
@@ -387,6 +389,8 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
                              supportShareGate = 0.275,
                              ceilingFallGate = NA_real_, gammaGate = 0.999,
                              vcovGate = c("likelihood-mismatch", "flat"),
+                             apExtrapolationGate = Inf, apExtrapolationSd = 1,
+                             apExtrapolationWindow = c(2025, 2100),
                              say = function(...) invisible()) {
   ceilingByModel <- list()
   gammaByModel <- list()
@@ -469,6 +473,43 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
               " > ", supportShareGate)
         }
       }
+
+      # Actor-power extrapolation gate (design note 0005 D7, option 2C). The support-share gate
+      # above looks at 2040-2060 and at every driver; v6 reads the frontier to 2100 with no hold
+      # year (D6), and the diagnosed failure is specific to actor power: a LINEAR actor-power term
+      # extrapolated 5-9 SD beyond any observed share (0004 section 1). Severe when more than
+      # `apExtrapolationGate` of the in-coverage country-years in `apExtrapolationWindow` have an
+      # actor-power driver more than `apExtrapolationSd` training SDs beyond its guard range.
+      # Saturating columns are guarded at their physical domain, so they pass by construction:
+      # the gate decides between linear and saturating forms by how they extrapolate, which the
+      # in-sample fit cannot (satAP 45.9% of v5 bootstrap winners vs 43.3% of the pool).
+      # Scored on the gating projection here and on the reference projection below.
+      apGateShare <- function(pr) {
+        if (!is.finite(apExtrapolationGate) || !"driverAPExcess" %in% colnames(pr)) return(NA_real_)
+        w <- pr[pr$year >= apExtrapolationWindow[1] & pr$year <= apExtrapolationWindow[2], , drop = FALSE]
+        if ("outOfCoverage" %in% colnames(w)) w <- w[!w$outOfCoverage %in% TRUE, , drop = FALSE]
+        if (nrow(w) == 0 || all(is.na(w$driverAPExcess))) return(NA_real_)
+        mean(w$driverAPExcess > apExtrapolationSd, na.rm = TRUE)
+      }
+      apGateFlag <- function(share, which) {
+        if (!is.finite(apExtrapolationGate) || !is.finite(share) || share <= apExtrapolationGate) {
+          return(invisible(FALSE))
+        }
+        nSevere <<- nSevere + 1L
+        modelFlags[[paste0(sec, ".actorPowerExtrapolation.", which)]] <<- data.frame(
+          rule = "actorPowerExtrapolation", severity = "severe",
+          region = "ALL", year = NA_integer_, value = share,
+          detail = paste0(which, ": ", round(100 * share, 1), "% of country-years with an ",
+                          "actor-power driver > ", apExtrapolationSd, " SD beyond its support ",
+                          "(gate ", apExtrapolationGate, ", ", apExtrapolationWindow[1], "-",
+                          apExtrapolationWindow[2], ", in-coverage)"),
+          sector = sec, stringsAsFactors = FALSE
+        )
+        say("  [sanity:PolicyStringency] ", m, " (", sec, ") actor-power extrapolation (", which,
+            "): ", round(share, 3), " > ", apExtrapolationGate)
+        invisible(TRUE)
+      }
+      apGateFlag(apGateShare(proj), "gating")
 
       # Ceiling-collapse gate (TODO item 11, 2026-08-22). The FRONTIER ceiling
       # S*(x_t) - not the level path the rest of this walk scores - falls by ~40%
@@ -618,6 +659,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
           reason <- "reference-scenario projection failed"
           break
         }
+        apGateFlag(apGateShare(ref), "reference")
         keep <- c("region", "year", "index")
         cmp <- merge(proj[, c(keep, intersect("outOfCoverage", colnames(proj)))],
                      ref[, keep], by = c("region", "year"),

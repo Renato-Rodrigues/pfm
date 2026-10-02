@@ -201,6 +201,25 @@ test_that("the scenario-responsiveness gate rejects scenario-blind specs (ADR 00
   expect_true(res2$selected$PolicyStringency %in% c("pfmA", "pfmB"))
 })
 
+test_that("the actor-power extrapolation gate flags linear actor power and is recorded (0005 D7)", {
+  scen <- makePFMSweepScenarioMagpie()
+  win <- range(magclass::getYears(scen, as.integer = TRUE))
+  # sd = -1: every country-year counts as extrapolating, so a share gate of 0 fails every spec
+  res <- pfmTestSweep("pfm-apgate", withr::local_tempdir(), withr::local_tempdir(),
+                      scenarioData = scen, deltaWindow = win,
+                      apExtrapolationGate = 0, apExtrapolationSd = -1, apExtrapolationWindow = win)
+  sel <- res$sanity$PolicyStringency
+  expect_true(isTRUE(sel$forced))
+  fl <- do.call(rbind, sel$flags)
+  expect_true(any(fl$rule == "actorPowerExtrapolation"))
+  # a share can never exceed 1: the same walk with gate 1 raises no such flag
+  res2 <- pfmTestSweep("pfm-apgate-off", withr::local_tempdir(), withr::local_tempdir(),
+                       scenarioData = scen, deltaWindow = win,
+                       apExtrapolationGate = 1, apExtrapolationSd = -1, apExtrapolationWindow = win)
+  fl2 <- do.call(rbind, res2$sanity$PolicyStringency$flags)
+  expect_false(any(fl2$rule %in% "actorPowerExtrapolation"))
+})
+
 test_that("runPFMSweep refuses a panel without the PFM outcomes", {
   m <- makePFMSweepMagpie()
   m <- m[, , setdiff(magclass::getNames(m), "Policy Stringency|Diffuse")]
