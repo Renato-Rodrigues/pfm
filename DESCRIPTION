@@ -53,6 +53,7 @@ Suggests:
     frontier,
     AER,
     knitr,
+    pkgload,
     rmarkdown
 VignetteBuilder: knitr
 Encoding: UTF-8

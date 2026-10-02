@@ -287,6 +287,11 @@ iterativePFM <- function(gdx = "fulldata.gdx",
                               movingAverage = .pfmPanelMA(panelDef),
                               ieaVersion = panelDef$ieaVersion,
                               geothermal = panelDef$geothermal,
+                              # Inside a REMIND run (its pfm-coupling.yml exists) the harmonisation
+                              # panel is built on the first call and read on every later one
+                              # (0005 E17/F7); offline calls build it each time and write nothing.
+                              histCache = if (file.exists(couplingConfig))
+                                file.path(gd, "hist-harmonisation-cache.rds") else NULL,
                               ssp = weightScenario, institutions = institutions)
     pfile <- paste0("panel_", mf$panel_hash, ".rds")
     pcand <- c(file.path(modelDir, "panels", pfile), file.path(gd, "panels", pfile),
@@ -512,15 +517,15 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     #    file next to the gdx so the criterion survives a GAMS restart. A first call
     #    has nothing to compare against and is deliberately reported as NOT
     #    converged (Inf), so the loop can never stop on iteration one.
+    #    The delta covers the per-market shares as well as the floor (0005 E8, D5): with
+    #    the floor alone, a market share could still be moving when GAMS declared the
+    #    run converged.
     histFile <- file.path(dirname(outputFile), "pfm-phi-history.rds")
     prev <- if (file.exists(histFile)) readRDS(histFile) else list()
-    delta <- if (length(prev)) {
-      last <- prev[[length(prev)]]$phi
-      common <- intersect(names(phi), names(last))
-      if (length(common)) max(abs(phi[common] - last[common])) else Inf
-    } else Inf
+    delta <- if (length(prev)) .pfmPhiDelta(phi, phiSector, prev[[length(prev)]]) else Inf
     prev[[length(prev) + 1L]] <- list(iteration = length(prev) + 1L,
-                                      time = Sys.time(), phi = phi, delta = delta)
+                                      time = Sys.time(), phi = phi, phiSector = phiSector,
+                                      delta = delta)
     saveRDS(prev, histFile)
     say(sprintf("phi delta vs previous call: %s (tolerance is enforced in GAMS)",
                 if (is.finite(delta)) sprintf("%.5f", delta) else "first call"))
@@ -1117,4 +1122,20 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     }
   }
   invisible(TRUE)
+}
+
+# The convergence delta of one coupling call against the previous one (0005 E8): the largest
+# absolute change over the floor phi and every per-market share, on the regions both carry. A
+# previous entry written before the market shares were recorded contributes its floor only.
+#' @keywords internal
+.pfmPhiDelta <- function(phi, phiSector, last) {
+  d <- function(a, b) {
+    common <- intersect(names(a), names(b))
+    if (length(common)) max(abs(a[common] - b[common])) else NA_real_
+  }
+  parts <- d(phi, last$phi)
+  for (sec in intersect(names(phiSector), names(last$phiSector))) {
+    parts <- c(parts, d(phiSector[[sec]], last$phiSector[[sec]]))
+  }
+  if (all(is.na(parts))) Inf else max(parts, na.rm = TRUE)
 }

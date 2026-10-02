@@ -17,6 +17,7 @@ panelDataScenario(
   geothermal = pfmPanelDef()$geothermal,
   ssp = "SSP2",
   institutions = "storyline",
+  histCache = NULL,
   coeff = list(bulk = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
     list(vre = 1, elec = 0.6), incumbents_power = list(coal = 1, oilgas = 1, fossilInd =
     0.5)), diffuse = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
@@ -51,6 +52,14 @@ gender inequality). Must match the REMIND run's \code{cm_GDPpopScen}. Default \c
 \code{"storyline"} (default; for SSP2 identical to \code{"convergence"}), \code{"convergence"}
 or \code{"hold"}; see
 \code{\link{pfmInstitutionProjection}}.}
+
+\item{histCache}{Path of a file caching the harmonisation's historical panel, or \code{NULL}
+(default: none). The historical panel does not depend on the gdx, so a coupled run, which
+calls this once per REMIND iteration, builds it once (design note 0005 E17/F7, about a third
+of each call after the 2026-10-02 speed-ups). The file also carries the state that
+\code{panelDataHistorical} leaves for the scenario panel (the GDP-per-capita quartile fit and
+the V-Dem state-capacity rotation), and a key of every argument that shapes the panel; a
+file with another key is rebuilt.}
 
 \item{coeff}{list of coefficients for actor power index calculation}
 }

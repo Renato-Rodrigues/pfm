@@ -44,6 +44,11 @@
 #'   standard / default account / node-default mem / \code{resultsDir/<group>}).
 #' @param forceRefit Logical. Ignore cached fits. Default \code{FALSE}.
 #' @param verbose Logical. Default \code{TRUE}.
+#' @param failOnGaps Logical. When the local run ends \code{"failed"} or \code{"incomplete"}
+#'   (a step produced no fresh artifact; \code{PITFALLS.md} section 18), raise an error after
+#'   the manifest and the final log lines are written, so \code{Rscript} and the SLURM job exit
+#'   non-zero (design note 0005 E23). Default \code{TRUE}; \code{FALSE} returns the status as
+#'   before.
 #' @param ... Forwarded to \code{\link{runSweep}} (e.g. \code{selectFE}).
 #'
 #' @return Invisibly: for a submission, \code{list(submitted=TRUE, jobId=, script=)}; for a
@@ -65,7 +70,7 @@ startRun <- function(group,
                      time = "24:00:00", qos = "short", partition = "standard",
                      account = NULL, mem = NULL, chdir = NULL,
                      bootstrapResamples = 200L, bootstrapDetail = "channel", bootstrapTopK = 40L,
-                     forceRefit = FALSE, resume = FALSE, verbose = TRUE, ...) {
+                     forceRefit = FALSE, resume = FALSE, verbose = TRUE, failOnGaps = TRUE, ...) {
   mode <- match.arg(mode)
   selectionMethod <- match.arg(selectionMethod)
   cluster <- match.arg(cluster)
@@ -136,7 +141,7 @@ startRun <- function(group,
       time = time, qos = qos, partition = partition, account = account, mem = mem, chdir = chdir,
       forceRefit = forceRefit, resume = resume,
       bootstrapResamples = bootstrapResamples, bootstrapDetail = bootstrapDetail,
-      bootstrapTopK = bootstrapTopK, say = say, dots = list(...)))
+      bootstrapTopK = bootstrapTopK, say = say, failOnGaps = failOnGaps, dots = list(...)))
   }
 
   # ── Local (in-process) run ──────────────────────────────────────────────────
@@ -188,6 +193,12 @@ startRun <- function(group,
         paste(auditIncomplete, collapse = ", "))
     say("!! Do not treat this Run-Group as complete. See the audit block above for the reason.")
   }
+  if (isTRUE(failOnGaps) && !identical(runStatus, "completed")) {
+    stop("startRun(", group, "): run ", runStatus,
+         if (length(auditIncomplete)) paste0(" - no fresh artifact from: ", paste(auditIncomplete, collapse = ", ")),
+         ". The manifest records it; see the log above (failOnGaps = FALSE to return instead).",
+         call. = FALSE)
+  }
   invisible(list(group = group, status = runStatus, dir = groupDir,
                  incompleteSteps = auditIncomplete))
 }
@@ -221,7 +232,8 @@ startRun <- function(group,
                          gdxFile, scenarios = NULL, nCores, time, qos, partition, account, mem, chdir,
                          forceRefit, resume = FALSE,
                          bootstrapResamples = 200L,
-                         bootstrapDetail = "channel", bootstrapTopK = 40L, say, dots) {
+                         bootstrapDetail = "channel", bootstrapTopK = 40L, say,
+                         failOnGaps = TRUE, dots) {
   # normalizePath(mustWork = FALSE) returns a NON-EXISTENT path unchanged, so a
   # relative resultsDir stayed relative whenever the directory had not been created
   # yet — which is the normal case for a new Run-Group, since dir.create() runs below.
@@ -251,11 +263,11 @@ startRun <- function(group,
   call <- sprintf(paste0(
     "pfm::startRun(group=%s, steps=%s, mode=%s, selectionMethod=%s, resultsDir=%s, modelDir=%s, ",
     "cachefolder=%s, gdxFile=%s, nCores=%d, cluster=\"local\", forceRefit=%s, resume=%s, ",
-    "bootstrapResamples=%d, bootstrapDetail=%s, bootstrapTopK=%d%s)"),
+    "bootstrapResamples=%d, bootstrapDetail=%s, bootstrapTopK=%d, failOnGaps=%s%s)"),
     .rlit(group), .rlit(steps), .rlit(mode), .rlit(selectionMethod), .rlit(resultsDir),
     .rlit(modelDir), .rlit(cachefolder), .rlit(gdxFile), nCores, .rlit(forceRefit), .rlit(resume),
     as.integer(bootstrapResamples), .rlit(bootstrapDetail), as.integer(bootstrapTopK),
-    paste0(scenLit, dotsLit))
+    .rlit(failOnGaps), paste0(scenLit, dotsLit))
   jobR <- file.path(chdir, paste0("pfm-", group, "-job.R"))
   # The madrat source folder is a session option (set by pfmRun from config.yml `madrat:
   # sourcefolder`); a fresh job process would not have it.

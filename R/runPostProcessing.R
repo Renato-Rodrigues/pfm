@@ -1057,6 +1057,14 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
       stale <- c(stale, st)
     }
   }
+  # A stale artifact is moved aside to <file>.stale (design note 0005 E23): left in place, the
+  # next step, the next run or the REMIND export would read the previous run's version as if it
+  # were this one's. Renamed, not deleted, so it can be inspected or restored by hand.
+  staleMoved <- character(0)
+  for (st in stale) {
+    f <- file.path(groupDir, stepArtifact[[st]])
+    if (file.exists(f) && file.rename(f, paste0(f, ".stale"))) staleMoved <- c(staleMoved, st)
+  }
   if (length(missing) || length(stale)) {
     say("---------------------------------------------------------------")
     if (length(missing)) {
@@ -1065,7 +1073,10 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
     }
     if (length(stale)) {
       say("NOT REFRESHED - artifact predates this run, so the step did not rewrite it:")
-      for (st in stale) say("  ", st, "  ->  ", stepArtifact[[st]])
+      for (st in stale) {
+        say("  ", st, "  ->  ", stepArtifact[[st]],
+            if (st %in% staleMoved) "  (moved aside to *.stale)" else "  (could not be moved aside)")
+      }
     }
     say("Look for the step's own '(skipped|failed)' line above for the reason.")
     say("---------------------------------------------------------------")

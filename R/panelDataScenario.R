@@ -20,6 +20,13 @@
 #'   \code{"storyline"} (default; for SSP2 identical to \code{"convergence"}), \code{"convergence"}
 #'   or \code{"hold"}; see
 #'   \code{\link{pfmInstitutionProjection}}.
+#' @param histCache Path of a file caching the harmonisation's historical panel, or \code{NULL}
+#'   (default: none). The historical panel does not depend on the gdx, so a coupled run, which
+#'   calls this once per REMIND iteration, builds it once (design note 0005 E17/F7, about a third
+#'   of each call after the 2026-10-02 speed-ups). The file also carries the state that
+#'   \code{panelDataHistorical} leaves for the scenario panel (the GDP-per-capita quartile fit and
+#'   the V-Dem state-capacity rotation), and a key of every argument that shapes the panel; a
+#'   file with another key is rebuilt.
 #' @param coeff list of coefficients for actor power index calculation
 #'
 #' @return Returns the combined magpie object for scenario data
@@ -40,6 +47,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
                               geothermal = pfmPanelDef()$geothermal,
                               ssp = "SSP2",
                               institutions = "storyline",
+                              histCache = NULL,
                               coeff = list(
                                 bulk = list(
                                   actor_power = list(innov = 1, incumb = 1),
@@ -253,15 +261,11 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   # GDP Q-centred placeholder — populated after harmonization so quartile breaks are available
 
   if (harmonizeScenario) {
-    histPanel <- panelDataHistorical(
-      aggregate = aggregate,
-      y = histYears,
-      outputRegionMappingFile = outputRegionMappingFile,
-      movingAverage = movingAverage,
-      ieaVersion = ieaVersion,
-      geothermal = geothermal,
-      coeff = coeff
-    )
+    histArgs <- list(aggregate = aggregate, y = histYears,
+                     outputRegionMappingFile = outputRegionMappingFile,
+                     movingAverage = movingAverage, ieaVersion = ieaVersion,
+                     geothermal = geothermal, coeff = coeff)
+    histPanel <- .pfmHistHarmonisationPanel(histArgs, histCache)
 
     # Use the latest historical year as the harmonization anchor so that recent
     # changes (e.g. a Rule of Law recovery in 2022) are reflected in the scenario.
@@ -318,5 +322,28 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   if (!is.null(gdpPCQCentred_scen)) out <- mbind(out, gdpPCQCentred_scen)
 
   return(out)
+}
+# The harmonisation's historical panel, from `cache` when it holds one built with the same
+# arguments (and pfm version), else built and written there. The .pfm_env state the historical
+# call leaves for the scenario panel travels with it.
+#' @keywords internal
+.pfmHistHarmonisationPanel <- function(histArgs, cache = NULL) {
+  stateKeys <- c("gdppc_q_fit", "gdppc_q_breaks", "sc_pca_rotation")
+  key <- digest::digest(list(histArgs, as.character(utils::packageVersion("pfm"))), algo = "sha256")
+  if (!is.null(cache) && file.exists(cache)) {
+    hit <- tryCatch(readRDS(cache), error = function(e) NULL)
+    if (identical(hit$key, key)) {
+      for (k in stateKeys) assign(k, hit$state[[k]], envir = .pfm_env)
+      return(hit$panel)
+    }
+  }
+  panel <- do.call(panelDataHistorical, histArgs)
+  if (!is.null(cache)) {
+    state <- stats::setNames(lapply(stateKeys, function(k) .pfm_env[[k]]), stateKeys)
+    dir.create(dirname(cache), showWarnings = FALSE, recursive = TRUE)
+    tryCatch(saveRDS(list(key = key, panel = panel, state = state), cache),
+             error = function(e) warning("histCache not written (", conditionMessage(e), ")", call. = FALSE))
+  }
+  panel
 }
 # nolint end

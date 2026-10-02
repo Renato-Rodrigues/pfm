@@ -28,6 +28,7 @@ startRun(
   forceRefit = FALSE,
   resume = FALSE,
   verbose = TRUE,
+  failOnGaps = TRUE,
   ...
 )
 }
@@ -78,6 +79,12 @@ standard / default account / node-default mem / \code{resultsDir/<group>}).}
 \item{forceRefit}{Logical. Ignore cached fits. Default \code{FALSE}.}
 
 \item{verbose}{Logical. Default \code{TRUE}.}
+
+\item{failOnGaps}{Logical. When the local run ends \code{"failed"} or \code{"incomplete"}
+(a step produced no fresh artifact; \code{PITFALLS.md} section 18), raise an error after
+the manifest and the final log lines are written, so \code{Rscript} and the SLURM job exit
+non-zero (design note 0005 E23). Default \code{TRUE}; \code{FALSE} returns the status as
+before.}
 
 \item{...}{Forwarded to \code{\link{runSweep}} (e.g. \code{selectFE}).}
 }

@@ -177,3 +177,16 @@ test_that("a heavily capped path is flagged, not returned quietly", {
   expect_gt(attr(p, "cappedShare"), 0.25)   # the threshold iterativePFM warns on
   expect_true(all(is.finite(p$price)))
 })
+
+test_that("the convergence delta covers the per-market shares, not just the floor (0005 E8)", {
+  last <- list(phi = c(A = 0.5, B = 0.6), phiSector = list(Bulk = c(A = 0.5, B = 0.7), Diffuse = c(A = 0.6, B = 0.6)))
+  # the floor does not move, a market share does: not converged
+  d <- pfm:::.pfmPhiDelta(c(A = 0.5, B = 0.6), list(Bulk = c(A = 0.5, B = 0.7), Diffuse = c(A = 0.65, B = 0.6)), last)
+  expect_equal(d, 0.05)
+  # nothing moves
+  expect_equal(pfm:::.pfmPhiDelta(last$phi, last$phiSector, last), 0)
+  # a history entry from before the market shares were recorded: floor only
+  expect_equal(pfm:::.pfmPhiDelta(c(A = 0.52, B = 0.6), last$phiSector, list(phi = last$phi)), 0.02)
+  # no common region: Inf, never false convergence
+  expect_identical(pfm:::.pfmPhiDelta(c(C = 1), list(), list(phi = c(A = 1))), Inf)
+})
