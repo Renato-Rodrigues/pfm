@@ -8,6 +8,9 @@
 #'   the country universe. Defaults to \code{"regionmappingH12.csv"}. Set to the same mapping
 #'   used in the REMIND GDX (e.g. \code{"regionmapping_21_EU11.csv"}) so that the returned country
 #'   set is consistent with the disaggregation target.
+#' @param ieaVersion Edition of the IEA World Energy Balances behind \code{calcPE} / \code{calcFE}:
+#'   \code{"default"} (2024 edition, complete to 2022) or \code{"latest"} (2025 edition, complete
+#'   to 2023). Defaults to the active panel definition (\code{\link{pfmPanelDef}}).
 #'
 #' @return A list with historical [`magpie`][magclass::magclass] objects.
 #' @author Renato Rodrigues
@@ -18,8 +21,12 @@
 #' @export
 #'
 iamHistoricalData <- function(aggregate = FALSE, outputRegionMappingFile = "regionmappingH12.csv",
-                              gdxRegionMappingFile = "regionmappingH12.csv") {
+                              gdxRegionMappingFile = "regionmappingH12.csv",
+                              ieaVersion = pfmPanelDef()$ieaVersion) {
   outputRegionMappingFile <- resolveRegionMapping(outputRegionMappingFile)
+  # Passed to madrat only when it is not the default, so a "default" call is byte-for-byte the
+  # call every Run-Group up to v5 made - and matches their cache files.
+  ieaArg <- if (identical(ieaVersion, "default")) list() else list(ieaVersion = ieaVersion)
   peVars <- c("pecoal", "peoil", "pegas", "pewin", "pesol", "peur", "pehyd", "pegeo", "petotal")
   seVars <- c("wind", "solar", "seel")
   feVars <- c("fe_indst_fossil", "fe_indst", "fe_seel", "fe_total", "fe_liqbio_tran", "fe_liqtran")
@@ -38,8 +45,7 @@ iamHistoricalData <- function(aggregate = FALSE, outputRegionMappingFile = "regi
     "PE|Geothermal|Electricity (EJ/yr)", "pegeo",
     "PE (EJ/yr)", "petotal"
   )
-  histPe <- calcOutput("PE",
-    aggregate = FALSE, warnNA = FALSE
+  histPe <- do.call(calcOutput, c(list("PE", aggregate = FALSE, warnNA = FALSE), ieaArg)
   )[, , mappingHistPe$histPe] |>
     toolAggregate(rel = mappingHistPe, dim = 3.1, from = "histPe", to = "remind")
 
@@ -63,7 +69,7 @@ iamHistoricalData <- function(aggregate = FALSE, outputRegionMappingFile = "regi
     "FE|Electricity (EJ/yr)", "fe_seel",
     "FE (EJ/yr)", "fe_total"
   )
-  histFeAll <- calcOutput("FE", aggregate = FALSE, warnNA = FALSE)
+  histFeAll <- do.call(calcOutput, c(list("FE", aggregate = FALSE, warnNA = FALSE), ieaArg))
   histFe <- histFeAll[, , mappingHistFe$histFe] |>
     toolAggregate(rel = mappingHistFe, dim = 3.1, from = "histFe", to = "remind")
   feLiqbioTran <- histFeAll[, , "FE|Transport|Liquids|Biomass (EJ/yr)"]

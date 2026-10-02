@@ -116,6 +116,9 @@ runPFMCouplingBound <- function(group,
   }
 
   # ── gdx resolution: explicit args win, else the scenario registry ────────────
+  # The ambitious pathway's SSP and institution rule: its registry entry's, else weightScenario.
+  optSsp <- weightScenario
+  optInstitutions <- "storyline"
   if (is.null(refGdx) || is.null(optGdx)) {
     sc <- Filter(function(s) nzchar(s$gdx %||% "") && file.exists(s$gdx),
                  scenarios %||% list())
@@ -126,6 +129,10 @@ runPFMCouplingBound <- function(group,
     # registry carrying both PkBudg750 and PkBudg1000 would define the bound against
     # an arbitrary one of them.
     gate <- Filter(function(s) isTRUE(s$gating), sc)
+    if (is.null(optGdx) && length(gate)) {
+      optSsp <- gate[[1]]$ssp %||% optSsp
+      optInstitutions <- gate[[1]]$institutions %||% optInstitutions
+    }
     optGdx <- optGdx %||% (if (length(gate)) usable(gate[[1]]) else NULL)
     # The REFERENCE is current policy: the non-gating scenario, preferring an
     # explicitly NPi/base-looking id when several remain.
@@ -184,7 +191,11 @@ runPFMCouplingBound <- function(group,
   # Scenario panel, cached per group. This used to be a hardcoded readRDS of a cache
   # file left behind by an earlier run — absent on a fresh checkout, and silently
   # belonging to a DIFFERENT Run-Group even when present.
-  scenCache <- file.path(resultsDir, "panel-cache", paste0(group, "-scen-ca.rds"))
+  # Keyed by SSP and institution rule too, except for SSP2 under storyline or convergence (the
+  # same projection), which every group up to v5 cached under the bare name.
+  scenTag <- if (identical(optSsp, "SSP2") && optInstitutions %in% c("storyline", "convergence")) "" else
+    paste0("-", optSsp, "-", optInstitutions)
+  scenCache <- file.path(resultsDir, "panel-cache", paste0(group, scenTag, "-scen-ca.rds"))
   if (file.exists(scenCache)) {
     say("scenario panel: cache hit ", scenCache)
     scen <- readRDS(scenCache)
@@ -192,7 +203,8 @@ runPFMCouplingBound <- function(group,
     say("scenario panel: building from ", optGdx)
     scen <- panelDataScenario(gdxFile = optGdx, aggregate = TRUE,
                               gdxRegionMappingFile = gdxRegionMapping,
-                              outputRegionMappingFile = "country")
+                              outputRegionMappingFile = "country",
+                              ssp = optSsp, institutions = optInstitutions)
     dir.create(dirname(scenCache), showWarnings = FALSE, recursive = TRUE)
     saveRDS(scen, scenCache)
   }

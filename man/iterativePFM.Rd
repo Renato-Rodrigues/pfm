@@ -25,6 +25,7 @@ iterativePFM(
   weightScenario = getOption("pfm.couplingWeightScenario", "SSP2"),
   runtimeConfig = getOption("pfm.couplingRuntimeConfig", "pfm-coupling-runtime.yml"),
   tierYear = getOption("pfm.couplingTierYear", NULL),
+  institutions = getOption("pfm.couplingInstitutions", "storyline"),
   verbose = TRUE
 )
 }
@@ -86,7 +87,8 @@ values the deployed runs use (\code{cfg$pfm$weightYear} in REMIND's
 \code{default.cfg}, written into \code{pfm-coupling.yml}). Inside a REMIND run
 the SSP is the run's own \code{cm_GDPpopScen}; offline,
 \strong{\code{weightScenario} must match the SSP the coupled run uses},
-or the weights describe a different world than the model does.}
+or the weights describe a different world than the model does. The same SSP drives
+the scenario panel's GDP, population and SSP-extension series.}
 
 \item{runtimeConfig}{Path to the small YAML \strong{written by GAMS}
 (\code{presolve.gms}) carrying \code{bindMode}, \code{theta} and
@@ -96,10 +98,15 @@ hand-maintained copy can drift out of sync. Absent is normal outside GAMS.
 
 \code{gapClosure} is \code{cm_pfmGapClosure}: \code{0} means the political gap
 PERSISTS, so every gap-closure rate is forced to zero; \code{1} means it closes at
-the frontier's estimated rates. It reaches bind modes 1 and 2 only \emph{}
+the frontier's estimated rates. It reaches bind modes 1 and 2 only, \emph{not} mode 3:
 mode 3's \eqn{\lambda} is a momentum rate, not a gap-closure rate, and zeroing it
 would freeze the mild-progression price at its seed. See the note beside
 \code{lambdaGap} in the body.}
+
+\item{institutions}{How the institution series without an SSP projection are projected
+in the scenario panel: \code{"storyline"} (default), \code{"convergence"} or
+\code{"hold"} (\code{\link{pfmInstitutionProjection}}). Inside a REMIND run it comes
+from \code{pfm-coupling.yml} (\code{cfg$pfmInstitutions}).}
 
 \item{verbose}{Logical.}
 }

@@ -23,7 +23,7 @@
 #' @param group Character. PFM Run-Group name.
 #' @param resultsDir,modelDir,cachefolder As in \code{\link{runPFMProjection}}.
 #' @param panelData Optional pre-built historical panel (with the PFM outcomes).
-#' @param y Numeric vector. Full panel years. Default \code{2000:2022}.
+#' @param y Numeric vector. Full panel years. Default: the panel definition's (\code{\link{pfmPanelDef}}).
 #' @param trainEnd Numeric. Last training year; later years are held out.
 #'   Default \code{2015} (7 held-out years).
 #' @param extraForms Character vector. Additional feasibility-as-speed readings
@@ -48,7 +48,7 @@ runPFMTemporalValidation <- function(group,
                                      resultsDir = getOption("pfm.resultsDir", "output"),
                                      modelDir = getOption("pfm.modelDir", "output"),
                                      cachefolder = NULL, panelData = NULL,
-                                     y = 2000:2022, trainEnd = 2015,
+                                     y = .pfmPanelYears(), trainEnd = 2015,
                                      extraForms = c("ecm", "events"),
                                      eventJump = 0.25,
                                      outputRegionMappingFile = "regionmapping_54.csv",

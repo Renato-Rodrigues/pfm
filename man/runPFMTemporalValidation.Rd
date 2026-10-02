@@ -10,7 +10,7 @@ runPFMTemporalValidation(
   modelDir = getOption("pfm.modelDir", "output"),
   cachefolder = NULL,
   panelData = NULL,
-  y = 2000:2022,
+  y = .pfmPanelYears(),
   trainEnd = 2015,
   extraForms = c("ecm", "events"),
   eventJump = 0.25,
@@ -26,7 +26,7 @@ runPFMTemporalValidation(
 
 \item{panelData}{Optional pre-built historical panel (with the PFM outcomes).}
 
-\item{y}{Numeric vector. Full panel years. Default \code{2000:2022}.}
+\item{y}{Numeric vector. Full panel years. Default: the panel definition's (\code{\link{pfmPanelDef}}).}
 
 \item{trainEnd}{Numeric. Last training year; later years are held out.
 Default \code{2015} (7 held-out years).}

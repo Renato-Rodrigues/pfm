@@ -178,7 +178,7 @@ runSweep <- function(group,
 .writeRunGroupManifest <- function(groupDir, group, mode, step = NULL,
                                    panelData = NULL, scenarioData = NULL, gdxFile = NULL,
                                    selectionMethod = NULL, nCores = NULL,
-                                   stepStats = NULL, run = NULL) {
+                                   stepStats = NULL, run = NULL, panelDef = NULL) {
   path <- file.path(groupDir, "manifest.json")
   man <- if (file.exists(path)) {
     tryCatch(jsonlite::fromJSON(path, simplifyVector = FALSE), error = function(e) list())
@@ -208,6 +208,9 @@ runSweep <- function(group,
     yrs <- tryCatch(magclass::getYears(panelData, as.integer = TRUE), error = function(e) NULL)
     if (!is.null(yrs)) man$training_years <- c(min(yrs), max(yrs))
   }
+  # The panel definition (years, smoothing, IEA edition): see pfmPanelDef. Recorded once, by
+  # the sweep that fits the group; later steps only read it.
+  if (!is.null(panelDef)) man$panel <- .pfmPanelDefNormalise(panelDef)
   if (!is.null(scenarioData)) man$scenario <- "present"
   if (!is.null(gdxFile)) {
     man$gdx <- if (file.exists(gdxFile)) {

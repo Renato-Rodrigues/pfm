@@ -259,7 +259,15 @@ startRun <- function(group,
   # sourcefolder`); a fresh job process would not have it.
   sf <- getOption("pfm.sourcefolder", NULL)
   optLine <- if (!is.null(sf) && nzchar(sf)) sprintf("options(pfm.sourcefolder = %s)", .rlit(abspath(sf))) else NULL
-  writeLines(c("suppressMessages(library(pfm))", optLine, call), jobR)
+  # Likewise the panel definition (pfmPanelDef): without it the job would build the legacy panel.
+  pd <- getOption("pfm.panel", NULL)
+  panelLine <- if (!is.null(pd)) {
+    pd <- .pfmPanelDefNormalise(pd)
+    sprintf(paste0("options(pfm.panel = list(firstYear = %dL, lastYear = %dL, movingAverage = %dL, ",
+                   "ieaVersion = %s, geothermal = %s))"),
+            pd$firstYear, pd$lastYear, pd$movingAverage, .rlit(pd$ieaVersion), .rlit(pd$geothermal))
+  } else NULL
+  writeLines(c("suppressMessages(library(pfm))", optLine, panelLine, call), jobR)
 
   # sbatch --chdir changes the working directory BEFORE the payload runs, so every
   # path in the script must be absolute or the job dies on the node with "cannot open

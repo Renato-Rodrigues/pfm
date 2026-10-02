@@ -1,6 +1,9 @@
 #' Calculated drivers
 #'
 #' @param data A [`magpie`][magclass::magclass] object.
+#' @param geothermal Logical. Count geothermal with hydro and nuclear in the "Hydro Nuclear Share"
+#'   control (the inherited clean baseload; design note 0005 A4). A panel-definition field
+#'   (`pfmPanelDef()$geothermal`): `FALSE` for every Run-Group up to v5, `TRUE` from v6.
 #' @return A [`magpie`][magclass::magclass] object with calculated drivers
 #' @author Renato Rodrigues
 #'
@@ -8,7 +11,7 @@
 #'
 #' @export
 #'
-iamCalculatedDrivers <- function(data) {
+iamCalculatedDrivers <- function(data, geothermal = pfmPanelDef()$geothermal) {
   # add calculated drivers
   driverList <- c(
     "Coal primary energy share", "Oil/Gas primary energy share",
@@ -68,10 +71,13 @@ iamCalculatedDrivers <- function(data) {
   result[, , "Biofuel Displacement"] <-
     clamp01(safeDiv(data[, , "fe_liqbio_tran"], data[, , "fe_liqtran"]), "Biofuel Displacement")
 
-  # Hydro + nuclear share of primary energy — control variable for inherited clean energy base.
-  # Not in Innovator Power; enters the panel data as a structural control.
+  # Hydro + nuclear (+ geothermal from v6) share of primary energy — control variable for the
+  # inherited clean baseload. Not in Innovator Power; enters the panel data as a structural control.
+  # The name is kept so specs and artifacts stay addressable; what it counts is the panel definition's.
+  baseload <- data[, , "pehyd"] + data[, , "peur"]
+  if (isTRUE(geothermal)) baseload <- baseload + data[, , "pegeo"]
   result[, , "Hydro Nuclear Share"] <-
-    clamp01(safeDiv(data[, , "pehyd"] + data[, , "peur"], data[, , "petotal"]), "Hydro Nuclear Share")
+    clamp01(safeDiv(baseload, data[, , "petotal"]), "Hydro Nuclear Share")
 
   return(result)
 }

@@ -18,7 +18,8 @@ working directory and returns empty defaults if there is none.}
 \value{
 List with \code{scenarios} (or \code{NULL}), \code{gdxFile} (the gating
 scenario's gdx, or \code{NULL}), \code{cachefolder}, \code{sourcefolder},
-\code{madrat} (the resolved madrat block), \code{group}, \code{recordsDir}, \code{resultsDir},
+\code{madrat} (the resolved madrat block), \code{panel} (the panel block resolved for
+\code{group}, or \code{NULL}), \code{group}, \code{recordsDir}, \code{resultsDir},
 \code{modelDir}, \code{path} and \code{dir}.
 }
 \description{
@@ -50,6 +51,20 @@ Lists of candidate paths are how one committed config serves the workstation and
 cluster: a path that does not exist on this machine is skipped. The top-level
 \code{cachefolder}/\code{sourcefolder} keys of older configs are still read.
 See \code{\link{pfmPrepareCache}}.
+}
+
+\section{The panel block}{
+
+\preformatted{
+panel:
+  years: [2000, 2023]       # first and last panel year
+  movingAverage: 5          # centred window; 1 = annual values
+  ieaVersion: latest        # IEA World Energy Balances: default (2024 ed.) | latest (2025 ed.)
+  groups:                   # per-Run-Group overrides of the keys above
+    v6-annual: {movingAverage: 1}
+}
+It applies to a group that has not been swept yet; a swept group keeps the definition
+recorded in its manifest (\code{\link{pfmPanelDef}}).
 }
 
 \author{

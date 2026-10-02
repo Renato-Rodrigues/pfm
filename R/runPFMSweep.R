@@ -146,9 +146,9 @@ runPFMSweep <- function(group,
                         panelData = NULL,
                         scenarioData = NULL,
                         specs = NULL,
-                        y = 2000:2022,
+                        y = .pfmPanelYears(),
                         outputRegionMappingFile = "regionmapping_54.csv",
-                        movingAverage = 5,
+                        movingAverage = .pfmPanelMA(),
                         sectors = c("Bulk", "Diffuse"),
                         indexMax = 10,
                         nCores = 1L,
@@ -243,7 +243,8 @@ runPFMSweep <- function(group,
     scenarioData <- tryCatch(
       panelDataScenario(gdxFile = gdxFile, aggregate = TRUE,
                         gdxRegionMappingFile = gdxRegionMappingFile,
-                        outputRegionMappingFile = outputRegionMappingFile),
+                        outputRegionMappingFile = outputRegionMappingFile,
+                        histYears = y, movingAverage = movingAverage),
       error = function(e) {
         say("scenario panel failed (", conditionMessage(e), "); sanity gate skipped.")
         NULL
@@ -258,7 +259,8 @@ runPFMSweep <- function(group,
     referenceScenarioData <- tryCatch(
       panelDataScenario(gdxFile = referenceGdxFile, aggregate = TRUE,
                         gdxRegionMappingFile = gdxRegionMappingFile,
-                        outputRegionMappingFile = outputRegionMappingFile),
+                        outputRegionMappingFile = outputRegionMappingFile,
+                        histYears = y, movingAverage = movingAverage),
       error = function(e) {
         say("reference scenario panel failed (", conditionMessage(e),
             "); responsiveness gate skipped.")
@@ -479,7 +481,10 @@ runPFMSweep <- function(group,
   .writeRunGroupManifest(
     groupDir, group = group, mode = paste0("pfm-", mode),
     panelData = panelData, scenarioData = scenarioData, gdxFile = gdxFile,
-    selectionMethod = "pfm-maximin", nCores = nCores
+    selectionMethod = "pfm-maximin", nCores = nCores,
+    # What the group was fitted on, read back by every later step (pfmPanelDef).
+    panelDef = list(firstYear = min(y), lastYear = max(y), movingAverage = movingAverage %||% 1L,
+                    ieaVersion = pfmPanelDef()$ieaVersion, geothermal = pfmPanelDef()$geothermal)
   )
   .recordStep(groupDir, group, "sweep-pfm", t0, mode = paste0("pfm-", mode),
               metrics = c(res$fitSummary, list(nCores = nCores)))

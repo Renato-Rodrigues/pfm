@@ -10,7 +10,7 @@ runPFMInfluence(
   modelDir = getOption("pfm.modelDir", "output"),
   cachefolder = NULL,
   panelData = NULL,
-  y = 2000:2022,
+  y = .pfmPanelYears(),
   outputRegionMappingFile = "regionmapping_54.csv",
   indexMax = 10,
   alpha = 0.05,
@@ -25,7 +25,7 @@ runPFMInfluence(
 
 \item{panelData}{Optional pre-built historical panel (with the PFM outcomes).}
 
-\item{y}{Numeric vector. Full panel years. Default \code{2000:2022}.}
+\item{y}{Numeric vector. Full panel years. Default: the panel definition's (\code{\link{pfmPanelDef}}).}
 
 \item{outputRegionMappingFile, indexMax, verbose}{As in
 \code{\link{runPFMProjection}}.}

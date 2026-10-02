@@ -199,9 +199,13 @@ pfmPrepareCache <- function(config = NULL, group = NULL, compute = NULL, force =
 # The fixed arguments of the builders. They are what the pipeline calls, and they key the
 # manifest: change one and the next run re-prepares.
 .cacheBuilderSpec <- function() {
-  list(histYears = 2000:2022, includePolicyStringency = TRUE,
-       # pfmCouplingWeights as iterativePFM calls it under default.cfg: weightYear 2025, SSP2.
-       weightYear = 2025, weightScenario = "SSP2")
+  def <- pfmPanelDef()
+  spec <- list(histYears = .pfmPanelYears(def), includePolicyStringency = TRUE,
+               # pfmCouplingWeights as iterativePFM calls it under default.cfg: weightYear 2025, SSP2.
+               weightYear = 2025, weightScenario = "SSP2")
+  # Only a non-legacy IEA edition enters the key, so a v5 manifest still matches.
+  if (!identical(def$ieaVersion, "default")) spec$ieaVersion <- def$ieaVersion
+  spec
 }
 
 .cacheBuilders <- function(spec, res, gdxs) {

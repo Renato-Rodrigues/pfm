@@ -278,6 +278,11 @@ pfmRun <- function(group = NULL,
   # madrat's raw-source folder (config `madrat: sourcefolder`, first existing candidate),
   # applied by .useMadratCache() in every step and carried into SLURM jobs by startRun().
   if (!is.null(rc$sourcefolder)) options(pfm.sourcefolder = rc$sourcefolder)
+  # The panel definition (years, smoothing, IEA edition): the group's own record once swept,
+  # else config.yml's `panel` block. Every panel builder takes its defaults from this option,
+  # and startRun() carries it into SLURM jobs.
+  panelDef <- .pfmPanelDefForGroup(groupDir, rc$panel)
+  options(pfm.panel = panelDef[c("firstYear", "lastYear", "movingAverage", "ieaVersion", "geothermal")])
   hasSpec <- file.exists(.pfmSelectedModels(groupDir))
 
   # ── stage / steps ───────────────────────────────────────────────────────────
@@ -464,6 +469,7 @@ pfmRun <- function(group = NULL,
   # ranking differed and it read as a gate effect. Print it.
   message("  panel res   : ", list(...)$outputRegionMappingFile %||% rc$outputRegionMappingFile,
           if (is.null(list(...)$outputRegionMappingFile)) "  (config)" else "  (caller)")
+  message("  panel       : ", .pfmPanelDefLabel(panelDef), "  (", attr(panelDef, "source"), ")")
   ownCache <- !is.null(list(...)$cachefolder)
   message("  madrat cache: ", list(...)$cachefolder %||% rc$cachefolder,
           if (ownCache) "  (caller; not prepared)" else paste0("  [tag ", rc$madrat$tag, "]",

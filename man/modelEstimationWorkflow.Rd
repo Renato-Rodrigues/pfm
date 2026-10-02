@@ -6,7 +6,7 @@
 \usage{
 modelEstimationWorkflow(
   aggregate = TRUE,
-  y = 2000:2022,
+  y = .pfmPanelYears(),
   outputRegionMappingFile = "regionmappingH12.csv",
   coeff = list(bulk = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
     list(vre = 1, elec = 0.6), incumbents_power = list(coal = 1, oilgas = 1, fossilInd =
@@ -47,7 +47,7 @@ modelEstimationWorkflow(
 \item{aggregate}{Boolean. If TRUE, aggregates to region mapping.
 Default: \code{TRUE}.}
 
-\item{y}{Numeric vector of years. Default: \code{2000:2022}.}
+\item{y}{Numeric vector of years. Default: the panel definition's (\code{\link{pfmPanelDef}}).}
 
 \item{outputRegionMappingFile}{Character. Region mapping file for data
 aggregation. Default: \code{"regionmappingH12.csv"}.}

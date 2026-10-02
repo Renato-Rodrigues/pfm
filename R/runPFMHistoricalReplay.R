@@ -60,7 +60,7 @@ runPFMHistoricalReplay <- function(group,
                                    modelDir = getOption("pfm.modelDir", "output"),
                                    cachefolder = NULL, panelData = NULL,
                                    frontier = NULL, seedYear = NULL,
-                                   y = 2000:2022,
+                                   y = .pfmPanelYears(),
                                    outputRegionMappingFile = "regionmapping_54.csv",
                                    indexMax = 10, tolerance = 0, verbose = TRUE) {
   groupDir <- .resolveGroupDir(group, resultsDir, modelDir, cachefolder)

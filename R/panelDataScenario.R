@@ -9,6 +9,17 @@
 #'   `"country"` (see [`panelDataHistorical()`]; projection/REMIND coupling normally
 #'   stays at REMIND resolution - the sentinel here is for symmetry, not the default)
 #' @param y years to be calculated
+#' @param histYears,movingAverage,ieaVersion,geothermal the historical panel the scenario is
+#'   harmonised to: its years, moving-average window, IEA edition and clean-baseload definition
+#'   (\code{geothermal} also applies to the scenario's own control). Default: the active panel definition
+#'   (\code{\link{pfmPanelDef}}), which must be the one the Run-Group was fitted on.
+#' @param ssp \code{"SSP1"} ... \code{"SSP5"}: the SSP of GDP, population and the SSP-extension
+#'   series (Government Effectiveness, Control of Corruption, Rule of Law, urban share, Gini,
+#'   gender inequality). Must match the REMIND run's \code{cm_GDPpopScen}. Default \code{"SSP2"}.
+#' @param institutions how institution series without an SSP projection are projected:
+#'   \code{"storyline"} (default; for SSP2 identical to \code{"convergence"}), \code{"convergence"}
+#'   or \code{"hold"}; see
+#'   \code{\link{pfmInstitutionProjection}}.
 #' @param coeff list of coefficients for actor power index calculation
 #'
 #' @return Returns the combined magpie object for scenario data
@@ -23,7 +34,12 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
                               gdxRegionMappingFile = "regionmappingH12.csv",
                               outputRegionMappingFile = "regionmappingH12.csv",
                               harmonizeScenario = TRUE,
-                              movingAverage = 5,
+                              movingAverage = .pfmPanelMA(),
+                              histYears = .pfmPanelYears(),
+                              ieaVersion = pfmPanelDef()$ieaVersion,
+                              geothermal = pfmPanelDef()$geothermal,
+                              ssp = "SSP2",
+                              institutions = "storyline",
                               coeff = list(
                                 bulk = list(
                                   actor_power = list(innov = 1, incumb = 1),
@@ -37,6 +53,8 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
                                 )
                               ),
                               harmonizeScenarioYear = 2040) {
+  if (!ssp %in% paste0("SSP", 1:5)) stop("panelDataScenario: unknown ssp '", ssp, "'", call. = FALSE)
+  institutions <- match.arg(institutions, c("storyline", "convergence", "hold"))
   # "country" sentinel: see panelDataHistorical (identity mapping + scoped config)
   countryLevel <- identical(outputRegionMappingFile, "country")
   outputRegionMappingFile <- resolveRegionMapping(outputRegionMappingFile)
@@ -55,12 +73,12 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
     gdxRegionMappingFile = gdxRegionMappingFile,
     outputRegionMappingFile = outputRegionMappingFile
   )
-  modelCalculatedDrivers <- iamCalculatedDrivers(modelDownscale)
+  modelCalculatedDrivers <- iamCalculatedDrivers(modelDownscale, geothermal = geothermal)
   # See the note in panelDataHistorical(): the RAW population series, not the
   # normalised driver. Fetched once here and reused for the controls below, so the
   # two can never diverge. The uncollapsed object is kept because the control block
-  # slices it by [, , "SSP2"].
-  .popRaw <- calcOutput("Population", scenario = "SSP2",
+  # slices it by [, , ssp].
+  .popRaw <- calcOutput("Population", scenario = ssp,
     aggregate = aggregate, regionmapping = outputRegionMappingFile
   )
   modelAPI <- actorPowerIndex(modelCalculatedDrivers, coeff = coeff,
@@ -78,15 +96,16 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
 
   # Institution Quality Drivers
   sspExt <- calcOutput("SSPextensions",
-    subtype = "drivers_SSP2",
+    subtype = paste0("drivers_", ssp),
     aggregate = aggregate, regionmapping = outputRegionMappingFile
   )
-  # Voice and Accountability, Political Stability, Regulatory Quality — logistic convergence to 75th global percentile by 2150 (midpoint 2080); no scenario-specific projections available
+  # Voice and Accountability, Political Stability, Regulatory Quality: no SSP projection exists;
+  # projected by the declared `institutions` rule (pfmInstitutionProjection).
   wgi <- calcOutput("WGIindicator", aggregate = aggregate, regionmapping = outputRegionMappingFile)
   if (!any(grepl("\\(WGI\\)", magclass::getNames(wgi)))) {
     magclass::getNames(wgi) <- paste0(magclass::getNames(wgi), " (WGI)")
   }
-  wgiInt <- mrpfm::toolProjectScenario(wgi, y, shape = "logistic", midpointYear = 2080, convergenceYear = 2150)
+  wgiInt <- .pfmProjectInstitutions(wgi, y, institutions, ssp)
   wgiInt <- mrpfm::toolImputeMedians(wgiInt)
 
   # Calculate dynamic global country-level baseline bounds (historical observations only)
@@ -101,9 +120,9 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
 
   # Rule of Law, Government Effectiveness, Control of Corruption — SSP extensions projections,
   # normalized to 0-1 using country-level min/max over historical years only (matching WGI bound computation)
-  sspGovVars <- c("SSP2.Rule-of-Law Index", "SSP2.Governance Index|Government Effectiveness",
-                  "SSP2.Governance Index|Control of Corruption")
-  sspExtCnt <- calcOutput("SSPextensions", subtype = "drivers_SSP2", aggregate = FALSE)
+  sspGovVars <- paste0(ssp, c(".Rule-of-Law Index", ".Governance Index|Government Effectiveness",
+                              ".Governance Index|Control of Corruption"))
+  sspExtCnt <- calcOutput("SSPextensions", subtype = paste0("drivers_", ssp), aggregate = FALSE)
   wgiHistYears <- magclass::getYears(wgiCnt)
   sspHistYears <- intersect(wgiHistYears, magclass::getYears(sspExtCnt))
   sspGovMin <- apply(sspExtCnt[, sspHistYears, sspGovVars], 3, min, na.rm = TRUE)
@@ -116,14 +135,14 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
     wgiNorm[, y, "Voice and Accountability (WGI)"],
     wgiNorm[, y, "Political Stability (WGI)"],
     wgiNorm[, y, "Regulatory Quality (WGI)"],
-    magclass::setNames(sspGovNorm[, , "SSP2.Rule-of-Law Index"], "Rule of Law (WGI)"),
-    magclass::setNames(sspGovNorm[, , "SSP2.Governance Index|Government Effectiveness"], "Government Effectiveness (WGI)"),
-    magclass::setNames(sspGovNorm[, , "SSP2.Governance Index|Control of Corruption"], "Control of Corruption (WGI)")
+    magclass::setNames(sspGovNorm[, , sspGovVars[1]], "Rule of Law (WGI)"),
+    magclass::setNames(sspGovNorm[, , sspGovVars[2]], "Government Effectiveness (WGI)"),
+    magclass::setNames(sspGovNorm[, , sspGovVars[3]], "Control of Corruption (WGI)")
   )
 
-  # V-Dem governance indicators — logistic convergence to 75th global percentile by 2150 (midpoint 2080); no scenario-specific projections available
+  # V-Dem governance indicators: no SSP projection exists; the declared `institutions` rule.
   vdem <- calcOutput("VDem", aggregate = aggregate, regionmapping = outputRegionMappingFile)
-  vdemInt <- mrpfm::toolProjectScenario(vdem, y, shape = "logistic", midpointYear = 2080, convergenceYear = 2150)
+  vdemInt <- .pfmProjectInstitutions(vdem, y, institutions, ssp)
   vdemInt <- mrpfm::toolImputeMedians(vdemInt)
 
   # Calculate dynamic global country-level baseline bounds
@@ -134,10 +153,10 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   vdemNorm <- toolNormalize(vdemInt, minVal = vdemMin, maxVal = vdemMax, targetRange = c(0, 1))
   out <- mbind(out, vdemNorm[, y, ])
 
-  # V-Dem state-capacity indicators — same logistic convergence projection as accountability indicators
+  # V-Dem state-capacity indicators: the same `institutions` rule as the accountability indicators
   scRaw <- calcOutput("VDem", subtype = "stateCapacity",
                       aggregate = aggregate, regionmapping = outputRegionMappingFile)
-  scInt <- mrpfm::toolProjectScenario(scRaw, y, shape = "logistic", midpointYear = 2080, convergenceYear = 2150)
+  scInt <- .pfmProjectInstitutions(scRaw, y, institutions, ssp)
   scInt <- mrpfm::toolImputeMedians(scInt)
 
   # Invert "bad when high" variables before normalisation (same map as panelDataHistorical)
@@ -176,11 +195,12 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   # PCA will be added after harmonization (rotation populated by panelDataHistorical call below)
 
   # Control Variables
-  # SSP2 GDP/Population (mrdrivers): one harmonized series (history + projection, 1960-2150)
+  # GDP/Population of the run's SSP (mrdrivers): one harmonized series (history + projection,
+  # 1960-2150; the SSPs are identical until 2029)
   # used for BOTH the future trajectory and the historical normalization reference, so training
-  # and scenario share a single source. Keep the "SSP2" name for the downstream [,,"SSP2"] slices.
+  # and scenario share a single source. The scenario name is kept for the downstream [,,ssp] slices.
   pop <- .popRaw          # same series the actor-power scaler used, fetched above
-  gdp <- calcOutput("GDP", scenario = "SSP2", average2020 = FALSE,
+  gdp <- calcOutput("GDP", scenario = ssp, average2020 = FALSE,
     aggregate = aggregate, regionmapping = outputRegionMappingFile
   )
   gdpPerCapita <- gdp[, intersect(getYears(pop), getYears(gdp)), ] /
@@ -216,28 +236,30 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   # future intensity only falls so upper breach is not a concern
   energyIntensity <- setNames(
     magclass::collapseNames(modelDownscale[, y, "fe_total"]) * 31.536 /
-      (magclass::collapseNames(gdp[, y, ]) / 1e6), "SSP2") # (EJ / million US$)
+      (magclass::collapseNames(gdp[, y, ]) / 1e6), ssp) # (EJ / million US$)
   energyIntensityNorm <- toolNormalize(log1p(energyIntensity), minVal = 0, maxVal = log1p(600), targetRange = c(0, 1))
 
   out <- mbind(
     out,
-    setNames(popNorm[, y, "SSP2"], "Population"),
-    setNames(gdpNorm[, y, "SSP2"], "GDP"),
-    setNames(gdpPerCapitaNorm[, y, "SSP2"], "GDP per Capita"),
+    setNames(popNorm[, y, ssp], "Population"),
+    setNames(gdpNorm[, y, ssp], "GDP"),
+    setNames(gdpPerCapitaNorm[, y, ssp], "GDP per Capita"),
     setNames(landAreaNorm[, y, ], "Land Area"),
-    setNames(sspExt[, y, "SSP2.Population|Urban [Share]"] / 100, "Urban Population Share"),
-    setNames(sspExt[, y, "SSP2.Gini Income Inequality Coefficient"] / 100, "Gini Income Inequality Coefficient"),
-    setNames(sspExt[, y, "SSP2.Gender Inequality Index"], "Gender Inequality Index"),
-    setNames(energyIntensityNorm[, y, "SSP2"], "Energy Intensity")
+    setNames(sspExt[, y, paste0(ssp, ".Population|Urban [Share]")] / 100, "Urban Population Share"),
+    setNames(sspExt[, y, paste0(ssp, ".Gini Income Inequality Coefficient")] / 100, "Gini Income Inequality Coefficient"),
+    setNames(sspExt[, y, paste0(ssp, ".Gender Inequality Index")], "Gender Inequality Index"),
+    setNames(energyIntensityNorm[, y, ssp], "Energy Intensity")
   )
   # GDP Q-centred placeholder — populated after harmonization so quartile breaks are available
 
   if (harmonizeScenario) {
     histPanel <- panelDataHistorical(
       aggregate = aggregate,
-      y = 2000:2022,
+      y = histYears,
       outputRegionMappingFile = outputRegionMappingFile,
       movingAverage = movingAverage,
+      ieaVersion = ieaVersion,
+      geothermal = geothermal,
       coeff = coeff
     )
 
@@ -291,8 +313,8 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   if (!is.null(scPC_scen)) out <- mbind(out, scPC_scen)
 
   # GDP per Capita (Q-centred): apply historical quartile breaks stored by panelDataHistorical
-  gdpPCSSP2 <- setNames(gdpPerCapitaNorm[, y, "SSP2"], "GDP per Capita")
-  gdpPCQCentred_scen <- computeGdpQCentred(gdpPCSSP2, storeBreaks = FALSE)
+  gdpPCScen <- setNames(gdpPerCapitaNorm[, y, ssp], "GDP per Capita")
+  gdpPCQCentred_scen <- computeGdpQCentred(gdpPCScen, storeBreaks = FALSE)
   if (!is.null(gdpPCQCentred_scen)) out <- mbind(out, gdpPCQCentred_scen)
 
   return(out)

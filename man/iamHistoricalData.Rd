@@ -7,7 +7,8 @@
 iamHistoricalData(
   aggregate = FALSE,
   outputRegionMappingFile = "regionmappingH12.csv",
-  gdxRegionMappingFile = "regionmappingH12.csv"
+  gdxRegionMappingFile = "regionmappingH12.csv",
+  ieaVersion = pfmPanelDef()$ieaVersion
 )
 }
 \arguments{
@@ -19,6 +20,10 @@ iamHistoricalData(
 the country universe. Defaults to \code{"regionmappingH12.csv"}. Set to the same mapping
 used in the REMIND GDX (e.g. \code{"regionmapping_21_EU11.csv"}) so that the returned country
 set is consistent with the disaggregation target.}
+
+\item{ieaVersion}{Edition of the IEA World Energy Balances behind \code{calcPE} / \code{calcFE}:
+\code{"default"} (2024 edition, complete to 2022) or \code{"latest"} (2025 edition, complete
+to 2023). Defaults to the active panel definition (\code{\link{pfmPanelDef}}).}
 }
 \value{
 A list with historical \code{\link[magclass:magclass-package]{magpie}} objects.

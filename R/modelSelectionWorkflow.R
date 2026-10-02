@@ -4,7 +4,7 @@
 #' around \code{\link{modelSelection}}.
 #'
 #' @param aggregate Boolean. If TRUE, aggregates to region mapping.
-#' @param y Numeric vector of years. Default: \code{2000:2022}.
+#' @param y Numeric vector of years. Default: the panel definition's (\code{\link{pfmPanelDef}}).
 #' @param outputRegionMappingFile Character. Region mapping file for data
 #'   aggregation. Default: \code{"regionmappingH12.csv"}.
 #' @param coeff List of coefficients for actor power index calculation.
@@ -67,7 +67,7 @@
 #'
 modelSelectionWorkflow <- function( # nolint: cyclocomp_linter.
     aggregate = TRUE,
-    y = 2000:2022,
+    y = .pfmPanelYears(),
     outputRegionMappingFile = "regionmappingH12.csv",
     coeff = list(
       bulk = list(

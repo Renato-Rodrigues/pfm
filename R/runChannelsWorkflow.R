@@ -19,7 +19,8 @@
 #'   or \code{"exhaustive"} (full combination suite, 187 specs).
 #' @param panelData Optional \code{magpie} object or prepared panel. When \code{NULL},
 #'   loaded via \code{panelDataHistorical}.
-#' @param y Numeric vector of years for \code{panelDataHistorical}. Default \code{2000:2022}.
+#' @param y Numeric vector of years for \code{panelDataHistorical}. Default: the active panel
+#'   definition's years (\code{\link{pfmPanelDef}}).
 #' @param outputRegionMappingFile Character. Region mapping for data aggregation.
 #'   Default \code{"regionmapping_54.csv"} (the model-selection report convention).
 #' @param sectors Character vector. Default \code{c("Bulk", "Diffuse")}.
@@ -118,7 +119,7 @@
 #' @author Renato Rodrigues
 runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cyclocomp_linter.
                                 panelData = NULL,
-                                y = 2000:2022,
+                                y = .pfmPanelYears(),
                                 outputRegionMappingFile = "regionmapping_54.csv",
                                 sectors = c("Bulk", "Diffuse"),
                                 configDir = NULL,

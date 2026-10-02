@@ -43,6 +43,11 @@ If absent it is derived from the gdx run folder name with the trailing
 (e.g. \code{regionmapping_21_EU11-without-missingH12.csv} for \code{EU21}
 runs). Defaults to \code{regionmappingH12.csv}.}
 \item{gating}{Logical; \code{TRUE} for the gating scenario.}
+\item{ssp}{The SSP the REMIND run uses (\code{cm_GDPpopScen}); drives the scenario
+panel's GDP, population and SSP-extension series. Default \code{"SSP2"}.}
+\item{institutions}{How institution series without an SSP projection are projected:
+\code{"storyline"} (default), \code{"convergence"} or \code{"hold"}
+(\code{\link{pfmInstitutionProjection}}).}
 }
 
 Backward compatibility: when no \code{scenarios:} block is present but a single

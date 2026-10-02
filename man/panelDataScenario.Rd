@@ -11,7 +11,11 @@ panelDataScenario(
   gdxRegionMappingFile = "regionmappingH12.csv",
   outputRegionMappingFile = "regionmappingH12.csv",
   harmonizeScenario = TRUE,
-  movingAverage = 5,
+  movingAverage = .pfmPanelMA(),
+  histYears = .pfmPanelYears(),
+  ieaVersion = pfmPanelDef()$ieaVersion,
+  ssp = "SSP2",
+  institutions = "storyline",
   coeff = list(bulk = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
     list(vre = 1, elec = 0.6), incumbents_power = list(coal = 1, oilgas = 1, fossilInd =
     0.5)), diffuse = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
@@ -32,6 +36,19 @@ panelDataScenario(
 \item{outputRegionMappingFile}{mapping file for output regions, or the sentinel
 \code{"country"} (see \code{\link[=panelDataHistorical]{panelDataHistorical()}}; projection/REMIND coupling normally
 stays at REMIND resolution - the sentinel here is for symmetry, not the default)}
+
+\item{histYears, movingAverage, ieaVersion}{the historical panel the scenario is harmonised to:
+its years, moving-average window and IEA edition. Default: the active panel definition
+(\code{\link{pfmPanelDef}}), which must be the one the Run-Group was fitted on.}
+
+\item{ssp}{\code{"SSP1"} ... \code{"SSP5"}: the SSP of GDP, population and the SSP-extension
+series (Government Effectiveness, Control of Corruption, Rule of Law, urban share, Gini,
+gender inequality). Must match the REMIND run's \code{cm_GDPpopScen}. Default \code{"SSP2"}.}
+
+\item{institutions}{how institution series without an SSP projection are projected:
+\code{"storyline"} (default; for SSP2 identical to \code{"convergence"}), \code{"convergence"}
+or \code{"hold"}; see
+\code{\link{pfmInstitutionProjection}}.}
 
 \item{coeff}{list of coefficients for actor power index calculation}
 }

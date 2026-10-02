@@ -7,7 +7,14 @@
 #'   `"country"` for a country-resolution run (identity mapping generated in code by
 #'   [`mrpfm::toolCountryIdentityMapping()`]; the global madrat regionmapping config is
 #'   scoped around the data calls so the CAPMF coverage filter sees the right mapping)
-#' @param y years to be calculated
+#' @param y years to be calculated. Default: the active panel definition
+#'   (\code{\link{pfmPanelDef}}; 2000-2022 when none is set).
+#' @param movingAverage centred moving-average window applied to every series; \code{NULL} or
+#'   \code{1} keeps annual values. Default: the active panel definition (5 when none is set).
+#' @param ieaVersion edition of the IEA World Energy Balances behind the energy drivers, see
+#'   \code{\link{iamHistoricalData}}. Default: the active panel definition.
+#' @param geothermal count geothermal in the clean-baseload control ("Hydro Nuclear Share"), see
+#'   \code{\link{iamCalculatedDrivers}}. Default: the active panel definition.
 #' @param coeff list of coefficients for actor power index calculation
 #' @param includePolicyStringency logical; if TRUE, adds the CAPMF-based Policy
 #'   Stringency Model outcomes ("Policy Stringency|Bulk", "Policy Stringency|Diffuse"
@@ -31,9 +38,11 @@
 #' @export
 #'
 panelDataHistorical <- function(aggregate = TRUE,
-                                y = 2000:2022,
+                                y = .pfmPanelYears(),
                                 outputRegionMappingFile = "regionmappingH12.csv",
-                                movingAverage = 5,
+                                movingAverage = .pfmPanelMA(),
+                                ieaVersion = pfmPanelDef()$ieaVersion,
+                                geothermal = pfmPanelDef()$geothermal,
                                 coeff = list(
                                   bulk = list(
                                     actor_power = list(innov = 1, incumb = 1),
@@ -95,8 +104,9 @@ panelDataHistorical <- function(aggregate = TRUE,
   }
 
   # Actor Power Index
-  histData <- iamHistoricalData(aggregate = aggregate, outputRegionMappingFile = outputRegionMappingFile)
-  histCalculatedDrivers <- iamCalculatedDrivers(histData)
+  histData <- iamHistoricalData(aggregate = aggregate, outputRegionMappingFile = outputRegionMappingFile,
+                                ieaVersion = ieaVersion)
+  histCalculatedDrivers <- iamCalculatedDrivers(histData, geothermal = geothermal)
   # Total primary energy per capita scales the share-based indices into per-capita
   # levels (design-notes/0001). It needs the RAW population series, not the
   # normalised `Population` driver built further down - that one is a log-min-max

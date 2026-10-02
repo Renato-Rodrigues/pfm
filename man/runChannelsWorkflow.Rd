@@ -7,7 +7,7 @@
 runChannelsWorkflow(
   mode = c("guided", "exhaustive"),
   panelData = NULL,
-  y = 2000:2022,
+  y = .pfmPanelYears(),
   outputRegionMappingFile = "regionmapping_54.csv",
   sectors = c("Bulk", "Diffuse"),
   configDir = NULL,
@@ -46,7 +46,8 @@ or \code{"exhaustive"} (full combination suite, 187 specs).}
 \item{panelData}{Optional \code{magpie} object or prepared panel. When \code{NULL},
 loaded via \code{panelDataHistorical}.}
 
-\item{y}{Numeric vector of years for \code{panelDataHistorical}. Default \code{2000:2022}.}
+\item{y}{Numeric vector of years for \code{panelDataHistorical}. Default: the active panel
+definition's years (\code{\link{pfmPanelDef}}).}
 
 \item{outputRegionMappingFile}{Character. Region mapping for data aggregation.
 Default \code{"regionmapping_54.csv"} (the model-selection report convention).}

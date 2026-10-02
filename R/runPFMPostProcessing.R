@@ -43,7 +43,7 @@ runPFMProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "ou
                              modelDir = getOption("pfm.modelDir", "output"), cachefolder = NULL,
                              gdxFile = NULL, scenarios = NULL,
                              panelData = NULL, scenarioData = NULL,
-                             y = 2000:2022, outputRegionMappingFile = "regionmapping_54.csv",
+                             y = .pfmPanelYears(), outputRegionMappingFile = "regionmapping_54.csv",
                              indexMax = 10, verbose = TRUE) {
   groupDir <- .resolveGroupDir(group, resultsDir, modelDir, cachefolder)
   say <- function(...) if (isTRUE(verbose)) message("[PFM-PROJ:", group, "] ", ...)
@@ -170,7 +170,9 @@ runPFMProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "ou
     say("scenario '", s$id, "': building scenario panel from gdx: ", s$gdx)
     tryCatch(panelDataScenario(gdxFile = s$gdx, aggregate = TRUE,
                                gdxRegionMappingFile = s$gdxRegionMapping %||% "regionmappingH12.csv",
-                               outputRegionMappingFile = outputRegionMappingFile),
+                               outputRegionMappingFile = outputRegionMappingFile,
+                               ssp = s$ssp %||% "SSP2",
+                               institutions = s$institutions %||% "storyline"),
              error = function(e) {
                say("  scenario panel build FAILED: ", conditionMessage(e))
                NULL
@@ -305,7 +307,7 @@ runPFMProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "ou
 runPFMEstimatorAgreement <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
                                      modelDir = getOption("pfm.modelDir", "output"),
                                      cachefolder = NULL, panelData = NULL,
-                                     y = 2000:2022,
+                                     y = .pfmPanelYears(),
                                      outputRegionMappingFile = "regionmapping_54.csv",
                                      indexMax = 10,
                                      estimators = c("satP", "fractional", "beta",

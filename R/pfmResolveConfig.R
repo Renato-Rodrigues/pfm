@@ -36,9 +36,22 @@
 #' \code{cachefolder}/\code{sourcefolder} keys of older configs are still read.
 #' See \code{\link{pfmPrepareCache}}.
 #'
+#' @section The panel block:
+#' \preformatted{
+#' panel:
+#'   years: [2000, 2023]       # first and last panel year
+#'   movingAverage: 5          # centred window; 1 = annual values
+#'   ieaVersion: latest        # IEA World Energy Balances: default (2024 ed.) | latest (2025 ed.)
+#'   groups:                   # per-Run-Group overrides of the keys above
+#'     v6-annual: {movingAverage: 1}
+#' }
+#' It applies to a group that has not been swept yet; a swept group keeps the definition
+#' recorded in its manifest (\code{\link{pfmPanelDef}}).
+#'
 #' @return List with \code{scenarios} (or \code{NULL}), \code{gdxFile} (the gating
 #'   scenario's gdx, or \code{NULL}), \code{cachefolder}, \code{sourcefolder},
-#'   \code{madrat} (the resolved madrat block), \code{group}, \code{recordsDir}, \code{resultsDir},
+#'   \code{madrat} (the resolved madrat block), \code{panel} (the panel block resolved for
+#'   \code{group}, or \code{NULL}), \code{group}, \code{recordsDir}, \code{resultsDir},
 #'   \code{modelDir}, \code{path} and \code{dir}.
 #' @author Renato Rodrigues
 #' @export
@@ -111,9 +124,18 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
                       useMadratConfig = !isFALSE(md[["useMadratConfig"]]),
                       compute = !isFALSE(md[["compute"]]))
 
+  # --- panel: years, smoothing, IEA edition; the group's override on top of the default ------
+  panel <- cfg[["panel"]]
+  if (!is.null(panel)) {
+    override <- if (!is.null(group)) panel[["groups"]][[group]] else NULL
+    panel[["groups"]] <- NULL
+    if (!is.null(override)) panel <- utils::modifyList(panel, override)
+    panel <- .pfmPanelDefNormalise(panel)
+  }
+
   list(scenarios = scenarios, gdxFile = gdxFile,
        cachefolder = cachefolder, sourcefolder = sourcefolder, madrat = madratBlock,
-       group = group,
+       panel = panel, group = group,
        resultsDir = def("resultsDir", NULL), modelDir = def("modelDir", NULL),
        # Tracked reproduction records, one folder per Run-Group: the madrat pin and the list
        # of input files (pfmPrepareCache). Unlike output/, this folder is in git.

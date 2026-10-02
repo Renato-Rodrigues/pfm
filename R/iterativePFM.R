@@ -64,7 +64,12 @@
 #'   \code{default.cfg}, written into \code{pfm-coupling.yml}). Inside a REMIND run
 #'   the SSP is the run's own \code{cm_GDPpopScen}; offline,
 #'   \strong{\code{weightScenario} must match the SSP the coupled run uses},
-#'   or the weights describe a different world than the model does.
+#'   or the weights describe a different world than the model does. The same SSP drives
+#'   the scenario panel's GDP, population and SSP-extension series.
+#' @param institutions How the institution series without an SSP projection are projected
+#'   in the scenario panel: \code{"storyline"} (default), \code{"convergence"} or
+#'   \code{"hold"} (\code{\link{pfmInstitutionProjection}}). Inside a REMIND run it comes
+#'   from \code{pfm-coupling.yml} (\code{cfg$pfmInstitutions}).
 #' @param couplingConfig Path to the run-local YAML written by REMIND's
 #'   \code{scripts/start/preparePFM.R}, holding the \strong{static} settings with
 #'   \strong{relative} paths so the run folder is self-contained. Absent outside a
@@ -78,7 +83,7 @@
 #'
 #'   \code{gapClosure} is \code{cm_pfmGapClosure}: \code{0} means the political gap
 #'   PERSISTS, so every gap-closure rate is forced to zero; \code{1} means it closes at
-#'   the frontier's estimated rates. It reaches bind modes 1 and 2 only \emph{}
+#'   the frontier's estimated rates. It reaches bind modes 1 and 2 only, \emph{not} mode 3:
 #'   mode 3's \eqn{\lambda} is a momentum rate, not a gap-closure rate, and zeroing it
 #'   would freeze the mild-progression price at its seed. See the note beside
 #'   \code{lambdaGap} in the body.
@@ -123,6 +128,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
                          runtimeConfig = getOption("pfm.couplingRuntimeConfig",
                                                    "pfm-coupling-runtime.yml"),
                          tierYear = getOption("pfm.couplingTierYear", NULL),
+                         institutions = getOption("pfm.couplingInstitutions", "storyline"),
                          verbose = TRUE) {
   say <- function(...) if (isTRUE(verbose)) message("[iterativePFM] ", ...)
   rtIteration <- NULL
@@ -149,6 +155,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       if (!is.null(sc$refGdx)) refGdx <- sc$refGdx
       if (!is.null(sc$weightScenario)) weightScenario <- sc$weightScenario
       if (!is.null(sc$weightYear)) weightYear <- as.numeric(sc$weightYear)
+      if (!is.null(sc$institutions)) institutions <- sc$institutions
       if (!is.null(sc$cachefolder)) madratCache <- sc$cachefolder
       say("run config from '", couplingConfig, "': group ", group,
           ", resultsDir ", resultsDir)
@@ -244,15 +251,6 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     }
     say("reading REMIND state from ", gdx)
 
-    # 1. REMIND -> PFM: the energy system becomes the actor-power drivers. The
-    #    scenario panel is built by the same code path the offline projection uses,
-    #    so the coupled and uncoupled runs are scored on identical designs.
-    # The gdx's OWN resolution - H12 and EU21 runs are both possible, and reading an
-    # EU21 gdx through the H12 mapping silently mis-assigns every region.
-    scen <- panelDataScenario(gdxFile = gdx, aggregate = TRUE,
-                              gdxRegionMappingFile = gdxRegionMapping,
-                              outputRegionMappingFile = "country")
-
     # The Run-Group may be a SUBDIRECTORY of resultsDir, or the artifacts may sit
     # directly in it - preparePFM.R copies them flat into <run>/pfm/ while still
     # recording a group NAME for the log. Resolve by finding the marker file rather
@@ -271,6 +269,25 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     }
     sel <- yaml::read_yaml(.pfmSelectedModels(gd))
     mf <- jsonlite::read_json(file.path(gd, "manifest.json"))
+
+    # 1. REMIND -> PFM: the energy system becomes the actor-power drivers. The
+    #    scenario panel is built by the same code path the offline projection uses,
+    #    so the coupled and uncoupled runs are scored on identical designs: the group's
+    #    own panel definition (years, smoothing, IEA edition; legacy for v5 and earlier),
+    #    the run's SSP and the declared institution rule.
+    # The gdx's OWN resolution - H12 and EU21 runs are both possible, and reading an
+    # EU21 gdx through the H12 mapping silently mis-assigns every region.
+    panelDef <- .pfmPanelDefForGroup(gd)
+    say("panel: ", .pfmPanelDefLabel(panelDef), "; SSP ", weightScenario,
+        "; institutions ", institutions)
+    scen <- panelDataScenario(gdxFile = gdx, aggregate = TRUE,
+                              gdxRegionMappingFile = gdxRegionMapping,
+                              outputRegionMappingFile = "country",
+                              histYears = .pfmPanelYears(panelDef),
+                              movingAverage = .pfmPanelMA(panelDef),
+                              ieaVersion = panelDef$ieaVersion,
+                              geothermal = panelDef$geothermal,
+                              ssp = weightScenario, institutions = institutions)
     pfile <- paste0("panel_", mf$panel_hash, ".rds")
     pcand <- c(file.path(modelDir, "panels", pfile), file.path(gd, "panels", pfile),
                file.path(gd, pfile), file.path(modelDir, pfile))

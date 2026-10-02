@@ -209,7 +209,7 @@ runPFMInfluence <- function(group,
                             resultsDir = getOption("pfm.resultsDir", "output"),
                             modelDir = getOption("pfm.modelDir", "output"),
                             cachefolder = NULL, panelData = NULL,
-                            y = 2000:2022,
+                            y = .pfmPanelYears(),
                             outputRegionMappingFile = "regionmapping_54.csv",
                             indexMax = 10, alpha = 0.05, wcbB = 999,
                             verbose = TRUE) {
