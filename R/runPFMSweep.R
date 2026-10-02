@@ -96,6 +96,16 @@
 #'   the 19-specification survey of 2026-09-15 the healthy fits top out at 0.99840 and
 #'   the degenerate ones start at 0.99991, with nothing in between
 #'   (\code{../_archive/_wip/2026-10-01/docs/reference/spec-selection-2026-09-15/}). \code{NA} disables.
+#' @param vcovGate Character. Covariance-check statuses (from \code{.pfmFrontierVcov})
+#'   that raise a \strong{severe} \code{frontierVcov} flag in the sanity walk (design note
+#'   0005 E13). Default \code{c("likelihood-mismatch", "flat")}: the statuses that leave
+#'   untrustworthy standard errors in the deliverable, either because FRONTIER's matrix
+#'   could not be checked or because the information matrix is not negative definite.
+#'   \code{"corrupt"} is not gated, because the recomputed matrix replaces FRONTIER's.
+#'   \code{"boundary"} is the \code{gammaGate}'s. The status is recorded for every
+#'   evaluated spec either way. \code{character(0)} disables. Like \code{gammaGate}, it
+#'   reads the frontier fit of the ceiling check, so it runs only while
+#'   \code{ceilingFallGate} is set.
 #' @param ceilingFallGate Numeric or \code{NA}. Severe-gate threshold on the
 #'   median FRONTIER ceiling's end/start ratio across the scenario horizon: a
 #'   spec whose ceiling falls below this fraction of its first projected value by
@@ -161,6 +171,7 @@ runPFMSweep <- function(group,
                         supportShareGate = 0.275,
                         ceilingFallGate = 0.90,
                         gammaGate = 0.999,
+                        vcovGate = c("likelihood-mismatch", "flat"),
                         gdxRegionMappingFile = "regionmappingH12.csv",
                         apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
                         sanityBatchSize = 5,
@@ -355,6 +366,7 @@ runPFMSweep <- function(group,
     # to H12, panelDataScenario died on "EUR", and the tryCatch above swallowed it.
     active <- c(if (is.finite(ceilingFallGate)) "ceilingFallGate",
                 if (is.finite(gammaGate)) "gammaGate",
+                if (length(vcovGate)) "vcovGate",
                 if (is.finite(supportShareGate)) "supportShareGate",
                 "sanity walk", "scenarioBlind")
     warning("runPFMSweep: no scenario panel - selecting on maximin ALONE. ",
@@ -378,6 +390,7 @@ runPFMSweep <- function(group,
       supportShareGate = supportShareGate,
       ceilingFallGate = ceilingFallGate,
       gammaGate = gammaGate,
+      vcovGate = vcovGate,
       say = say
     )
     # Tier-relaxed fallback (ADR 0039): if every Green-gate candidate fails the
@@ -401,6 +414,7 @@ runPFMSweep <- function(group,
           supportShareGate = supportShareGate,
           ceilingFallGate = ceilingFallGate,
           gammaGate = gammaGate,
+          vcovGate = vcovGate,
           say = say
         )
         if (!isTRUE(selBlue$forced)) {

@@ -386,9 +386,11 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
                              deltaWindow = c(2040, 2060),
                              supportShareGate = 0.275,
                              ceilingFallGate = NA_real_, gammaGate = 0.999,
+                             vcovGate = c("likelihood-mismatch", "flat"),
                              say = function(...) invisible()) {
   ceilingByModel <- list()
   gammaByModel <- list()
+  vcovByModel <- list()
   traceRows <- list()
   flagsByModel <- list()
   chosen <- NULL
@@ -408,6 +410,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
     modelFlags <- list()
     modelCeiling <- list()
     modelGamma <- list()
+    modelVcov <- list()
     for (sec in sectors) {
       projReason <- ""
       proj <- tryCatch(
@@ -518,6 +521,32 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
             )
             say("  [sanity:PolicyStringency] ", m, " (", sec, ") gamma at boundary: ",
                 format(ct$gamma, digits = 8), " > ", gammaGate)
+          }
+        }
+
+        # Covariance gate (design note 0005 E13; was TODO 40). .pfmFrontierVcov() checks
+        # FRONTIER 4.1's covariance on every frontier fit, but selection never looked at
+        # the result. Only the statuses that leave untrustworthy standard errors in the
+        # deliverable are severe:
+        #   "likelihood-mismatch" - the check could not run, FRONTIER's matrix is kept unverified;
+        #   "flat"                - the information matrix is not negative definite: the spec
+        #                           is not identified, and its large SEs are honest.
+        # "corrupt" is NOT gated: the recomputed matrix replaces FRONTIER's (TODO 14f), so a
+        # corrupt matrix never reaches a deliverable. "boundary" is the gamma gate's.
+        # REPORTED for every evaluated spec even when the gate is off, like gamma.
+        if (!is.null(ct) && !is.na(ct$vcovStatus %||% NA_character_)) {
+          modelVcov[[sec]] <- ct$vcovStatus
+          if (ct$vcovStatus %in% vcovGate) {
+            nSevere <- nSevere + 1L
+            modelFlags[[paste0(sec, ".frontierVcov")]] <- data.frame(
+              rule = "frontierVcov", severity = "severe",
+              region = "ALL", year = NA_integer_, value = NA_real_,
+              detail = paste0("frontier covariance check: ", ct$vcovStatus,
+                              "; its standard errors cannot be trusted (.pfmFrontierVcov)"),
+              sector = sec, stringsAsFactors = FALSE
+            )
+            say("  [sanity:PolicyStringency] ", m, " (", sec, ") frontier covariance: ",
+                ct$vcovStatus)
           }
         }
 
@@ -632,6 +661,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
     # inspectable after the fact rather than only visible as a rejection.
     if (length(modelCeiling) > 0) ceilingByModel[[m]] <- unlist(modelCeiling)
     if (length(modelGamma) > 0) gammaByModel[[m]] <- unlist(modelGamma)
+    if (length(modelVcov) > 0) vcovByModel[[m]] <- unlist(modelVcov)
     if (evaluable && (nSevere < least$nSevere ||
                         (nSevere == least$nSevere && nWarning < least$nWarning))) {
       least <- list(model = m, nSevere = nSevere, nWarning = nWarning)
@@ -655,7 +685,8 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
     trace = if (length(traceRows) > 0) do.call(rbind, traceRows) else NULL,
     flags = flagsByModel,
     ceiling = ceilingByModel,
-    gamma = gammaByModel
+    gamma = gammaByModel,
+    vcovStatus = vcovByModel
   )
 }
 
@@ -734,6 +765,8 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
   list(ratio = if (is.finite(y0) && y0 > 0) y1 / y0 else NA_real_,
        ceil0 = y0, ceil1 = y1, year0 = years[1], year1 = years[2],
        shareFalling = mean(perC < 1, na.rm = TRUE),
-       gamma = gm)
+       gamma = gm,
+       # The covariance check of the same fit (.pfmFrontierVcov): free, like gamma.
+       vcovStatus = ff$vcovCheck$status %||% NA_character_)
 }
 # nolint end

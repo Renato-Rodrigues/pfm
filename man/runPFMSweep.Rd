@@ -39,6 +39,7 @@ runPFMSweep(
   supportShareGate = 0.275,
   ceilingFallGate = 0.9,
   gammaGate = 0.999,
+  vcovGate = c("likelihood-mismatch", "flat"),
   gdxRegionMappingFile = "regionmappingH12.csv",
   apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
   sanityBatchSize = 5,
@@ -152,6 +153,17 @@ statistical tests are no longer valid. 0.999 is placed in an observed gap: acros
 the 19-specification survey of 2026-09-15 the healthy fits top out at 0.99840 and
 the degenerate ones start at 0.99991, with nothing in between
 (\code{../_archive/_wip/2026-10-01/docs/reference/spec-selection-2026-09-15/}). \code{NA} disables.}
+
+\item{vcovGate}{Character. Covariance-check statuses (from \code{.pfmFrontierVcov})
+that raise a \strong{severe} \code{frontierVcov} flag in the sanity walk (design note
+0005 E13). Default \code{c("likelihood-mismatch", "flat")}: the statuses that leave
+untrustworthy standard errors in the deliverable, either because FRONTIER's matrix
+could not be checked or because the information matrix is not negative definite.
+\code{"corrupt"} is not gated, because the recomputed matrix replaces FRONTIER's.
+\code{"boundary"} is the \code{gammaGate}'s. The status is recorded for every
+evaluated spec either way. \code{character(0)} disables. Like \code{gammaGate}, it
+reads the frontier fit of the ceiling check, so it runs only while
+\code{ceilingFallGate} is set.}
 
 \item{gdxRegionMappingFile}{Character. The \strong{gdx's own native resolution}, not a
 target (PITFALLS §5) — \code{"regionmappingH12.csv"} (default) for an H12 gdx,
