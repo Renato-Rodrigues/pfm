@@ -44,7 +44,7 @@ carries the between-region-FE spread (they inherit the reference-group
 fixed effect, so the FE assignment uncertainty is part of their interval).
 }
 \description{
-Produces scenario projections of the Policy Stringency Model
+Produces scenario projections of the Political Feasibility Model
 (ADR 0036) from an already fitted, \emph{loaded} \code{PFMModel} of stage
 \code{"policyStringency"} and a scenario panel — WITHOUT refitting and WITHOUT
 the historical training panel (the \code{\link{predictFeasibility}} discipline,

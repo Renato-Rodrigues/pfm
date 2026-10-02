@@ -23,7 +23,7 @@ projectFeasiblePath(
 }
 \arguments{
 \item{spec}{Normalised specification (named list) as stored in
-\code{selected-models-psm.yml}; must be \code{panelTransform = "levels"}.}
+\code{selected-models-pfm.yml}; must be \code{panelTransform = "levels"}.}
 
 \item{sector}{Character. \code{"Bulk"} or \code{"Diffuse"}.}
 
@@ -35,7 +35,7 @@ projectFeasiblePath(
 \code{NULL} (default) estimates it here from the ECM fit of \code{spec}. Pass
 a value to impose a sector-resolved rate (e.g. the validated electricity rate)
 \itemize{
-\item see \code{\link{runPSMSectorSpeeds}} for the honesty labels that must travel
+\item see \code{\link{runPFMSectorSpeeds}} for the honesty labels that must travel
 with any such number.
 }}
 
@@ -114,8 +114,8 @@ scenario). Together they are the published scenario pair: \emph{the gap is a
 political choice, the speed is the constraint}.
 }
 \seealso{
-\code{\link{projectPSMSpecScenario}} (one-shot level projection used by
-the sanity gate), \code{\link{runPSMTemporalValidation}} (where \eqn{\lambda}
+\code{\link{projectPFMSpecScenario}} (one-shot level projection used by
+the sanity gate), \code{\link{runPFMTemporalValidation}} (where \eqn{\lambda}
 is estimated and validated), \code{\link{aggregateFeasibilityToRegions}}
 (delivery to IAM regions). ADR 0040, ADR 0041.
 }

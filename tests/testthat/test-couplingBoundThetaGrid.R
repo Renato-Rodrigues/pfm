@@ -5,7 +5,7 @@
 # from MODEL.md while still being swept). Pin it.
 
 test_that("the default theta grid is even, spans [0, 1) and brackets v3's Bulk anchor", {
-  th <- eval(formals(runPSMCouplingBound)$thetas)
+  th <- eval(formals(runPFMCouplingBound)$thetas)
 
   expect_identical(th, c(0, 0.25, 0.50, 0.75, 0.95, 0.99))
 
@@ -32,7 +32,7 @@ test_that("every swept theta is admissible to aggregateFeasibilityToRegions", {
   # aggregateFeasibilityToRegions() validates [0, 1) and stops otherwise, so an
   # inadmissible default would not fail at review -- it would fail mid-run, after
   # the frontier and donor steps had already been paid for.
-  th <- eval(formals(runPSMCouplingBound)$thetas)
+  th <- eval(formals(runPFMCouplingBound)$thetas)
   expect_true(all(th >= 0 & th < 1))
 
   # theta = 1 gives phi = 0 for the largest-gap tier: degenerate, not severe.
@@ -53,7 +53,7 @@ test_that("every swept theta is admissible to aggregateFeasibilityToRegions", {
 test_that("swept thetas do not collide in the written CSV filenames", {
   # exportFeasibilityBound writes sprintf("...theta%03d.csv", round(100 * theta)),
   # so two thetas within 0.005 of each other would silently overwrite one file.
-  th <- eval(formals(runPSMCouplingBound)$thetas)
+  th <- eval(formals(runPFMCouplingBound)$thetas)
   expect_false(any(duplicated(sprintf("theta%03d", round(100 * th)))))
 })
 # nolint end

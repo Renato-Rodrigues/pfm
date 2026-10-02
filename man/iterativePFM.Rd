@@ -75,7 +75,7 @@ rather than continue without a bound - see
 constraint. \code{NULL} warns and uses equal weights.}
 
 \item{weightYear, weightScenario}{Year and SSP used to project the final-energy
-weights (see \code{\link{psmCouplingWeights}}). Default 2050 / \code{"SSP2"}:
+weights (see \code{\link{pfmCouplingWeights}}). Default 2050 / \code{"SSP2"}:
 mid-century is where the bound bites and where SSP growth paths have visibly
 diverged. \strong{\code{weightScenario} must match the SSP the coupled run uses},
 or the weights describe a different world than the model does.}

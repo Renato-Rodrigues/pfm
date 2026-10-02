@@ -45,7 +45,7 @@ test_that("P_opt comes from the uncapped anchor, not the run's capped price", {
            capped = c(0.0001, 0.0002, 0.0001, 0.0002))
 
   pR <- magclass::new.magpie(c("EUR", "USA"), c(2030, 2050), fill = 0)
-  got <- pfm:::.psmCouplingOptimalPath(f, pR, TCO2 = 1000 / (44 / 12))
+  got <- pfm:::.pfmCouplingOptimalPath(f, pR, TCO2 = 1000 / (44 / 12))
 
   expect_s3_class(got, "data.frame")
   expect_setequal(names(got), c("region", "year", "value"))
@@ -64,7 +64,7 @@ test_that("a region-free anchor is broadcast without recycling onto the wrong ye
   f <- withr::local_tempfile(fileext = ".gdx")
   mkRunGdx(f, anchor = c("2030" = 0.1, "2050" = 0.9), regs = c("EUR", "USA", "CHA"))
   pR <- magclass::new.magpie(c("EUR", "USA", "CHA"), c(2030, 2050), fill = 0)
-  got <- pfm:::.psmCouplingOptimalPath(f, pR, TCO2 = 1)
+  got <- pfm:::.pfmCouplingOptimalPath(f, pR, TCO2 = 1)
   # Every region must see the SAME value in a given year - the anchor is global.
   for (y in c(2030L, 2050L)) {
     expect_equal(length(unique(got$value[got$year == y])), 1L)
@@ -81,6 +81,6 @@ test_that("a missing anchor warns loudly rather than falling back in silence", {
   mkRunGdx(f, anchor = c("2030" = 0, "2050" = 0),
            capped = c(0.5, 0.5, 0.5, 0.5))
   pR <- magclass::new.magpie(c("EUR", "USA"), c(2030, 2050), fill = 0)
-  expect_warning(pfm:::.psmCouplingOptimalPath(f, pR, TCO2 = 1),
+  expect_warning(pfm:::.pfmCouplingOptimalPath(f, pR, TCO2 = 1),
                  "ALREADY\\s+CAPPED|ratchet")
 })

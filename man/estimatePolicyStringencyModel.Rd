@@ -96,7 +96,7 @@ rung only. Default \code{FALSE}.}
 \code{\link{preparePanelData}}. The saturating form bounds the extrapolation
 of the actor-power slopes (and hence of the AP x IQ interactions) outside
 the historical share range; it is swept as an axis by
-\code{\link{psmSpecs}}. Part of the fit-cache key, so linear and saturating
+\code{\link{pfmSpecs}}. Part of the fit-cache key, so linear and saturating
 fits never collide.}
 
 \item{trendMidpoint, trendSteepness}{Numeric. Shape of the logistic time trend,
@@ -119,7 +119,7 @@ scale with delta-method clustered SEs), plus \code{vifRaw}/\code{maxVIF} and
 \code{predictiveDiagnostics} as in the sibling estimator.
 }
 \description{
-Estimates the Policy Stringency Model (PSM, ADR 0036): a
+Estimates the Political Feasibility Model (PFM, ADR 0036): a
 single-stage bounded-response panel model of the CAPMF policy-stringency
 index (0 to \code{indexMax}) on Actor Power, Institutional Quality and their
 interactions. There is \strong{no adoption hurdle} — zero-stringency
@@ -127,7 +127,7 @@ observations are genuine data and are kept (unlike
 \code{\link{estimatePriceStringencyModel}}, which subsets to positive prices).
 
 The dependent variable is bounded structurally by the \emph{estimator}
-("PSM Estimator Suite" in CONTEXT.md), never by clamps:
+("PFM Estimator Suite" in CONTEXT.md), never by clamps:
 \describe{
 \item{satP}{\emph{The selection engine.} Gaussian-identity GLM on
 \code{logit(y/indexMax)} (the ADR 0026 saturating form with the index's true

@@ -26,7 +26,7 @@ computeRegionalFrontier(
 \item{scenarios}{Character vector of scenario ids to read from \verb{<group>/projections/}.
 \code{NULL} reads every projection present.}
 
-\item{weightYear, weightScenario}{Passed to \code{\link{psmCouplingWeights}}.}
+\item{weightYear, weightScenario}{Passed to \code{\link{pfmCouplingWeights}}.}
 
 \item{verbose}{Logical.}
 }
@@ -41,7 +41,7 @@ mean of the observed index, the fitted ceiling (historical years) and the projec
 
 Exists because \verb{figures/} is a pure consumer of Run-Group artifacts and may not compute
 weights, and weighting is not optional here: an unweighted regional mean gives Luxembourg the
-same say as China. This is the same \code{psmCouplingWeights()} the coupling itself uses, so the
+same say as China. This is the same \code{pfmCouplingWeights()} the coupling itself uses, so the
 figure and the coupling aggregate the same way (\code{PITFALLS.md} §20).
 }
 \section{What this is and is not}{

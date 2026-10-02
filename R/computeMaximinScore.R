@@ -95,7 +95,7 @@ computeTheoryTier <- function(sigActorPower, sigInstQual, sigInteractions) {
 #' @param rankBy Character. Primary ordering of gate-passers (ADR 0039).
 #'   \code{"tierMean"} (default — unchanged price-model semantics): worse-sector
 #'   Theory Tier first, mean \eqn{\Delta R^2}(theory) second. \code{"worseDeltaR2"}
-#'   (PSM Tournament v2): rank directly by the \strong{worse sector's}
+#'   (PFM Tournament v2): rank directly by the \strong{worse sector's}
 #'   \eqn{\Delta R^2}(theory) — \code{min(Bulk, Diffuse)} — the more faithful
 #'   operationalisation of the maximin principle; tier then acts only through
 #'   \code{tierGate}, and the near-tie band + within-band preferences operate on
@@ -113,7 +113,7 @@ computeTheoryTier <- function(sigActorPower, sigInstQual, sigInteractions) {
 #'   (selection on significance would make the winner's p-values uninterpretable). Requires a
 #'   \code{minSigTheoryT} column (NA rows — no significant theory term — are never demoted; the
 #'   tier already handles them); no-ops without it. Default \code{NULL} (off — the price-model
-#'   selection is unchanged; \code{runPSMSweep} enables it at \code{2.33}, i.e. roughly p < .02).
+#'   selection is unchanged; \code{runPFMSweep} enables it at \code{2.33}, i.e. roughly p < .02).
 #' @param temporalSignGate Numeric in \code{[0, 1]} or \code{NULL}. Soft temporal sign-stability
 #'   preference (2026-06-24, ADR-less refinement of the selection machinery): within a near-tie
 #'   band, specs whose \code{temporalSignStable} (fraction of \emph{theory-term} coefficient signs

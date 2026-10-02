@@ -26,7 +26,7 @@ through — so the same function serves a person at a prompt and a SLURM job.
 
 | stage | what it does | writes |
 |---|---|---|
-| `sweep` | estimate and select: model sweep, frontier, temporal validation, sector speeds | `selected-models-psm.yml`, `frontier.rds`, … |
+| `sweep` | estimate and select: model sweep, frontier, temporal validation, sector speeds | `selected-models-pfm.yml`, `frontier.rds`, … |
 | `downstream` | donor assumptions, projection fan-out, coupling bound, selection bootstrap | `projection.rds`, `coupling/`, … |
 | `remind` | assemble the self-contained folder REMIND consumes | `pfm-data/<group>/` |
 | `all` | all three, in dependency order | everything |
@@ -44,8 +44,8 @@ On a cluster it submits with `sbatch` by default (`cluster = "auto"` detects SLU
 
 ## Do you need a `config.yml`?
 
-Only for the steps that read scenario gdxs — `psm-projection` and
-`psm-coupling-bound`. The estimation stage (`sweep`, `frontier`, `temporal`,
+Only for the steps that read scenario gdxs — `pfm-projection` and
+`pfm-coupling-bound`. The estimation stage (`sweep`, `frontier`, `temporal`,
 `sector-speeds`) and the REMIND export need nothing.
 
 It does **not** have to be in the working directory. Pass it from anywhere; relative
@@ -82,8 +82,8 @@ therefore resolves the config *before* showing the plan and warns when a step ne
 registry and none was found:
 
 ```
-WARNING: no scenario registry resolved, but psm-projection and
-         psm-coupling-bound need one.
+WARNING: no scenario registry resolved, but pfm-projection and
+         pfm-coupling-bound need one.
 ```
 
 The plan line shows what resolved, so you see it before agreeing to the run:
@@ -106,13 +106,13 @@ estimation. This is why a fresh group is usually far cheaper than the first one.
 Indicative single-run timings (country resolution, ~2500 specifications):
 
 ```
-sweep-psm            2306 s   <- dominated by first-time fits; near-instant when cached
+sweep-pfm            2306 s   <- dominated by first-time fits; near-instant when cached
 projection            276 s
 selection-bootstrap   199 s
-psm-coupling-bound    100 s
-psm-donor              10 s
+pfm-coupling-bound    100 s
+pfm-donor              10 s
 frontier / temporal / speeds / iv / influence   4-16 s each
-psm-remind-inputs       0 s
+pfm-remind-inputs       0 s
 ```
 
 A cache lookup requires the **panel hash to match**. Rebuilding the panel — new source
@@ -148,8 +148,8 @@ specific fit use `forceRefit`, not deletion.
 Inspect without acting:
 
 ```r
-psmStepArtifacts()                                  # step -> artifacts it writes
-psmCleanSteps("psm-country-v4", "psm-projection", dryRun = TRUE)
+pfmStepArtifacts()                                  # step -> artifacts it writes
+pfmCleanSteps("psm-country-v4", "pfm-projection", dryRun = TRUE)
 ```
 
 ### When to clean
@@ -158,7 +158,7 @@ psmCleanSteps("psm-country-v4", "psm-projection", dryRun = TRUE)
 |---|---|
 | pfm source code | reinstall, then `clean = "steps"` for affected steps |
 | the panel / source data | new hash, so nothing stale is reused — `clean` optional |
-| the scenario gdx or registry | `clean = "steps"` on `psm-projection`, `psm-coupling-bound` |
+| the scenario gdx or registry | `clean = "steps"` on `pfm-projection`, `pfm-coupling-bound` |
 | the deployed specification | `clean = "group"` |
 | nothing | leave `clean = "none"` and let `resume` skip |
 
@@ -174,7 +174,7 @@ to write a partial one:
 
 ```
 pfm-data/<group>/
-  selected-models-psm.yml   manifest.json   frontier.rds
+  selected-models-pfm.yml   manifest.json   frontier.rds
   temporal-validation.rds   donor-assignment-band-{Bulk,Diffuse}.rds
   panels/panel_<hash>.rds
 ```

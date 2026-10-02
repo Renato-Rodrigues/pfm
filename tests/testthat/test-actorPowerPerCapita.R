@@ -80,7 +80,7 @@ test_that("the sweep grid carries all four actor-power forms and can be restrict
   expect_equal(full[[j]]$actorPowerIndex,
                c("Innovator Power", "Incumbent Power", "Incumbent Power pc"))
 
-  # Numbering stability (the invariant test-psmImprovements.R pins): the per-capita
+  # Numbering stability (the invariant test-pfmImprovements.R pins): the per-capita
   # forms are APPENDED, so every pre-existing X-number is untouched.
   base <- pfm:::channelSpecs("exhaustive", apPcForms = character(0))
   baseNm <- vapply(base, `[[`, character(1), "name")

@@ -12,17 +12,17 @@
 #'
 #' @param group Character. Run-Group name. Required.
 #' @param steps Character subset of \code{c("sweep","robustness","temporal","subnational",
-#'   "difference-first","projection","selection-bootstrap","psm-sweep","psm-projection",
-#'   "psm-agreement")}. Default is the first four;
+#'   "difference-first","projection","selection-bootstrap","pfm-sweep","pfm-projection",
+#'   "pfm-agreement")}. Default is the first four;
 #'   \code{"difference-first"} is the ADR 0014 alternative-selection comparison,
 #'   \code{"projection"} writes the per-scenario feasibility projections (ADR 0035; needs a
 #'   scenario gdx) and \code{"selection-bootstrap"} the selection-uncertainty bootstrap — all
 #'   off by default and enabled by the \code{--paper} publication workflow. The
-#'   \code{psm-*} steps are the Policy Stringency Model pipeline (ADR 0036:
-#'   \code{\link{runPSMSweep}}, \code{\link{runPSMProjection}},
-#'   \code{\link{runPSMEstimatorAgreement}}, \code{\link{runPSMTemporalValidation}},
-#'   \code{\link{runPSMFrontier}}, \code{\link{runPSMIV}}, \code{\link{runPSMInfluence}},
-#'   \code{\link{runPSMSectorSpeeds}}, \code{\link{runPSMSelectionBootstrap}}); run them
+#'   \code{pfm-*} steps are the Political Feasibility Model pipeline (ADR 0036:
+#'   \code{\link{runPFMSweep}}, \code{\link{runPFMProjection}},
+#'   \code{\link{runPFMEstimatorAgreement}}, \code{\link{runPFMTemporalValidation}},
+#'   \code{\link{runPFMFrontier}}, \code{\link{runPFMIV}}, \code{\link{runPFMInfluence}},
+#'   \code{\link{runPFMSectorSpeeds}}, \code{\link{runPFMSelectionBootstrap}}); run them
 #'   in their OWN Run-Group (e.g. \code{group = "psm-exhaustive"}), never mixed into a
 #'   price-model group.
 #' @param mode \code{"exhaustive"} (default) or \code{"guided"}.
@@ -69,26 +69,27 @@ startRun <- function(group,
   mode <- match.arg(mode)
   selectionMethod <- match.arg(selectionMethod)
   cluster <- match.arg(cluster)
+  steps <- .pfmLegacySteps(steps)
   requestedSteps <- steps
   validSteps <- c("sweep", "robustness", "temporal", "subnational", "difference-first",
                   "projection", "selection-bootstrap",
-                  # ADR 0036 PSM pipeline. THIS VECTOR IS IN DEPENDENCY ORDER AND MUST STAY
+                  # ADR 0036 PFM pipeline. THIS VECTOR IS IN DEPENDENCY ORDER AND MUST STAY
                   # THAT WAY: steps are filtered with intersect(validSteps, steps), which
                   # re-sorts the caller's list into THIS order. Declaration order is therefore
-                  # execution order. Until 2026-08-18 psm-projection sat second, so it ran
-                  # before psm-frontier and before psm-donor - silently projecting against a
+                  # execution order. Until 2026-08-18 pfm-projection sat second, so it ran
+                  # before pfm-frontier and before pfm-donor - silently projecting against a
                   # stale frontier whenever one happened to exist, and failing outright when
                   # one did not.
-                  "psm-sweep", "psm-frontier", "psm-temporal", "psm-sector-speeds",
-                  # psm-inference and psm-regfront were added to psmStepArtifacts() and to
+                  "pfm-sweep", "pfm-frontier", "pfm-temporal", "pfm-sector-speeds",
+                  # pfm-inference and pfm-regfront were added to pfmStepArtifacts() and to
                   # pfmRun()'s diagnostics/downstream stages on 2026-09-15, but NOT to this
                   # whitelist - so startRun silently DROPPED them and `stage = "diagnostics"`
                   # produced no inference.rds. Fixed 2026-09-15; keep the three lists in step.
-                  "psm-agreement", "psm-iv", "psm-influence", "psm-inference", "psm-replay",
-                  "psm-donor", "psm-projection", "psm-coupling-bound",
-                  "psm-selection-bootstrap", "psm-regfront", "psm-remind-inputs",
+                  "pfm-agreement", "pfm-iv", "pfm-influence", "pfm-inference", "pfm-replay",
+                  "pfm-donor", "pfm-projection", "pfm-coupling-bound",
+                  "pfm-selection-bootstrap", "pfm-regfront", "pfm-remind-inputs",
                   # aliases — expanded to ordered step lists inside runModelGroup
-                  "psm-downstream", "psm-all")
+                  "pfm-downstream", "pfm-all")
   steps <- intersect(validSteps, steps)
   droppedSteps <- setdiff(requestedSteps, validSteps)
   if (length(steps) == 0) stop("startRun: no valid steps.", call. = FALSE)

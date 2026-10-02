@@ -9,7 +9,7 @@
 #'
 #' Exists because `figures/` is a pure consumer of Run-Group artifacts and may not compute
 #' weights, and weighting is not optional here: an unweighted regional mean gives Luxembourg the
-#' same say as China. This is the same `psmCouplingWeights()` the coupling itself uses, so the
+#' same say as China. This is the same `pfmCouplingWeights()` the coupling itself uses, so the
 #' figure and the coupling aggregate the same way (`PITFALLS.md` §20).
 #'
 #' @section What this is and is not:
@@ -37,7 +37,7 @@
 #' @param mapping Country-to-region mapping. Must be the resolution \eqn{\varphi} is assigned on.
 #' @param scenarios Character vector of scenario ids to read from `<group>/projections/`.
 #'   `NULL` reads every projection present.
-#' @param weightYear,weightScenario Passed to \code{\link{psmCouplingWeights}}.
+#' @param weightYear,weightScenario Passed to \code{\link{pfmCouplingWeights}}.
 #' @param verbose Logical.
 #'
 #' @return Invisibly, a data.frame: `region, year, sector, scenario, kind, index, coveredShare,
@@ -53,14 +53,14 @@ computeRegionalFrontier <- function(group,
                                     weightYear = 2025, weightScenario = "SSP2",
                                     verbose = TRUE) {
   groupDir <- .resolveGroupDir(group, resultsDir, modelDir, cachefolder)
-  say <- function(...) if (isTRUE(verbose)) message("[PSM-REGFRONT:", group, "] ", ...)
+  say <- function(...) if (isTRUE(verbose)) message("[PFM-REGFRONT:", group, "] ", ...)
 
   fr <- readRDS(file.path(groupDir, "frontier.rds"))
-  wts <- psmCouplingWeights(year = weightYear, scaleBy = "gdp", scenario = weightScenario,
+  wts <- pfmCouplingWeights(year = weightYear, scaleBy = "gdp", scenario = weightScenario,
                             verbose = verbose)
-  psmAssertSizeWeights(wts, "computeRegionalFrontier")
+  pfmAssertSizeWeights(wts, "computeRegionalFrontier")
 
-  map <- .psmReadRegionMapping(mapping)
+  map <- .pfmReadRegionMapping(mapping)
   regOf <- function(iso) map$region[match(iso, map$iso)]
 
   # Denominator over ALL member countries, not just the fitted ones - otherwise `coveredShare`
@@ -127,7 +127,7 @@ computeRegionalFrontier <- function(group,
 }
 
 # Region mapping reader, tolerant of the two column conventions madrat ships.
-.psmReadRegionMapping <- function(mapping) {
+.pfmReadRegionMapping <- function(mapping) {
   f <- if (file.exists(mapping)) mapping else {
     alt <- system.file("extdata", mapping, package = "madrat")
     if (!nzchar(alt)) alt <- system.file("extdata", sub("[.]csv$", "-columnname.csv", mapping),

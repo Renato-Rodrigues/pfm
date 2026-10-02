@@ -1,12 +1,12 @@
 # nolint start
 test_that("computeInfluenceDiagnostics returns the full LOCO path for a satP fit", {
-  fit <- psmFit(makePSMagpie())
-  inf <- computeInfluenceDiagnostics(fit, terms = psmTheoryTerms, wcb = FALSE, verbose = FALSE)
+  fit <- pfmFit(makePFMagpie())
+  inf <- computeInfluenceDiagnostics(fit, terms = pfmTheoryTerms, wcb = FALSE, verbose = FALSE)
 
   expect_named(inf, c("byTerm", "path", "alpha", "clusters", "nClusters"))
-  expect_setequal(inf$byTerm$term, psmTheoryTerms)
+  expect_setequal(inf$byTerm$term, pfmTheoryTerms)
   # one row per (term x cluster)
-  expect_equal(nrow(inf$path), inf$nClusters * length(psmTheoryTerms))
+  expect_equal(nrow(inf$path), inf$nClusters * length(pfmTheoryTerms))
   expect_true(all(inf$path$crossing %in% c("gain", "loss", "none", "fold-failed")))
   ok <- inf$path$crossing != "fold-failed"
   expect_true(all(is.finite(inf$path$dBeta[ok])))

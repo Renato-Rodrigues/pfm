@@ -32,14 +32,14 @@
 #' political choice, the speed is the constraint}.
 #'
 #' @param spec Normalised specification (named list) as stored in
-#'   \code{selected-models-psm.yml}; must be \code{panelTransform = "levels"}.
+#'   \code{selected-models-pfm.yml}; must be \code{panelTransform = "levels"}.
 #' @param sector Character. \code{"Bulk"} or \code{"Diffuse"}.
 #' @param histData Historical panel (magpie) carrying the Policy Stringency outcome.
 #' @param scenarioData Scenario panel (magpie) for one IAM pathway.
 #' @param lambda Numeric or \code{NULL}. Adjustment speed on the logit scale.
 #'   \code{NULL} (default) estimates it here from the ECM fit of \code{spec}. Pass
 #'   a value to impose a sector-resolved rate (e.g. the validated electricity rate)
-#'   - see \code{\link{runPSMSectorSpeeds}} for the honesty labels that must travel
+#'   - see \code{\link{runPFMSectorSpeeds}} for the honesty labels that must travel
 #'   with any such number.
 #' @param rule \code{"speed-limited"} (default) or \code{"frozen-gap"}; see above.
 #' @param gapMeasure How \code{"frozen-gap"} holds the polity fixed:
@@ -76,8 +76,8 @@
 #'   \code{"phi"}, \code{"seedYear"}, \code{"nonMonotoneShare"},
 #'   \code{"ceilingBindShare"}.
 #'
-#' @seealso \code{\link{projectPSMSpecScenario}} (one-shot level projection used by
-#'   the sanity gate), \code{\link{runPSMTemporalValidation}} (where \eqn{\lambda}
+#' @seealso \code{\link{projectPFMSpecScenario}} (one-shot level projection used by
+#'   the sanity gate), \code{\link{runPFMTemporalValidation}} (where \eqn{\lambda}
 #'   is estimated and validated), \code{\link{aggregateFeasibilityToRegions}}
 #'   (delivery to IAM regions). ADR 0040, ADR 0041.
 #'
@@ -166,7 +166,7 @@ projectFeasiblePath <- function(spec, sector, histData, scenarioData,
     fe[!fe %in% lv] <- if ("Other" %in% lv) "Other" else lv[1]
     sDf$regionFE <- factor(fe, levels = lv)
   }
-  guard <- .psmDriverGuard(sDf, .driverSupportRanges(fit$data, fit$driverScaling))
+  guard <- .pfmDriverGuard(sDf, .driverSupportRanges(fit$data, fit$driverScaling))
   sDf <- guard$df
 
   # --- 3. Equilibrium on the TRANSFORMED scale ---------------------------------
@@ -199,8 +199,8 @@ projectFeasiblePath <- function(spec, sector, histData, scenarioData,
 
   # --- 5. Seed: the OBSERVED transformed level in the seed year ----------------
   nSV <- fit$squeeze$n %||% sum(is.finite(fit$data$ecp))
-  toEta <- function(v) stats::qlogis(.psmSqueeze(pmin(pmax(v / indexMax, 0), 1), nSV))
-  seedTab <- .psmSeedIndex(histData, sector, sy,
+  toEta <- function(v) stats::qlogis(.pfmSqueeze(pmin(pmax(v / indexMax, 0), 1), nSV))
+  seedTab <- .pfmSeedIndex(histData, sector, sy,
                            outcomeVar = fit$outcomeVar %||% "Policy Stringency")
   trained <- unique(as.character(fit$data$region))
 
@@ -247,7 +247,7 @@ projectFeasiblePath <- function(spec, sector, histData, scenarioData,
     # Politics as usual: the polity holds its seed-year position relative to its
     # own ceiling, so its policy moves only because its fundamentals move.
     seedIdx <- as.numeric(seedTab[reg])
-    ceilSeed <- .psmCeilingAtSeed(etaCeil, reg, yr, sy, indexMax)
+    ceilSeed <- .pfmCeilingAtSeed(etaCeil, reg, yr, sy, indexMax)
     feasible <- if (identical(gapMeasure, "ratio")) {
       ceilingIndex * pmin(pmax(seedIdx / ceilSeed, 0), 1)
     } else {
@@ -299,7 +299,7 @@ projectFeasiblePath <- function(spec, sector, histData, scenarioData,
 
 # Observed natural-scale index per region in the seed year.
 #' @keywords internal
-.psmSeedIndex <- function(histData, sector, seedYear, outcomeVar = "Policy Stringency") {
+.pfmSeedIndex <- function(histData, sector, seedYear, outcomeVar = "Policy Stringency") {
   if (is.data.frame(histData)) {
     d <- histData[histData$year == seedYear, , drop = FALSE]
     return(stats::setNames(d$ecp, as.character(d$region)))
@@ -307,7 +307,7 @@ projectFeasiblePath <- function(spec, sector, histData, scenarioData,
   v <- paste0(outcomeVar, "|", sector)
   yrs <- magclass::getYears(histData, as.integer = TRUE)
   if (!seedYear %in% yrs) {
-    stop(".psmSeedIndex: seed year ", seedYear, " absent from the historical panel ",
+    stop(".pfmSeedIndex: seed year ", seedYear, " absent from the historical panel ",
          "(available ", paste(range(yrs), collapse = "-"), ").")
   }
   x <- histData[, seedYear, v]
@@ -318,7 +318,7 @@ projectFeasiblePath <- function(spec, sector, histData, scenarioData,
 # year itself is not in the projection window, so the earliest projected year is
 # used as its proxy (the ceiling moves smoothly and this is only a normaliser).
 #' @keywords internal
-.psmCeilingAtSeed <- function(etaCeil, reg, yr, seedYear, indexMax) {
+.pfmCeilingAtSeed <- function(etaCeil, reg, yr, seedYear, indexMax) {
   ceilIdx <- indexMax * stats::plogis(etaCeil)
   firstBy <- tapply(seq_along(reg), reg, function(i) i[which.min(yr[i])])
   base <- stats::setNames(ceilIdx[unlist(firstBy)], names(firstBy))

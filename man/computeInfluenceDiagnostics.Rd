@@ -75,7 +75,7 @@ A fold that empties a region-FE level refits without that dummy (the empty-level
 singularity gotcha); a term dropped by the fold is returned as \code{"fold-failed"}.
 }
 \seealso{
-\code{\link{computeWildClusterBootstrap}}, \code{\link{runPSMInfluence}},
+\code{\link{computeWildClusterBootstrap}}, \code{\link{runPFMInfluence}},
 ADR 0037
 }
 \author{

@@ -52,12 +52,12 @@
 #'   rather than continue without a bound - see
 #'   \code{docs/psm-coupling-scenario-design.md}.
 #' @param weights Aggregation weights. \code{"finalEnergy"} (default) resolves
-#'   country-level \code{fe_total} via \code{\link{psmCouplingWeights}} - the closest
+#'   country-level \code{fe_total} via \code{\link{pfmCouplingWeights}} - the closest
 #'   available correlate of the emissions a carbon price acts on. A named numeric
 #'   vector is used as given. \code{NULL} means \strong{equal} country weights, which
 #'   over-represent small emitters and should only be used deliberately.
 #' @param weightYear,weightScenario Year and SSP used to project the final-energy
-#'   weights (see \code{\link{psmCouplingWeights}}). Default 2050 / \code{"SSP2"}:
+#'   weights (see \code{\link{pfmCouplingWeights}}). Default 2050 / \code{"SSP2"}:
 #'   mid-century is where the bound bites and where SSP growth paths have visibly
 #'   diverged. \strong{\code{weightScenario} must match the SSP the coupled run uses},
 #'   or the weights describe a different world than the model does.
@@ -254,17 +254,19 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     # directly in it - preparePFM.R copies them flat into <run>/pfm/ while still
     # recording a group NAME for the log. Resolve by finding the marker file rather
     # than trusting the name to be a path segment.
-    marker <- "selected-models-psm.yml"
+    # Either spec-file name: a Run-Group exported before the psm -> pfm rename carries the
+    # legacy one (.pfmSelectedModels).
     gd <- file.path(resultsDir, group)
-    if (!file.exists(file.path(gd, marker)) &&
-          file.exists(file.path(resultsDir, marker))) {
+    if (!file.exists(.pfmSelectedModels(gd)) &&
+          file.exists(.pfmSelectedModels(resultsDir))) {
       gd <- resultsDir
     }
-    if (!file.exists(file.path(gd, marker))) {
-      stop("no '", marker, "' under '", file.path(resultsDir, group), "' or '",
-           resultsDir, "' (working directory: ", getwd(), ")")
+    if (!file.exists(.pfmSelectedModels(gd))) {
+      stop("no '", paste(.pfmSelectedModelsNames, collapse = "' or '"), "' under '",
+           file.path(resultsDir, group), "' or '", resultsDir,
+           "' (working directory: ", getwd(), ")")
     }
-    sel <- yaml::read_yaml(file.path(gd, marker))
+    sel <- yaml::read_yaml(.pfmSelectedModels(gd))
     mf <- jsonlite::read_json(file.path(gd, "manifest.json"))
     pfile <- paste0("panel_", mf$panel_hash, ".rds")
     pcand <- c(file.path(modelDir, "panels", pfile), file.path(gd, "panels", pfile),
@@ -340,14 +342,14 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     # Aggregation weights. "finalEnergy" resolves country-level fe_total, the closest
     # available correlate of the emissions a carbon price acts on.
     #
-    # Both branches are ASSERTED (psmAssertSizeWeights), because both silent failures in this
+    # Both branches are ASSERTED (pfmAssertSizeWeights), because both silent failures in this
     # family look like a completed run: the old fallback to equal weights on a warning, and the
     # normalised-index proxy that broke the offline bound on 2026-08-18. Inside a multi-hour
     # coupled batch a warning scrolls past unread and 26 finished gdxs carry uniform country
     # weights. Failing at the first PFM call is far cheaper. `weights = NULL` remains the
     # explicit, deliberate opt-out into equal weights and is left alone.
     wts <- if (identical(weights, "finalEnergy")) {
-      w <- tryCatch(psmCouplingWeights(year = weightYear, scenario = weightScenario,
+      w <- tryCatch(pfmCouplingWeights(year = weightYear, scenario = weightScenario,
                                        verbose = verbose), error = function(e) {
         stop("iterativePFM: final-energy weights are unavailable (", conditionMessage(e),
              "). This does NOT fall back to equal weights - that silently over-represents ",
@@ -355,12 +357,12 @@ iterativePFM <- function(gdx = "fulldata.gdx",
              "(calcFE, calcPE, calcEmber, calcGDP) or pass weights = NULL to accept equal ",
              "weights deliberately.", call. = FALSE)
       })
-      psmAssertSizeWeights(w, "iterativePFM")
+      pfmAssertSizeWeights(w, "iterativePFM")
     } else if (is.null(weights)) {
       say("weights = NULL — countries aggregate EQUALLY. Deliberate opt-out; small emitters ",
           "are over-represented in every multi-country region.")
       NULL
-    } else psmAssertSizeWeights(weights, "iterativePFM (supplied weights)")
+    } else pfmAssertSizeWeights(weights, "iterativePFM (supplied weights)")
 
     # 2. Recompute the feasible paths and the ambition gaps along THIS iteration's
     #    energy system - the Policy -> Politics feedback.
@@ -386,7 +388,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       # instead of being silently wrong. Offline callers passing a shared resultsDir get the
       # same protection, which is where a shared cache would actually bite.
       fitKey <- substr(digest::digest(
-        list("ecm", sec, .psmSpecArgs(cfg), digest::digest(panel, algo = "sha256")),
+        list("ecm", sec, .pfmSpecArgs(cfg), digest::digest(panel, algo = "sha256")),
         algo = "sha256"), 1, 16)
       fitCache <- file.path(resultsDir, paste0("ecm-fit-", sec, "-", fitKey, ".rds"))
       ecm <- if (file.exists(fitCache)) {
@@ -428,8 +430,8 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     # 2b. Optional test override of the shares (GP-23, GP-24): phi-override.yml in the Run-Group.
     #     Applied here, before steps 3-5 derive the economy-wide share, the per-market shares
     #     and the mode-2 bound from feas$phi, so every symbol GAMS loads sees the same values.
-    #     No file = no change (every deployed Run-Group). See .psmApplyPhiOverride().
-    feas <- .psmApplyPhiOverride(feas, gd, say)
+    #     No file = no change (every deployed Run-Group). See .pfmApplyPhiOverride().
+    feas <- .pfmApplyPhiOverride(feas, gd, say)
 
     # 3. One share per region: the worse sector, the maximin discipline used
     #    throughout. phi is time-invariant by construction (tiers fixed at 2022).
@@ -446,7 +448,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 
     # 3b. Each sector's share on its own, for the per-market markups (ADR 0042).
     #     REMIND prices ETS and ES separately through pm_taxemiMkt; the map is in
-    #     .psmSectorMarkets(). Delivering min() alone throws away whichever sector is
+    #     .pfmSectorMarkets(). Delivering min() alone throws away whichever sector is
     #     NOT binding, and min() of two noisy estimates is biased low - in the direction
     #     that INFLATES the paper's headline.
     #
@@ -458,7 +460,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     #
     #     Exported unconditionally: GAMS decides whether to use them
     #     (cm_pfmSectorMarkup), and symbols that are present but ignored cost nothing.
-    phiSector <- stats::setNames(lapply(names(.psmSectorMarkets()), function(sec) {
+    phiSector <- stats::setNames(lapply(names(.pfmSectorMarkets()), function(sec) {
       v <- phi
       if ("sector" %in% names(feas)) {
         s <- feas[as.character(feas$sector) == sec, , drop = FALSE]
@@ -475,7 +477,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
         }
       }
       v
-    }), names(.psmSectorMarkets()))
+    }), names(.pfmSectorMarkets()))
     for (sec in names(phiSector)) {
       say(sprintf("phi(%s): median %.3f, above the floor in %d of %d regions",
                   sec, stats::median(phiSector[[sec]]),
@@ -507,14 +509,14 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     #      p45_regiDiff_phi(all_regi)        - ONE dimension
     #      p45_pfmDelta_aux(all_regi)        - ONE dimension
     #      p45_pfmPriceBound(ttot,all_regi)  - TWO, and ttot comes FIRST
-    #    See .psmCouplingSym1d() for why this cannot go through magclass.
-    out <- .psmCouplingSym1d("p45_regiDiff_phi", phi)
+    #    See .pfmCouplingSym1d() for why this cannot go through magclass.
+    out <- .pfmCouplingSym1d("p45_regiDiff_phi", phi)
     # Written over the SAME regions as phi, constant, because the GAMS side loads it
     # into a parameter indexed on regi - a GLO-only symbol would sum to nothing there
     # and read as a delta of 0, i.e. false convergence on the first call.
     # A large finite number rather than Inf: GAMS has no Inf on load, and any value
     # above a sane tolerance keeps the loop running, which is the safe direction.
-    dOut <- .psmCouplingSym1d("p45_pfmDelta",
+    dOut <- .pfmCouplingSym1d("p45_pfmDelta",
                               stats::setNames(rep(if (is.finite(delta)) delta else 1e6,
                                                   length(phi)), names(phi)))
     # Freshness stamp. GAMS cannot otherwise tell a gdx written by THIS call from one
@@ -523,7 +525,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     # iteration GAMS asked for lets the model verify the answer is its own.
     itSeen <- suppressWarnings(as.numeric(if (!is.null(rtIteration)) rtIteration else NA))
     if (!is.finite(itSeen)) itSeen <- -1
-    iOut <- .psmCouplingSym1d("p45_pfmIterSeen",
+    iOut <- .pfmCouplingSym1d("p45_pfmIterSeen",
                               stats::setNames(rep(itSeen, length(phi)), names(phi)))
     # Bind mode 2 needs the ABSOLUTE politically feasible price per region-period.
     # Exported unconditionally: it costs one extra symbol, and a mode-2 run that
@@ -557,7 +559,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       prices <- tryCatch({
         TCO2 <- 1000 / (44 / 12)
         pR <- gdx::readGDX(refGdx, "pm_taxCO2eq") * TCO2
-        list(pR = pR, pO = .psmCouplingOptimalPath(gdx, pR, TCO2, say))
+        list(pR = pR, pO = .pfmCouplingOptimalPath(gdx, pR, TCO2, say))
       }, error = function(e) { say("price paths failed: ", conditionMessage(e)); NULL })
 
       if (!is.null(prices)) {
@@ -573,14 +575,14 @@ iterativePFM <- function(gdx = "fulldata.gdx",
         # markup. Failure is not fatal for a sector: without it GAMS falls back to the
         # floor on that market, which is the pre-ADR-0042 behaviour.
         bndSector <- Filter(Negate(is.null), stats::setNames(
-          lapply(names(.psmSectorMarkets()), function(sec) {
+          lapply(names(.pfmSectorMarkets()), function(sec) {
             tryCatch(
               exportFeasibilityBound(feas, priceOptimal = prices$pO,
                                      priceReference = prices$pR, lambda = lambdaGap,
                                      sectorRule = sec, file = NULL),
               error = function(e) {
                 say(sec, " bound failed: ", conditionMessage(e)); NULL })
-          }), names(.psmSectorMarkets())))
+          }), names(.pfmSectorMarkets())))
         if (!length(bndSector)) bndSector <- NULL
       }
     }
@@ -619,7 +621,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       }
       say(sprintf("mild progression: seed %d, %d regions, capped share %.2f",
                   seedYr, length(unique(mp$region)), cs))
-      syms[[length(syms) + 1L]] <- .psmCouplingSym2d("p45_pfmMPPrice", mp, "price")
+      syms[[length(syms) + 1L]] <- .pfmCouplingSym2d("p45_pfmMPPrice", mp, "price")
 
       # One path per sector, for the per-market markups (ADR 0042). Same seed and the
       # same recursion; only the sector selected differs. lambda is that sector's own
@@ -632,7 +634,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       # would freeze the price at its seed. See the note beside lambdaGap above.
       if ("sector" %in% names(feas)) {
         mpSector <- Filter(Negate(is.null), stats::setNames(
-          lapply(names(.psmSectorMarkets()), function(sec) {
+          lapply(names(.pfmSectorMarkets()), function(sec) {
             oneS <- feas[as.character(feas$sector) == sec, , drop = FALSE]
             if (!nrow(oneS)) return(NULL)
             lamS <- if (!is.null(names(lambda)) && sec %in% names(lambda)) {
@@ -645,13 +647,13 @@ iterativePFM <- function(gdx = "fulldata.gdx",
                 say(sec, " mild path failed: ", conditionMessage(e)); NULL })
             if (!is.null(out)) {
               say(sprintf("%s mild path built (lambda %.4f); median 2050 markup: %s",
-                          sec, lamS, .psmFmtMarkup(mp, out, valueCol = "price")))
+                          sec, lamS, .pfmFmtMarkup(mp, out, valueCol = "price")))
             }
             out
-          }), names(.psmSectorMarkets())))
+          }), names(.pfmSectorMarkets())))
         if (length(mpSector)) {
           syms[[length(syms) + 1L]] <-
-            .psmCouplingSymMkt2d("p45_pfmMPPriceMkt", mpSector, "price")
+            .pfmCouplingSymMkt2d("p45_pfmMPPriceMkt", mpSector, "price")
         }
       }
     }
@@ -663,7 +665,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     }
     if (!is.null(bnd) && all(c("region", "year", "priceBound") %in% names(bnd))) {
       syms[[length(syms) + 1L]] <-
-        .psmCouplingSym2d("p45_pfmPriceBound", bnd, "priceBound")
+        .pfmCouplingSym2d("p45_pfmPriceBound", bnd, "priceBound")
       say(sprintf("price bound exported for %d regions x %d periods",
                   length(unique(bnd$region)), length(unique(bnd$year))))
     } else {
@@ -676,11 +678,11 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     # rank is that trap one dimension up "for no gain" - but the symmetric markup needs
     # BOTH sectors delivered, so the alternative is eight flat parameters against four
     # indexed ones and the gain is now real. The trap is answered by the rank/domain
-    # assertions in .psmVerifyCouplingGdx() and by test-gdxRoundTrip.R.
+    # assertions in .pfmVerifyCouplingGdx() and by test-gdxRoundTrip.R.
     #
     # GAMS decides whether to use these (cm_pfmSectorMarkup); with the switch off they
     # are inert, so exporting them unconditionally cannot change an existing run.
-    syms[[length(syms) + 1L]] <- .psmCouplingSymMkt1d("p45_pfmPhiMkt", phiSector)
+    syms[[length(syms) + 1L]] <- .pfmCouplingSymMkt1d("p45_pfmPhiMkt", phiSector)
     # Each sector's own closure rate. Modes 2 and 3 carry it inside the price paths they
     # receive from here; mode 1 rebuilds its path in GAMS from phi and a rate, and
     # without this symbol it falls back to p45_regiDiff_lambda - the economy-wide rate
@@ -691,11 +693,11 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     # "not supplied" default there, so a non-finite or absent sector speed is written as
     # 0 and GAMS keeps the floor rate.
     lamSector <- stats::setNames(lapply(names(phiSector), function(sec) {
-      l <- .psmSectorLambda(lambdaGap, sec)
+      l <- .pfmSectorLambda(lambdaGap, sec)
       if (!is.finite(l) || l < 0) l <- 0
       stats::setNames(rep(l, length(phiSector[[sec]])), names(phiSector[[sec]]))
     }), names(phiSector))
-    syms[[length(syms) + 1L]] <- .psmCouplingSymMkt1d("p45_pfmLambdaMkt", lamSector)
+    syms[[length(syms) + 1L]] <- .pfmCouplingSymMkt1d("p45_pfmLambdaMkt", lamSector)
     say(sprintf("lambda per sector exported: %s",
                 paste(sprintf("%s %.4f", names(lamSector),
                               vapply(lamSector, function(x) x[[1]], numeric(1))),
@@ -746,11 +748,11 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     # - the safe direction for a run whose export failed.
     lamFloor <- suppressWarnings(
       min(vapply(names(phiSector), function(sec) {
-        l <- .psmSectorLambda(lambdaGap, sec)
+        l <- .pfmSectorLambda(lambdaGap, sec)
         if (!is.finite(l) || l < 0) NA_real_ else l
       }, numeric(1)), na.rm = TRUE))
     if (!is.finite(lamFloor) || lamFloor < 0) lamFloor <- 0
-    syms[[length(syms) + 1L]] <- .psmCouplingSym1d(
+    syms[[length(syms) + 1L]] <- .pfmCouplingSym1d(
       "p45_regiDiff_lambda",
       stats::setNames(rep(lamFloor, length(phi)), names(phi)))
     say(sprintf("economy-wide lambda exported: %.4f (min over sectors - the mode-1 floor rate)",
@@ -760,14 +762,14 @@ iterativePFM <- function(gdx = "fulldata.gdx",
         all(c("region", "year", "priceBound") %in% names(d)), logical(1))
       if (any(ok)) {
         syms[[length(syms) + 1L]] <-
-          .psmCouplingSymMkt2d("p45_pfmPriceBoundMkt", bndSector[ok], "priceBound")
+          .pfmCouplingSymMkt2d("p45_pfmPriceBoundMkt", bndSector[ok], "priceBound")
         for (sec in names(bndSector)[ok]) {
           say(sprintf("%s price bound exported; median 2050 markup over the floor: %s",
-                      sec, .psmFmtMarkup(bnd, bndSector[[sec]])))
+                      sec, .pfmFmtMarkup(bnd, bndSector[[sec]])))
         }
       }
     }
-    .psmWriteCouplingGdx(outputFile, syms)
+    .pfmWriteCouplingGdx(outputFile, syms)
     say("wrote ", outputFile, " in ",
         round(as.numeric(difftime(Sys.time(), t0, units = "secs")), 1), "s")
     TRUE
@@ -826,7 +828,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 #' @param file Destination gdx.
 #' @param syms List of symbol descriptions built by these helpers.
 #' @param verbose Logical; report the symbols written.
-#' @return The symbol description; \code{.psmWriteCouplingGdx} returns \code{file}.
+#' @return The symbol description; \code{.pfmWriteCouplingGdx} returns \code{file}.
 #' Median 2050 markup of the ETS path over the economy-wide floor, for the log.
 #'
 #' Purely diagnostic: it is the one number that says at a glance whether the sector
@@ -839,7 +841,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 #' @return A formatted string.
 #' @keywords internal
 #' @author Renato Rodrigues
-.psmFmtMarkup <- function(floorDF, etsDF, valueCol = "priceBound", year = 2050) {
+.pfmFmtMarkup <- function(floorDF, etsDF, valueCol = "priceBound", year = 2050) {
   if (is.null(floorDF) || is.null(etsDF)) return("n/a")
   k <- function(d) paste(d$region, d$year)
   a <- stats::setNames(floorDF[[valueCol]], k(floorDF))
@@ -868,7 +870,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 #' @return A long data.frame of \code{region, year, value} in US$/tCO2.
 #' @keywords internal
 #' @author Renato Rodrigues
-.psmCouplingOptimalPath <- function(gdx, pR, TCO2, say = function(...) NULL) {
+.pfmCouplingOptimalPath <- function(gdx, pR, TCO2, say = function(...) NULL) {
   regs <- magclass::getItems(pR, dim = 1)
   anc <- tryCatch(gdx::readGDX(gdx, "p45_taxCO2eq_anchor", react = "silent"),
                   error = function(e) NULL)
@@ -900,11 +902,11 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 
 #' @keywords internal
 #' @author Renato Rodrigues
-#' @rdname psmCouplingGdx
-.psmCouplingSym1d <- function(name, v) {
+#' @rdname pfmCouplingGdx
+.pfmCouplingSym1d <- function(name, v) {
   u <- names(v)
   if (is.null(u) || anyNA(u) || !all(nzchar(u))) {
-    stop(".psmCouplingSym1d: '", name, "' needs a fully named vector of regions")
+    stop(".pfmCouplingSym1d: '", name, "' needs a fully named vector of regions")
   }
   list(name = name, domain = "all_regi",
        records = data.frame(all_regi = u, value = unname(as.numeric(v)),
@@ -912,11 +914,11 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 }
 
 #' @keywords internal
-#' @rdname psmCouplingGdx
-.psmCouplingSym2d <- function(name, df, valueCol,
+#' @rdname pfmCouplingGdx
+.pfmCouplingSym2d <- function(name, df, valueCol,
                               regionCol = "region", yearCol = "year") {
   yrs <- suppressWarnings(as.integer(df[[yearCol]]))
-  if (anyNA(yrs)) stop(".psmCouplingSym2d: non-numeric years in '", name, "'")
+  if (anyNA(yrs)) stop(".pfmCouplingSym2d: non-numeric years in '", name, "'")
   # ttot FIRST, all_regi second - the declared order, and the column order the
   # gamstransfer domain is built from.
   list(name = name, domain = c("ttot", "all_regi"),
@@ -935,8 +937,8 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 #' matches the mapping ADR 0042 states, "ETS ~ Bulk, ES + other ~ Diffuse".
 #'
 #' @keywords internal
-#' @rdname psmCouplingGdx
-.psmSectorMarkets <- function() {
+#' @rdname pfmCouplingGdx
+.pfmSectorMarkets <- function() {
   list(Bulk = "ETS", Diffuse = c("ES", "other"))
 }
 
@@ -952,8 +954,8 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 #' themselves what to do with that, because their safe defaults differ.
 #'
 #' @keywords internal
-#' @rdname psmCouplingGdx
-.psmSectorLambda <- function(lambda, sector) {
+#' @rdname pfmCouplingGdx
+.pfmSectorLambda <- function(lambda, sector) {
   if (!length(lambda)) return(NA_real_)
   if (!is.null(names(lambda)) && sector %in% names(lambda)) {
     return(suppressWarnings(as.numeric(unname(lambda[[sector]]))))
@@ -967,24 +969,24 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 #' symmetric markup needs BOTH sectors delivered, which would otherwise be eight flat
 #' parameters. ADR 0042 originally rejected the extra rank because defect 4 was a
 #' rank/order failure; the answer is the rank/domain assertion in
-#' \code{.psmVerifyCouplingGdx()} plus \code{test-gdxRoundTrip.R}, not avoiding the rank.
+#' \code{.pfmVerifyCouplingGdx()} plus \code{test-gdxRoundTrip.R}, not avoiding the rank.
 #'
 #' \code{bySector} is a named list of per-sector values, fanned out to that sector's
-#' markets via \code{.psmSectorMarkets()}.
+#' markets via \code{.pfmSectorMarkets()}.
 #'
 #' @keywords internal
-#' @rdname psmCouplingGdx
-.psmCouplingSymMkt1d <- function(name, bySector) {
-  map <- .psmSectorMarkets()
+#' @rdname pfmCouplingGdx
+.pfmCouplingSymMkt1d <- function(name, bySector) {
+  map <- .pfmSectorMarkets()
   rows <- do.call(rbind, lapply(names(bySector), function(sec) {
     v <- bySector[[sec]]
     u <- names(v)
     if (is.null(u) || anyNA(u) || !all(nzchar(u))) {
-      stop(".psmCouplingSymMkt1d: '", name, "' sector '", sec,
+      stop(".pfmCouplingSymMkt1d: '", name, "' sector '", sec,
            "' needs a fully named vector of regions")
     }
     mkts <- map[[sec]]
-    if (is.null(mkts)) stop(".psmCouplingSymMkt1d: no market maps to sector '", sec, "'")
+    if (is.null(mkts)) stop(".pfmCouplingSymMkt1d: no market maps to sector '", sec, "'")
     do.call(rbind, lapply(mkts, function(mk) {
       data.frame(all_regi = u, all_emiMkt = mk, value = unname(as.numeric(v)),
                  stringsAsFactors = FALSE)
@@ -995,18 +997,18 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 }
 
 #' @keywords internal
-#' @rdname psmCouplingGdx
-.psmCouplingSymMkt2d <- function(name, bySector, valueCol,
+#' @rdname pfmCouplingGdx
+.pfmCouplingSymMkt2d <- function(name, bySector, valueCol,
                                  regionCol = "region", yearCol = "year") {
-  map <- .psmSectorMarkets()
+  map <- .pfmSectorMarkets()
   rows <- do.call(rbind, lapply(names(bySector), function(sec) {
     df <- bySector[[sec]]
     yrs <- suppressWarnings(as.integer(df[[yearCol]]))
     if (anyNA(yrs)) {
-      stop(".psmCouplingSymMkt2d: non-numeric years in '", name, "' sector '", sec, "'")
+      stop(".pfmCouplingSymMkt2d: non-numeric years in '", name, "' sector '", sec, "'")
     }
     mkts <- map[[sec]]
-    if (is.null(mkts)) stop(".psmCouplingSymMkt2d: no market maps to sector '", sec, "'")
+    if (is.null(mkts)) stop(".pfmCouplingSymMkt2d: no market maps to sector '", sec, "'")
     do.call(rbind, lapply(mkts, function(mk) {
       data.frame(ttot = as.character(yrs),
                  all_regi = as.character(df[[regionCol]]),
@@ -1020,18 +1022,18 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 }
 
 #' @keywords internal
-#' @rdname psmCouplingGdx
-.psmCouplingUels <- function(name, v) {
+#' @rdname pfmCouplingGdx
+.pfmCouplingUels <- function(name, v) {
   v <- unique(as.character(v))
   # ttot elements sort NUMERICALLY; "2100" < "255" as text.
   if (identical(name, "ttot")) as.character(sort(as.integer(v))) else sort(v)
 }
 
 #' @keywords internal
-#' @rdname psmCouplingGdx
-.psmWriteCouplingGdx <- function(file, syms, verbose = FALSE) {
+#' @rdname pfmCouplingGdx
+.pfmWriteCouplingGdx <- function(file, syms, verbose = FALSE) {
   if (!requireNamespace("gamstransfer", quietly = TRUE)) {
-    stop(".psmWriteCouplingGdx: the 'gamstransfer' package is required to write the ",
+    stop(".pfmWriteCouplingGdx: the 'gamstransfer' package is required to write the ",
          "coupling gdx. It ships with GAMS (apifiles/R/gamstransfer) and is on CRAN.")
   }
   m <- gamstransfer::Container$new()
@@ -1044,14 +1046,14 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     }
   }
   sets <- stats::setNames(
-    lapply(names(uels), function(d) m$addSet(d, records = .psmCouplingUels(d, uels[[d]]))),
+    lapply(names(uels), function(d) m$addSet(d, records = .pfmCouplingUels(d, uels[[d]]))),
     names(uels))
   for (s in syms) {
     m$addParameter(s$name, domain = unname(sets[s$domain]), records = s$records)
   }
   # Refuses rather than producing a gdx GAMS would silently read as zero.
   m$write(file)
-  .psmVerifyCouplingGdx(file, syms)
+  .pfmVerifyCouplingGdx(file, syms)
   if (isTRUE(verbose)) {
     message("[iterativePFM] wrote ", length(syms), " symbols and verified their domains")
   }
@@ -1071,21 +1073,21 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 #' @return \code{TRUE} invisibly, or an error naming the symbol and what is wrong.
 #' @keywords internal
 #' @author Renato Rodrigues
-#' @rdname psmCouplingGdx
-.psmVerifyCouplingGdx <- function(file, syms) {
+#' @rdname pfmCouplingGdx
+.pfmVerifyCouplingGdx <- function(file, syms) {
   back <- gamstransfer::Container$new(file)
   for (s in syms) {
     if (!length(back$getSymbols(s$name))) {
-      stop(".psmVerifyCouplingGdx: '", s$name, "' is missing from ", file)
+      stop(".pfmVerifyCouplingGdx: '", s$name, "' is missing from ", file)
     }
     got <- back$getSymbols(s$name)[[1]]
     if (!identical(as.integer(got$dimension), length(s$domain))) {
-      stop(".psmVerifyCouplingGdx: '", s$name, "' was written with rank ",
+      stop(".pfmVerifyCouplingGdx: '", s$name, "' was written with rank ",
            got$dimension, " but REMIND declares rank ", length(s$domain),
            " - Execute_Loadpoint would load nothing.")
     }
     if (!identical(as.character(got$domainNames), s$domain)) {
-      stop(".psmVerifyCouplingGdx: '", s$name, "' is indexed (",
+      stop(".pfmVerifyCouplingGdx: '", s$name, "' is indexed (",
            paste(got$domainNames, collapse = ", "), ") but REMIND declares (",
            paste(s$domain, collapse = ", "), "). GAMS would load it as all zeros ",
            "without reporting anything.")

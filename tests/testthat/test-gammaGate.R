@@ -12,8 +12,8 @@
 #      reasoning about production defaults not drifting.
 
 test_that("gammaGate defaults to 0.999 in both the sweep and the sanity walk (ADR 0046)", {
-  expect_identical(eval(formals(runPSMSweep)$gammaGate), 0.999)
-  expect_identical(eval(formals(pfm:::.psmSanitySelect)$gammaGate), 0.999)
+  expect_identical(eval(formals(runPFMSweep)$gammaGate), 0.999)
+  expect_identical(eval(formals(pfm:::.pfmSanitySelect)$gammaGate), 0.999)
 })
 
 test_that("gammaGate reaches every sanity-walk call site", {
@@ -21,7 +21,7 @@ test_that("gammaGate reaches every sanity-walk call site", {
   # fallback. Passing it to only one would gate the first pool and not the second,
   # so a rejected spec could return through the back door. Read the deparsed
   # function rather than a source path, which does not exist once installed.
-  body <- paste(deparse(runPSMSweep), collapse = "\n")
+  body <- paste(deparse(runPFMSweep), collapse = "\n")
   nCeil <- lengths(regmatches(body, gregexpr("ceilingFallGate = ceilingFallGate", body)))
   nGam <- lengths(regmatches(body, gregexpr("gammaGate = gammaGate", body)))
   expect_gt(nCeil, 0)
@@ -31,10 +31,10 @@ test_that("gammaGate reaches every sanity-walk call site", {
 test_that("the ceiling helper returns gamma, so the gate costs no extra frontier fit", {
   # If this field ever disappears the gate silently stops firing rather than
   # erroring -- the failure mode that let the original ADR 0043 omission survive.
-  body <- paste(deparse(pfm:::.psmCeilingTrajectory), collapse = "\n")
+  body <- paste(deparse(pfm:::.pfmCeilingTrajectory), collapse = "\n")
   expect_match(body, "gamma = gm", fixed = TRUE)
   # and the walk must read it back off the same object
-  walk <- paste(deparse(pfm:::.psmSanitySelect), collapse = "\n")
+  walk <- paste(deparse(pfm:::.pfmSanitySelect), collapse = "\n")
   expect_match(walk, "ct$gamma", fixed = TRUE)
   expect_match(walk, "gammaBoundary", fixed = TRUE)
 })
@@ -43,7 +43,7 @@ test_that("gamma is recorded even when the gate is off", {
   # The point of reporting-when-off: switching the gate on must never be the first
   # time anyone sees the number. v3's X-2367 shipped at 0.99999999 unremarked
   # precisely because nothing carried it.
-  walk <- paste(deparse(pfm:::.psmSanitySelect), collapse = "\n")
+  walk <- paste(deparse(pfm:::.pfmSanitySelect), collapse = "\n")
   expect_match(walk, "modelGamma[[sec]] <- ct$gamma", fixed = TRUE)
   expect_match(walk, "gamma = gammaByModel", fixed = TRUE)
   # the assignment must sit OUTSIDE the is.finite(gammaGate) branch

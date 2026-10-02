@@ -25,7 +25,7 @@ and \code{efficiencyRatio} = observed/frontier (the frontier
 Implementability Factor).
 }
 \description{
-Post-processing for the stochastic-frontier rung of the PSM estimator suite
+Post-processing for the stochastic-frontier rung of the PFM estimator suite
 (Tier-1 direction 1, \code{docs/psm-theoretical-directions.md}): decomposes each
 estimation row into the \strong{feasibility frontier} (the maximum attainable
 transformed stringency given political-economy fundamentals,

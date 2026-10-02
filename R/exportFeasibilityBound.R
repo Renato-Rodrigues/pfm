@@ -4,7 +4,7 @@
 #' @description
 #' The object the IAM actually consumes: a per-region, per-period bound on the
 #' regional mitigation price, derived from the ambition-gap tiers and the validated
-#' adjustment speed. This is the last step of the PSM side of the coupling.
+#' adjustment speed. This is the last step of the PFM side of the coupling.
 #'
 #' \strong{No exchange rate is involved.} Earlier designs converted index points
 #' into \$/tCO2 via \eqn{\kappa = \partial P/\partial S}; that is retired (ADR
@@ -55,7 +55,7 @@
 #'   returned in those units.
 #' @param lambda Numeric scalar, or named by sector (e.g.
 #'   \code{c(Bulk = 0.103, Diffuse = 0.078)}) — the validated adjustment speed(s).
-#'   Carry the honesty labels of \code{\link{runPSMSectorSpeeds}} with any value
+#'   Carry the honesty labels of \code{\link{runPFMSectorSpeeds}} with any value
 #'   used here: only the electricity rate beats persistence out of sample.
 #' @param sectorRule How to reconcile sectors onto one price:
 #'   \code{"min"} (default, worse sector / slowest speed), \code{"mean"},
@@ -90,8 +90,8 @@ exportFeasibilityBound <- function(feasibility, priceOptimal, priceReference,
     stop("exportFeasibilityBound: 'feasibility' is missing column(s): ",
          paste(miss, collapse = ", "), " - pass aggregateFeasibilityToRegions() output.")
   }
-  pO <- .psmAsPricePath(priceOptimal, "priceOptimal")
-  pR <- .psmAsPricePath(priceReference, "priceReference")
+  pO <- .pfmAsPricePath(priceOptimal, "priceOptimal")
+  pR <- .pfmAsPricePath(priceReference, "priceReference")
 
   # --- sector reconciliation --------------------------------------------------
   f <- feasibility
@@ -218,7 +218,7 @@ exportFeasibilityBound <- function(feasibility, priceOptimal, priceReference,
 
 # Coerce a magpie object or a long data.frame to region/year/value.
 #' @keywords internal
-.psmAsPricePath <- function(x, what) {
+.pfmAsPricePath <- function(x, what) {
   if (magclass::is.magpie(x)) {
     yrs <- magclass::getYears(x, as.integer = TRUE)
     regs <- magclass::getItems(x, dim = 1)
@@ -232,13 +232,13 @@ exportFeasibilityBound <- function(feasibility, priceOptimal, priceReference,
     yc <- grep("^(year|period)$", cn, ignore.case = TRUE)
     vc <- grep("^(value|price)$", cn, ignore.case = TRUE)
     if (!length(rc) || !length(yc) || !length(vc)) {
-      stop(".psmAsPricePath: '", what, "' needs region, year and value columns ",
+      stop(".pfmAsPricePath: '", what, "' needs region, year and value columns ",
            "(have: ", paste(cn, collapse = ", "), ").")
     }
     return(data.frame(region = as.character(x[[rc[1]]]),
                       year = as.integer(x[[yc[1]]]),
                       value = as.numeric(x[[vc[1]]]), stringsAsFactors = FALSE))
   }
-  stop(".psmAsPricePath: '", what, "' must be a magpie object or a data.frame.")
+  stop(".pfmAsPricePath: '", what, "' must be a magpie object or a data.frame.")
 }
 # nolint end

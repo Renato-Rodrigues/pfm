@@ -1,5 +1,5 @@
 # nolint start
-# The ceilingCollapse gate (TODO item 11). .psmCeilingTrajectory itself needs a
+# The ceilingCollapse gate (TODO item 11). .pfmCeilingTrajectory itself needs a
 # frontier fit and a scenario panel, so it is mocked here: what these tests lock
 # in is the GATE's contract - off by default, severe when tripped, and recorded
 # for every model it evaluates whether or not it trips.
@@ -14,11 +14,11 @@ makeProj <- function(years = seq(2025, 2100, 5), regions = c("AAA", "BBB")) {
 
 walk <- function(ratio, gate) {
   testthat::local_mocked_bindings(
-    projectPSMSpecScenario = function(...) makeProj(),
-    .psmCeilingTrajectory = function(...) list(ratio = ratio, ceil0 = 8, ceil1 = 8 * ratio,
+    projectPFMSpecScenario = function(...) makeProj(),
+    .pfmCeilingTrajectory = function(...) list(ratio = ratio, ceil0 = 8, ceil1 = 8 * ratio,
                                                year0 = 2025, year1 = 2100)
   )
-  pfm:::.psmSanitySelect(
+  pfm:::.pfmSanitySelect(
     passModels = "SPEC-A", specByName = list(`SPEC-A` = list(name = "SPEC-A")),
     sectors = "Bulk", panelData = NULL, scenarioData = NULL, modelDir = NULL,
     batchSize = 5, maxModels = 5, thresholds = list(), regionBlocks = NULL,
@@ -58,8 +58,8 @@ test_that("the ratio is recorded for every evaluated model, passing or not", {
 })
 test_that("the production default is on at 0.90 (ADR 0043)", {
   # Guards against an accidental flip back: the gate being on by default IS the
-  # decision, and the test fixtures deliberately override it to NA (helper-psm.R).
-  expect_equal(formals(runPSMSweep)$ceilingFallGate, 0.90)
-  expect_true(is.na(formals(psmTestSweep)$ceilingFallGate))
+  # decision, and the test fixtures deliberately override it to NA (helper-pfm.R).
+  expect_equal(formals(runPFMSweep)$ceilingFallGate, 0.90)
+  expect_true(is.na(formals(pfmTestSweep)$ceilingFallGate))
 })
 # nolint end

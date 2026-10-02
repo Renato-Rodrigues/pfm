@@ -32,7 +32,7 @@
                           modelDir = NULL, forceRefit = FALSE, verbose = FALSE, prepared = FALSE) {
   tryCatch({
     if (stage == "PolicyStringency") {
-      # PSM (ADR 0036): single-stage bounded index, satP selection engine only.
+      # PFM (ADR 0036): single-stage bounded index, satP selection engine only.
       estimatePolicyStringencyModel(
         data = panelData, sector = sector, estimator = "satP",
         indexMax = cfg$indexMax %||% 10,

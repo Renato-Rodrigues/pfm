@@ -102,17 +102,17 @@ pfmRun <- function(group = NULL,
                    ...) {
 
   stageSteps <- list(
-    sweep       = c("psm-sweep", "psm-frontier", "psm-temporal", "psm-sector-speeds"),
+    sweep       = c("pfm-sweep", "pfm-frontier", "pfm-temporal", "pfm-sector-speeds"),
     # Inference and validation of the SELECTED spec. Not optional extras: the
     # wild-cluster p-values in `estimator-agreement.rds` are the only quotable
-    # inference at this cluster count, and `psm-replay` is the gate a coupled claim
+    # inference at this cluster count, and `pfm-replay` is the gate a coupled claim
     # depends on. They ran only via `custom` until 2026-08-14, which is how
     # Run-Group v1 came to be complete-looking and unciteable.
-    diagnostics = c("psm-agreement", "psm-iv", "psm-influence", "psm-inference",
-                    "psm-replay"),
-    downstream  = c("psm-donor", "psm-projection", "psm-coupling-bound",
-                    "psm-selection-bootstrap", "psm-regfront"),
-    remind      = "psm-remind-inputs",
+    diagnostics = c("pfm-agreement", "pfm-iv", "pfm-influence", "pfm-inference",
+                    "pfm-replay"),
+    downstream  = c("pfm-donor", "pfm-projection", "pfm-coupling-bound",
+                    "pfm-selection-bootstrap", "pfm-regfront"),
+    remind      = "pfm-remind-inputs",
     custom      = character(0))
 
   # "all" means every step, in dependency order — not "every stage I happened to
@@ -238,7 +238,7 @@ pfmRun <- function(group = NULL,
     if (dir.exists(resultsDir)) {
       cand <- list.dirs(resultsDir, full.names = FALSE, recursive = FALSE)
       existing <- cand[vapply(cand, function(g) file.exists(
-        file.path(resultsDir, g, "selected-models-psm.yml")), logical(1))]
+        .pfmSelectedModels(file.path(resultsDir, g))), logical(1))]
       # Most-recently-touched first, so option 1 is the group you were last working
       # on. Alphabetical order puts an arbitrary group at the top and makes the
       # default a coin flip between a dozen old sweeps.
@@ -278,9 +278,10 @@ pfmRun <- function(group = NULL,
   # madrat's raw-source folder (config `madrat: sourcefolder`, first existing candidate),
   # applied by .useMadratCache() in every step and carried into SLURM jobs by startRun().
   if (!is.null(rc$sourcefolder)) options(pfm.sourcefolder = rc$sourcefolder)
-  hasSpec <- file.exists(file.path(groupDir, "selected-models-psm.yml"))
+  hasSpec <- file.exists(.pfmSelectedModels(groupDir))
 
   # ── stage / steps ───────────────────────────────────────────────────────────
+  steps <- .pfmLegacySteps(steps)
   if (is.null(steps)) {
     if (is.null(stage)) {
       if (!interactiveRun) stop("pfmRun: supply 'stage' or 'steps'.", call. = FALSE)
@@ -313,7 +314,7 @@ pfmRun <- function(group = NULL,
 
   needsSpec <- c(stageSteps$diagnostics, stageSteps$downstream)
   if (!hasSpec && any(steps %in% needsSpec)) {
-    msg <- paste0("Run-Group '", group, "' has no selected-models-psm.yml, so the ",
+    msg <- paste0("Run-Group '", group, "' has no selected-models-pfm.yml, so the ",
                   "diagnostics and downstream steps have no deployed spec to work from.")
     if (!any(steps %in% stageSteps$sweep)) {
       if (interactiveRun) {
@@ -397,7 +398,7 @@ pfmRun <- function(group = NULL,
       v <- askText("Scenario registry YAML (Enter for none)", dflt)
       config <- if (nzchar(v)) v else NULL
     }
-    if (is.null(remindDir) && "psm-remind-inputs" %in% steps) {
+    if (is.null(remindDir) && "pfm-remind-inputs" %in% steps) {
       remindDir <- askText("REMIND input folder to write", "output/remind-inputs")
     }
   }
@@ -423,10 +424,10 @@ pfmRun <- function(group = NULL,
             paste(names(rc$scenarios), collapse = ", "), "]")
   }
   settings$scenarios <- rc$scenarios
-  needsScenarios <- any(c("psm-projection", "psm-coupling-bound") %in% steps)
+  needsScenarios <- any(c("pfm-projection", "pfm-coupling-bound") %in% steps)
   if (needsScenarios && is.null(rc$scenarios)) {
     message("\nWARNING: no scenario registry resolved, but ",
-            paste(intersect(c("psm-projection", "psm-coupling-bound"), steps),
+            paste(intersect(c("pfm-projection", "pfm-coupling-bound"), steps),
                   collapse = " and "), " need one.")
     message("  The projection would fall back to a single legacy scenario and the ",
             "coupling bound would skip.")
@@ -454,7 +455,7 @@ pfmRun <- function(group = NULL,
   message("  registry    : ", rc$path %||% "(none)",
           if (is.null(rc$scenarios)) "  [no scenarios]"
           else paste0("  [", length(rc$scenarios), " scenario(s)]"))
-  if ("psm-remind-inputs" %in% steps) message("  REMIND out  : ", remindDir)
+  if ("pfm-remind-inputs" %in% steps) message("  REMIND out  : ", remindDir)
   # The panel's spatial resolution decides WHICH UNITS every min-max normalised
   # quantity is normalised over, so it changes the fitted object, not just the
   # display. It was invisible here until 2026-08-25, when a run launched through
@@ -473,8 +474,8 @@ pfmRun <- function(group = NULL,
   hr("=")
 
   if (!identical(clean, "none")) {
-    victims <- if (identical(clean, "group")) names(psmStepArtifacts()) else steps
-    psmCleanSteps(group, victims, resultsDir = resultsDir, dryRun = TRUE)
+    victims <- if (identical(clean, "group")) names(pfmStepArtifacts()) else steps
+    pfmCleanSteps(group, victims, resultsDir = resultsDir, dryRun = TRUE)
   }
 
   # Validate the caller's dots against startRun BEFORE the dryRun exit, so a dry run
@@ -492,9 +493,9 @@ pfmRun <- function(group = NULL,
     dn <- dn[nzchar(dn)]
     if (length(dn)) {
       # startRun's own formals, plus the step functions it forwards `...` to.
-      # runModelGroup dispatches the steps; runPSMSweep is where the sweep gates
+      # runModelGroup dispatches the steps; runPFMSweep is where the sweep gates
       # (gammaGate, sanityMaxModels, ceilingFallGate) actually land.
-      fns <- list(startRun, runPSMSweep, runModelGroup)
+      fns <- list(startRun, runPFMSweep, runModelGroup)
       known <- unique(unlist(lapply(fns, function(f) names(formals(f)))))
       unknown <- setdiff(dn, known)
       if (length(unknown)) {
@@ -512,8 +513,8 @@ pfmRun <- function(group = NULL,
     message("cancelled."); return(invisible(settings))
   }
   if (!identical(clean, "none")) {
-    victims <- if (identical(clean, "group")) names(psmStepArtifacts()) else steps
-    psmCleanSteps(group, victims, resultsDir = resultsDir, dryRun = FALSE)
+    victims <- if (identical(clean, "group")) names(pfmStepArtifacts()) else steps
+    pfmCleanSteps(group, victims, resultsDir = resultsDir, dryRun = FALSE)
   }
 
   # ── madrat cache ────────────────────────────────────────────────────────────
@@ -540,7 +541,7 @@ pfmRun <- function(group = NULL,
   # the same job (runModelGroup runs it after the downstream steps), so one call goes from
   # estimation to the REMIND inputs. Until 2026-10-01 it was always split off, and a
   # submitted chain needed a second pfmRun(stage = "remind") once the job had finished.
-  exportOnly <- identical(steps, "psm-remind-inputs")
+  exportOnly <- identical(steps, "pfm-remind-inputs")
   pipelineSteps <- if (exportOnly) character(0) else steps
   if (length(pipelineSteps)) {
     # startRun takes `scenarios`/`gdxFile`, not a config path — passing `config` would
@@ -558,7 +559,7 @@ pfmRun <- function(group = NULL,
       list(group = group, steps = pipelineSteps, cluster = cluster,
            resultsDir = resultsDir, modelDir = modelDir, resume = resume,
            scenarios = rc$scenarios, cachefolder = rc$cachefolder,
-           # One value, threaded to EVERY psm step: runModelGroup forwards dots to
+           # One value, threaded to EVERY pfm step: runModelGroup forwards dots to
            # each step filtered by that step's own formals, and all of them carry
            # `outputRegionMappingFile`. Passing it once here is what keeps the fit
            # and the projection at the same resolution.
@@ -566,7 +567,7 @@ pfmRun <- function(group = NULL,
       list(...))
     if (!is.null(rc$gdxFile)) args$gdxFile <- rc$gdxFile
     # Absolute: a SLURM job's working directory is not necessarily this one.
-    if ("psm-remind-inputs" %in% pipelineSteps) {
+    if ("pfm-remind-inputs" %in% pipelineSteps) {
       args$dest <- normalizePath(remindDir, winslash = "/", mustWork = FALSE)
     }
     # Each axis is set only when the caller did NOT pass it, so an explicit
@@ -582,7 +583,7 @@ pfmRun <- function(group = NULL,
     do.call(startRun, args)
   }
   if (exportOnly) {
-    runPSMExportREMINDInputs(group = group, dest = remindDir,
+    runPFMExportREMINDInputs(group = group, dest = remindDir,
                              resultsDir = resultsDir, modelDir = modelDir,
                              cachefolder = list(...)$cachefolder %||% rc$cachefolder)
   }

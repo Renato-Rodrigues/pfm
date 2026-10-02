@@ -1,12 +1,12 @@
-# Fixtures (makePSMagpie, makePSMScenarioMagpie, psmFitAndLoad) live in helper-psm.R.
+# Fixtures (makePFMagpie, makePFMScenarioMagpie, pfmFitAndLoad) live in helper-pfm.R.
 
 test_that("predictPolicyStringency projects a loaded satP model bounded by construction", {
   tmp <- withr::local_tempdir()
-  psModel <- psmFitAndLoad(makePSMagpie(), tmp)
+  psModel <- pfmFitAndLoad(makePFMagpie(), tmp)
   expect_s3_class(psModel, "PFMModel")
   expect_identical(psModel$stage, "policyStringency")
 
-  proj <- predictPolicyStringency(psModel, makePSMScenarioMagpie())
+  proj <- predictPolicyStringency(psModel, makePFMScenarioMagpie())
   # horizon: strictly after the last training year (2019)
   expect_true(all(proj$year > 2019))
   expect_true(all(proj$year <= 2030))
@@ -28,8 +28,8 @@ test_that("predictPolicyStringency projects a loaded satP model bounded by const
 
 test_that("computeImplementabilityFactor rescales the index to a 0-1 multiplier", {
   tmp <- withr::local_tempdir()
-  psModel <- psmFitAndLoad(makePSMagpie(), tmp)
-  proj <- predictPolicyStringency(psModel, makePSMScenarioMagpie())
+  psModel <- pfmFitAndLoad(makePFMagpie(), tmp)
+  proj <- predictPolicyStringency(psModel, makePFMScenarioMagpie())
   imp <- computeImplementabilityFactor(proj)
   ok <- is.finite(imp$implementability)
   expect_true(all(imp$implementability[ok] >= 0 & imp$implementability[ok] <= 1))
@@ -39,9 +39,9 @@ test_that("computeImplementabilityFactor rescales the index to a 0-1 multiplier"
 
 test_that("dynamic (lagged) projection recurses from the stored seed and stays bounded", {
   tmp <- withr::local_tempdir()
-  psModel <- psmFitAndLoad(makePSMagpie(), tmp, includeLaggedPS = TRUE)
+  psModel <- pfmFitAndLoad(makePFMagpie(), tmp, includeLaggedPS = TRUE)
   expect_true("lagged_ecp" %in% all.vars(psModel$formula))
-  proj <- suppressMessages(predictPolicyStringency(psModel, makePSMScenarioMagpie()))
+  proj <- suppressMessages(predictPolicyStringency(psModel, makePFMScenarioMagpie()))
   ok <- is.finite(proj$index)
   expect_true(any(ok))
   expect_true(all(proj$index[ok] >= 0 & proj$index[ok] <= 10))
@@ -51,8 +51,8 @@ test_that("dynamic (lagged) projection recurses from the stored seed and stays b
 
 test_that("stage and input guards fire", {
   tmp <- withr::local_tempdir()
-  fitList <- psmFit(makePSMagpie())
-  expect_error(predictPolicyStringency(fitList, makePSMScenarioMagpie()))
-  psModel <- psmFitAndLoad(makePSMagpie(), tmp)
+  fitList <- pfmFit(makePFMagpie())
+  expect_error(predictPolicyStringency(fitList, makePFMScenarioMagpie()))
+  psModel <- pfmFitAndLoad(makePFMagpie(), tmp)
   expect_error(computeImplementabilityFactor(data.frame(a = 1)), "index")
 })

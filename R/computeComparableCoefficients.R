@@ -2,7 +2,7 @@
 #' Coefficients on a comparable footing (beta x SD)
 #'
 #' @description
-#' Reports every coefficient of a fitted PSM/frontier model together with the
+#' Reports every coefficient of a fitted PFM/frontier model together with the
 #' standard deviation of its own regressor in the estimation sample and the
 #' product \eqn{\beta_k \cdot \mathrm{sd}(x_k)} — the change in the linear
 #' predictor produced by a one-standard-deviation move in that regressor.

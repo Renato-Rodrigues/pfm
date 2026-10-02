@@ -27,7 +27,7 @@ returned in those units.}
 
 \item{lambda}{Numeric scalar, or named by sector (e.g.
 \code{c(Bulk = 0.103, Diffuse = 0.078)}) — the validated adjustment speed(s).
-Carry the honesty labels of \code{\link{runPSMSectorSpeeds}} with any value
+Carry the honesty labels of \code{\link{runPFMSectorSpeeds}} with any value
 used here: only the electricity rate beats persistence out of sample.}
 
 \item{sectorRule}{How to reconcile sectors onto one price:
@@ -54,7 +54,7 @@ cost-optimal price, and \code{bindGap} is the shortfall. Attributes:
 \description{
 The object the IAM actually consumes: a per-region, per-period bound on the
 regional mitigation price, derived from the ambition-gap tiers and the validated
-adjustment speed. This is the last step of the PSM side of the coupling.
+adjustment speed. This is the last step of the PFM side of the coupling.
 
 \strong{No exchange rate is involved.} Earlier designs converted index points
 into \$/tCO2 via \eqn{\kappa = \partial P/\partial S}; that is retired (ADR

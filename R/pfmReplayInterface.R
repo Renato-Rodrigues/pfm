@@ -21,7 +21,7 @@
 #'
 #' @section The negative control:
 #' With \code{negativeControl = TRUE} (the default) a second gdx is built \emph{by hand}
-#' through gamstransfer - \code{\link{.psmCouplingSymMkt2d}} would refuse to produce it -
+#' through gamstransfer - \code{\link{.pfmCouplingSymMkt2d}} would refuse to produce it -
 #' carrying \code{p45_pfmPriceBoundMkt} transposed to \code{(all_regi, ttot, all_emiMkt)},
 #' and fed to the same stub. A run that does not ABORT there is a failure of the harness,
 #' not a pass: it means the check is incapable of detecting the defect it exists for.
@@ -80,29 +80,29 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", NULL),
   ttot <- c(2005, 2010, 2020, yrs, 2100, 2150)
   iter <- 15
 
-  fx <- .psmReplayFixture(regs, yrs)
-  syms <- .psmReplaySymbols(fx, regs, iter)
+  fx <- .pfmReplayFixture(regs, yrs)
+  syms <- .pfmReplaySymbols(fx, regs, iter)
   gdxFile <- file.path(dir, "p45_regiDiff_phi.gdx")
-  .psmWriteCouplingGdx(gdxFile, syms)
+  .pfmWriteCouplingGdx(gdxFile, syms)
   say("wrote ", length(syms), " symbols to ", basename(gdxFile))
 
   # Declarations are LIFTED from the module, never restated: a stub that declares its own
   # idea of a symbol would pass happily while the real model fails.
-  decls <- .psmReplayDeclarations(declGms)
+  decls <- .pfmReplayDeclarations(declGms)
   say("lifted ", length(decls), " declarations verbatim from declarations.gms")
 
-  stub <- .psmReplayStub(dir, decls, fx, regs, ttot, mkts, iter)
-  pos <- .psmReplayRunGams(gams, dir, stub)
+  stub <- .pfmReplayStub(dir, decls, fx, regs, ttot, mkts, iter)
+  pos <- .pfmReplayRunGams(gams, dir, stub)
   say("positive replay: ", if (pos$ok) "OK" else paste0("FAILED - ", pos$verdict))
 
   neg <- NULL
   if (isTRUE(negativeControl)) {
     negDir <- file.path(dir, "negctl")
     dir.create(negDir, showWarnings = FALSE, recursive = TRUE)
-    .psmReplayTransposedGdx(file.path(negDir, "p45_regiDiff_phi.gdx"), fx, regs, ttot,
+    .pfmReplayTransposedGdx(file.path(negDir, "p45_regiDiff_phi.gdx"), fx, regs, ttot,
                             mkts, iter)
     file.copy(stub, file.path(negDir, basename(stub)), overwrite = TRUE)
-    neg <- .psmReplayRunGams(gams, negDir, file.path(negDir, basename(stub)))
+    neg <- .pfmReplayRunGams(gams, negDir, file.path(negDir, basename(stub)))
     # Inverted on purpose: the control PASSES when GAMS aborts.
     neg$ok <- !isTRUE(neg$loadedCleanly)
     say("negative control: ", if (neg$ok) "OK - the transposed symbol was caught"
@@ -116,7 +116,7 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", NULL),
 
 #' @keywords internal
 #' @rdname pfmReplayInterface
-.psmReplayFixture <- function(regs, yrs) {
+.pfmReplayFixture <- function(regs, yrs) {
   mkBnd <- function(base) {
     d <- expand.grid(year = yrs, region = regs, stringsAsFactors = FALSE)
     d$priceBound <- base + seq_len(nrow(d))   # every cell distinct, so a transposed
@@ -140,24 +140,24 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", NULL),
 
 #' @keywords internal
 #' @rdname pfmReplayInterface
-.psmReplaySymbols <- function(fx, regs, iter) {
+.pfmReplaySymbols <- function(fx, regs, iter) {
   mp1 <- fx$mpSector$Bulk
   list(
-    .psmCouplingSym1d("p45_regiDiff_phi", fx$phi),
-    .psmCouplingSym1d("p45_regiDiff_lambda", fx$lamFloor),
-    .psmCouplingSym1d("p45_pfmDelta",    stats::setNames(rep(0.004, length(regs)), regs)),
-    .psmCouplingSym1d("p45_pfmIterSeen", stats::setNames(rep(iter, length(regs)), regs)),
-    .psmCouplingSym2d("p45_pfmPriceBound", fx$bnd, "priceBound"),
-    .psmCouplingSym2d("p45_pfmMPPrice",    mp1,    "price"),
-    .psmCouplingSymMkt1d("p45_pfmPhiMkt",    fx$phiSector),
-    .psmCouplingSymMkt1d("p45_pfmLambdaMkt", fx$lamSector),
-    .psmCouplingSymMkt2d("p45_pfmPriceBoundMkt", fx$bndSector, "priceBound"),
-    .psmCouplingSymMkt2d("p45_pfmMPPriceMkt",    fx$mpSector,  "price"))
+    .pfmCouplingSym1d("p45_regiDiff_phi", fx$phi),
+    .pfmCouplingSym1d("p45_regiDiff_lambda", fx$lamFloor),
+    .pfmCouplingSym1d("p45_pfmDelta",    stats::setNames(rep(0.004, length(regs)), regs)),
+    .pfmCouplingSym1d("p45_pfmIterSeen", stats::setNames(rep(iter, length(regs)), regs)),
+    .pfmCouplingSym2d("p45_pfmPriceBound", fx$bnd, "priceBound"),
+    .pfmCouplingSym2d("p45_pfmMPPrice",    mp1,    "price"),
+    .pfmCouplingSymMkt1d("p45_pfmPhiMkt",    fx$phiSector),
+    .pfmCouplingSymMkt1d("p45_pfmLambdaMkt", fx$lamSector),
+    .pfmCouplingSymMkt2d("p45_pfmPriceBoundMkt", fx$bndSector, "priceBound"),
+    .pfmCouplingSymMkt2d("p45_pfmMPPriceMkt",    fx$mpSector,  "price"))
 }
 
 #' @keywords internal
 #' @rdname pfmReplayInterface
-.psmReplayDeclarations <- function(declGms) {
+.pfmReplayDeclarations <- function(declGms) {
   lines <- readLines(declGms, warn = FALSE)
   need <- c("p45_regiDiff_phi\\(", "p45_regiDiff_phi_aux",
             "p45_regiDiff_lambda\\(", "p45_regiDiff_lambda_aux", "p45_pfmDelta_aux",
@@ -180,7 +180,7 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", NULL),
 
 #' @keywords internal
 #' @rdname pfmReplayInterface
-.psmReplayStub <- function(dir, decls, fx, regs, ttot, mkts, iter) {
+.pfmReplayStub <- function(dir, decls, fx, regs, ttot, mkts, iter) {
   chk <- function(name, expr, want) {
     sprintf(paste0("s_chk = %s;\nif (abs(s_chk - %.10g) > 1e-6,\n",
                    "  display s_chk;\n  abort 'MISMATCH: %s';\n);"),
@@ -188,8 +188,8 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", NULL),
   }
   b <- fx$bndSector$Bulk
   d <- fx$bndSector$Diffuse
-  sumPhi <- sum(.psmCouplingSymMkt1d("x", fx$phiSector)$records$value)
-  sumBnd <- sum(.psmCouplingSymMkt2d("x", fx$bndSector, "priceBound")$records$value)
+  sumPhi <- sum(.pfmCouplingSymMkt1d("x", fx$phiSector)$records$value)
+  sumBnd <- sum(.pfmCouplingSymMkt2d("x", fx$bndSector, "priceBound")$records$value)
   L <- c(
     "$title PFM coupling interface replay (generated by pfm::pfmReplayInterface)",
     "$offlisting",
@@ -255,7 +255,7 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", NULL),
 
 #' @keywords internal
 #' @rdname pfmReplayInterface
-.psmReplayTransposedGdx <- function(file, fx, regs, ttot, mkts, iter) {
+.pfmReplayTransposedGdx <- function(file, fx, regs, ttot, mkts, iter) {
   m  <- gamstransfer::Container$new()
   sr <- m$addSet("all_regi",   records = regs)
   st <- m$addSet("ttot",       records = as.character(ttot))
@@ -293,7 +293,7 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", NULL),
 
 #' @keywords internal
 #' @rdname pfmReplayInterface
-.psmReplayRunGams <- function(gams, dir, stub) {
+.pfmReplayRunGams <- function(gams, dir, stub) {
   old <- setwd(dir)
   on.exit(setwd(old), add = TRUE)
   lstName <- "replay_interface.lst"

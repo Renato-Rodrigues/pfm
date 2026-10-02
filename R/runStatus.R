@@ -28,8 +28,8 @@ runStatus <- function(group, resultsDir = getOption("pfm.resultsDir", "output"),
   }
   man <- tryCatch(jsonlite::fromJSON(manPath, simplifyVector = FALSE), error = function(e) list())
   run <- man$run %||% list()
-  requested <- unlist(run$steps %||% list())
-  doneSteps <- names(man$steps %||% list())
+  requested <- .pfmLegacySteps(unlist(run$steps %||% list()), quiet = TRUE)
+  doneSteps <- .pfmLegacySteps(names(man$steps %||% list()), quiet = TRUE)
   jobId <- run$slurmJobId
   live <- NULL
   if (!is.null(jobId) && length(jobId) == 1 && !is.na(jobId) && nzchar(jobId) &&

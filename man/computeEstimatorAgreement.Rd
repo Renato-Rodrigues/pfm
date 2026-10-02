@@ -2,7 +2,7 @@
 % Please edit documentation in R/computeEstimatorAgreement.R
 \name{computeEstimatorAgreement}
 \alias{computeEstimatorAgreement}
-\title{Estimator-agreement table for the Policy Stringency Model}
+\title{Estimator-agreement table for the Political Feasibility Model}
 \usage{
 computeEstimatorAgreement(
   data,
@@ -58,8 +58,8 @@ agree, and in how many estimators the term is significant at the 5 percent level
 }
 }
 \description{
-Re-estimates one PSM specification under every member of the
-PSM Estimator Suite (see CONTEXT.md; satP, fractional logit, beta regression,
+Re-estimates one PFM specification under every member of the
+PFM Estimator Suite (see CONTEXT.md; satP, fractional logit, beta regression,
 levels-gaussian benchmark) and assembles the cross-estimator comparison that
 backs the paper's robustness claim: \emph{the political-economy channels are
 estimator-invariant}. Estimators are compared on coefficient signs, natural-scale

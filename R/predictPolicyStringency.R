@@ -1,6 +1,6 @@
 # nolint start
 #' @title predictPolicyStringency
-#' @description Produces scenario projections of the Policy Stringency Model
+#' @description Produces scenario projections of the Political Feasibility Model
 #' (ADR 0036) from an already fitted, \emph{loaded} \code{PFMModel} of stage
 #' \code{"policyStringency"} and a scenario panel — WITHOUT refitting and WITHOUT
 #' the historical training panel (the \code{\link{predictFeasibility}} discipline,
@@ -100,7 +100,7 @@ predictPolicyStringency <- function(model, scenarioData, minProjYear = NULL,
   ranges <- model$transforms$driverRanges
   driverOutOfSupport <- rep(NA_real_, nrow(sDf))
   if (!is.null(ranges) && length(ranges) > 0) {
-    guarded <- .psmDriverGuard(sDf, ranges)
+    guarded <- .pfmDriverGuard(sDf, ranges)
     driverOutOfSupport <- guarded$outOfSupport
     if (identical(driverGuard, "winsorize")) {
       sDf <- guarded$df
@@ -179,7 +179,7 @@ predictPolicyStringency <- function(model, scenarioData, minProjYear = NULL,
       }
     }
     if (isTRUE(verbose)) {
-      message("  [psm] dynamic projection (", if (isECM) "error-correction" else "lagged",
+      message("  [pfm] dynamic projection (", if (isECM) "error-correction" else "lagged",
               " response); CI not propagated (NA).")
     }
   }

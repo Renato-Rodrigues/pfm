@@ -132,7 +132,7 @@ computeDonorAssignment <- function(fit, frontierScores, panelData, year = NULL,
          "or NULL.")
   }
   if (is.null(fit$model) || is.null(fit$data)) {
-    stop("computeDonorAssignment: 'fit' must be a fitted PSM model.")
+    stop("computeDonorAssignment: 'fit' must be a fitted PFM model.")
   }
   if (!all(c("region", "year", "efficiencyRatio") %in% colnames(frontierScores))) {
     stop("computeDonorAssignment: 'frontierScores' needs region, year and ",

@@ -17,7 +17,7 @@ test_that("a missing band assignment is an error, not a silent fallback", {
   gd <- file.path(d, "grp")
   dir.create(gd, recursive = TRUE)
   # Enough of a Run-Group to get past the early file checks, but no band assignment.
-  writeLines("[]", file.path(gd, "selected-models-psm.yml"))
+  writeLines("[]", file.path(gd, "selected-models-pfm.yml"))
   writeLines('{"panel_hash":"nope"}', file.path(gd, "manifest.json"))
   gdxFile <- file.path(d, "fulldata.gdx")
   file.create(gdxFile)
@@ -119,12 +119,12 @@ test_that("the weight year and scenario are exposed and defaulted sensibly", {
   fm <- formals(iterativePFM)
   expect_equal(eval(fm$weightYear), 2050)
   expect_equal(eval(fm$weightScenario), "SSP2")
-  expect_equal(eval(formals(psmCouplingWeights)$scaleBy)[1], "gdp")
+  expect_equal(eval(formals(pfmCouplingWeights)$scaleBy)[1], "gdp")
 })
 
 test_that("gdp scaling without a target year warns rather than silently no-opping", {
-  expect_true("scenario" %in% names(formals(psmCouplingWeights)))
-  expect_true("year" %in% names(formals(psmCouplingWeights)))
+  expect_true("scenario" %in% names(formals(pfmCouplingWeights)))
+  expect_true("year" %in% names(formals(pfmCouplingWeights)))
 })
 
 # --- bind mode 3: mild progression --------------------------------------------
@@ -135,7 +135,7 @@ test_that("gdp scaling without a target year warns rather than silently no-oppin
 test_that("mode 3 refuses to run without a seed", {
   d <- withr::local_tempdir()
   gd <- file.path(d, "grp"); dir.create(gd, recursive = TRUE)
-  writeLines("[]", file.path(gd, "selected-models-psm.yml"))
+  writeLines("[]", file.path(gd, "selected-models-pfm.yml"))
   writeLines('{"panel_hash":"nope"}', file.path(gd, "manifest.json"))
   g <- file.path(d, "fulldata.gdx"); file.create(g)
   # No refGdx: the seed price cannot be read, so it must not silently start at zero.

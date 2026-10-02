@@ -20,7 +20,7 @@ A list with \code{vcov}, \code{support}, \code{correlation} and \code{nObs}, or
 }
 \description{
 Extracts the three things a downstream consumer needs that a coefficient table alone cannot
-supply, and that were previously discarded when \code{\link{runPSMFrontier}} assembled its
+supply, and that were previously discarded when \code{\link{runPFMFrontier}} assembled its
 artifact:
 
 \describe{
@@ -42,7 +42,7 @@ All three are small — a 14x14 matrix and a 14-row table per sector — so pers
 costs nothing next to the per-row scores already in the artifact.
 }
 \seealso{
-\code{\link{computeFrontierRobustness}}, \code{\link{runPSMFrontier}}
+\code{\link{computeFrontierRobustness}}, \code{\link{runPFMFrontier}}
 }
 \author{
 Renato Rodrigues

@@ -13,7 +13,7 @@ computePolicyStringencySanity(
 )
 }
 \arguments{
-\item{proj}{Data.frame from \code{\link{projectPSMSpecScenario}} /
+\item{proj}{Data.frame from \code{\link{projectPFMSpecScenario}} /
 \code{\link{predictPolicyStringency}} (needs \code{region, year, index}).}
 
 \item{histIndex}{Optional data.frame \code{region, year, index} of historical
@@ -37,7 +37,7 @@ List: \code{flags} (data.frame \code{rule, severity, region, year,
   missingShare}) — the same shape \code{.sanitySelect}-style walkers consume.
 }
 \description{
-The PSM analogue of \code{\link{computeProjectionSanity}} (ADR 0036). The
+The PFM analogue of \code{\link{computeProjectionSanity}} (ADR 0036). The
 price-model rules that exist because \code{expm1(eta)} is unbounded — price
 explosion, the extrapolation clamp and the clamp-reliance hard filter — have
 \strong{no analogue}: the index saturates at \code{indexMax} by construction.

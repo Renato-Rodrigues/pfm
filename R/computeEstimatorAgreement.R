@@ -1,8 +1,8 @@
 # nolint start
-#' Estimator-agreement table for the Policy Stringency Model
+#' Estimator-agreement table for the Political Feasibility Model
 #'
-#' Re-estimates one PSM specification under every member of the
-#' PSM Estimator Suite (see CONTEXT.md; satP, fractional logit, beta regression,
+#' Re-estimates one PFM specification under every member of the
+#' PFM Estimator Suite (see CONTEXT.md; satP, fractional logit, beta regression,
 #' levels-gaussian benchmark) and assembles the cross-estimator comparison that
 #' backs the paper's robustness claim: \emph{the political-economy channels are
 #' estimator-invariant}. Estimators are compared on coefficient signs, natural-scale
@@ -136,7 +136,7 @@ computeEstimatorAgreement <- function(data,
     yNat <- f$outcomeNatural
     # Use the fit's own estimator FAMILY (a specification rung like "satP-yearFE"
     # resolves to "satP"/"levels"; the response inversion depends on the family).
-    muNat <- tryCatch(.psmNaturalFitted(f$model, f$estimator %||% e, indexMax),
+    muNat <- tryCatch(.pfmNaturalFitted(f$model, f$estimator %||% e, indexMax),
                       error = function(err) NULL)
     rmse <- corNat <- NA_real_
     if (!is.null(muNat) && !is.null(yNat)) {

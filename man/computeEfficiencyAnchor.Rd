@@ -61,7 +61,7 @@ efficiency at any legal \eqn{\theta}; it is \strong{not} a reason to raise the c
 }
 
 \seealso{
-\code{\link{aggregateFeasibilityToRegions}}, \code{\link{runPSMCouplingBound}},
+\code{\link{aggregateFeasibilityToRegions}}, \code{\link{runPFMCouplingBound}},
 ADR 0041 and its 2026-08-17 amendment, \code{MODEL.md} §5.3
 }
 \author{

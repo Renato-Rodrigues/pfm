@@ -1,8 +1,8 @@
 # nolint start
-#' Project one PSM specification onto a scenario (sanity-gate / selection path)
+#' Project one PFM specification onto a scenario (sanity-gate / selection path)
 #'
 #' @description
-#' The Policy Stringency Model counterpart of \code{\link{projectSpecScenario}}:
+#' The Political Feasibility Model counterpart of \code{\link{projectSpecScenario}}:
 #' (re-)estimates the spec with the satP engine (a Fit-Cache hit after a sweep)
 #' and projects the bounded index onto the scenario panel in-session — frozen
 #' driver scaling, trend freeze at the last historical year, regionFE aligned to
@@ -39,14 +39,14 @@
 #' @importFrom stats plogis coef terms delete.response model.frame model.matrix na.pass qnorm sd
 #' @export
 #' @author Renato Rodrigues
-projectPSMSpecScenario <- function(cfg, sector, histData, scenarioData,
+projectPFMSpecScenario <- function(cfg, sector, histData, scenarioData,
                                    modelDir = getOption("pfm.modelDir", "output"),
                                    indexMax = 10, minProjYear = NULL,
                                    driverGuard = c("winsorize", "none"),
                                    verbose = FALSE) {
   if (!identical(cfg$panelTransform %||% "levels", "levels")) {
     if (isTRUE(verbose)) {
-      message("projectPSMSpecScenario: panelTransform '", cfg$panelTransform,
+      message("projectPFMSpecScenario: panelTransform '", cfg$panelTransform,
               "' not projectable - returning NULL.")
     }
     return(NULL)
@@ -92,7 +92,7 @@ projectPSMSpecScenario <- function(cfg, sector, histData, scenarioData,
   # were estimated on. The in-session fit always carries its estimation rows.
   driverGuard <- match.arg(driverGuard)
   ranges <- .driverSupportRanges(fit$data, fit$driverScaling)
-  guarded <- .psmDriverGuard(sDf, ranges)
+  guarded <- .pfmDriverGuard(sDf, ranges)
   driverOutOfSupport <- guarded$outOfSupport
   driverOutOfSample <- guarded$outOfSample
   if (identical(driverGuard, "winsorize")) {
@@ -176,7 +176,7 @@ projectPSMSpecScenario <- function(cfg, sector, histData, scenarioData,
 #' Projection Sanity rules for the bounded Policy Stringency index
 #'
 #' @description
-#' The PSM analogue of \code{\link{computeProjectionSanity}} (ADR 0036). The
+#' The PFM analogue of \code{\link{computeProjectionSanity}} (ADR 0036). The
 #' price-model rules that exist because \code{expm1(eta)} is unbounded — price
 #' explosion, the extrapolation clamp and the clamp-reliance hard filter — have
 #' \strong{no analogue}: the index saturates at \code{indexMax} by construction.
@@ -201,7 +201,7 @@ projectPSMSpecScenario <- function(cfg, sector, histData, scenarioData,
 #'     \code{missingShareWarn} (structurally absent drivers).}
 #' }
 #'
-#' @param proj Data.frame from \code{\link{projectPSMSpecScenario}} /
+#' @param proj Data.frame from \code{\link{projectPFMSpecScenario}} /
 #'   \code{\link{predictPolicyStringency}} (needs \code{region, year, index}).
 #' @param histIndex Optional data.frame \code{region, year, index} of historical
 #'   values (natural scale) for the seam rule; the last observed year per region
@@ -306,7 +306,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
         # lastVal is an ATOMIC named vector: `[[` on a missing name errors
         # ("subscript out of bounds"), unlike a list which returns NULL. A projected
         # region absent from the historical panel (e.g. an out-of-coverage region such
-        # as USA/Brazil, which the PSM still projects) simply has no seam to check.
+        # as USA/Brazil, which the PFM still projects) simply has no seam to check.
         hv <- if (rc %in% names(lastVal)) lastVal[[rc]] else NULL
         if (is.null(hv) || !is.finite(hv)) next
         sub <- proj[proj$region == r & is.finite(proj$index), , drop = FALSE]
@@ -376,10 +376,10 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
   out
 }
 
-# Internal: expanding-batch sanity selection for the PSM stage — the
-# .sanitySelect walker with the PSM projection + bounded-index rules.
+# Internal: expanding-batch sanity selection for the PFM stage — the
+# .sanitySelect walker with the PFM projection + bounded-index rules.
 #' @keywords internal
-.psmSanitySelect <- function(passModels, specByName, sectors, panelData, scenarioData,
+.pfmSanitySelect <- function(passModels, specByName, sectors, panelData, scenarioData,
                              modelDir, batchSize, maxModels, thresholds, regionBlocks,
                              histIndexBySector, indexMax = 10,
                              referenceScenarioData = NULL, minScenarioDelta = 0.05,
@@ -411,7 +411,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
     for (sec in sectors) {
       projReason <- ""
       proj <- tryCatch(
-        projectPSMSpecScenario(cfg, sec, histData = panelData, scenarioData = scenarioData,
+        projectPFMSpecScenario(cfg, sec, histData = panelData, scenarioData = scenarioData,
                                modelDir = modelDir, indexMax = indexMax, verbose = FALSE),
         error = function(e) {
           projReason <<- conditionMessage(e)
@@ -484,7 +484,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
       # enable it without those two.
       if (is.finite(ceilingFallGate)) {
         ct <- tryCatch(
-          .psmCeilingTrajectory(cfg, sec, panelData, scenarioData,
+          .pfmCeilingTrajectory(cfg, sec, panelData, scenarioData,
                                 modelDir = modelDir, indexMax = indexMax),
           error = function(e) NULL)
         # gamma screen (ADR 0043 consequences, implemented 2026-08-25). ON by default
@@ -579,7 +579,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
       # both pathways; empirically ~0.00 vs split ~0.56 at 2050).
       if (!is.null(referenceScenarioData)) {
         ref <- tryCatch(
-          projectPSMSpecScenario(cfg, sec, histData = panelData,
+          projectPFMSpecScenario(cfg, sec, histData = panelData,
                                  scenarioData = referenceScenarioData,
                                  modelDir = modelDir, indexMax = indexMax, verbose = FALSE),
           error = function(e) NULL
@@ -664,14 +664,14 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
 # trend frozen at the last historical year exactly as projectFeasiblePath does.
 # `ratio` < 1 means the ceiling falls; see the ceilingCollapse gate above.
 #' @keywords internal
-.psmCeilingTrajectory <- function(cfg, sector, histData, scenarioData,
+.pfmCeilingTrajectory <- function(cfg, sector, histData, scenarioData,
                                   modelDir = NULL, indexMax = 10,
                                   years = c(2025, 2100)) {
   unl <- function(x) if (is.null(x)) NULL else unlist(x)
   ff <- do.call(estimatePolicyStringencyModel, c(
     list(data = histData, sector = sector, estimator = "frontier",
          indexMax = indexMax, modelDir = modelDir, updateIndex = FALSE, verbose = FALSE),
-    .psmSpecArgs(cfg)))
+    .pfmSpecArgs(cfg)))
   b <- stats::coef(ff$model)
   b <- b[!names(b) %in% c("sigmaSq", "gamma")]
   covered <- unique(as.character(ff$data$region))
@@ -694,7 +694,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
     fe[!fe %in% lv] <- if ("Other" %in% lv) "Other" else lv[1]
     sDf$regionFE <- factor(fe, levels = lv)
   }
-  sDf <- .psmDriverGuard(sDf, .driverSupportRanges(ff$data, ff$driverScaling))$df
+  sDf <- .pfmDriverGuard(sDf, .driverSupportRanges(ff$data, ff$driverScaling))$df
 
   tt <- stats::delete.response(stats::terms(ff$formula))
   mm <- stats::model.matrix(tt, stats::model.frame(tt, data = sDf, na.action = stats::na.pass))

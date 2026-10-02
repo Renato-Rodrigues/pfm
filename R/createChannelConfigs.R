@@ -274,7 +274,7 @@ channelSpecs <- function(mode = c("guided", "exhaustive"),
   # ── Capture-channel specs (R9, 2026-07-06) — appended AFTER the main cross so
   # existing X-numbers (and any comparison with earlier sweeps) stay stable.
   # Tests the mechanism behind the positive Incumbent x GovEff interaction of the
-  # first PSM run: incumbent influence should operate through CORRUPTIBILITY, so
+  # first PFM run: incumbent influence should operate through CORRUPTIBILITY, so
   # Control of Corruption is offered as an IQ channel (alone and paired). Panel
   # already carries the variable — no new data.
   COR <- "Control of Corruption (WGI)"

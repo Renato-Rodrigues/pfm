@@ -7,7 +7,7 @@
 #' level, the outcome is a country-year \strong{ratchet-up event} (any instrument
 #' adopted or significantly tightened — see mrpfm's
 #' \code{calcPolicyRatchetEvents}), modelled as a discrete-time hazard with the
-#' same political-economy drivers as the PSM. The default \code{cloglog} link is
+#' same political-economy drivers as the PFM. The default \code{cloglog} link is
 #' the grouped-time proportional-hazards model (Prentice–Gloeckler); coefficients
 #' exponentiate to hazard ratios. Drivers are lagged, standardized and
 #' interacted exactly as in \code{\link{estimatePolicyStringencyModel}} (shared

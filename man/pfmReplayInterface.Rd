@@ -2,12 +2,12 @@
 % Please edit documentation in R/pfmReplayInterface.R
 \name{pfmReplayInterface}
 \alias{pfmReplayInterface}
-\alias{.psmReplayFixture}
-\alias{.psmReplaySymbols}
-\alias{.psmReplayDeclarations}
-\alias{.psmReplayStub}
-\alias{.psmReplayTransposedGdx}
-\alias{.psmReplayRunGams}
+\alias{.pfmReplayFixture}
+\alias{.pfmReplaySymbols}
+\alias{.pfmReplayDeclarations}
+\alias{.pfmReplayStub}
+\alias{.pfmReplayTransposedGdx}
+\alias{.pfmReplayRunGams}
 \title{Replay the GAMS half of the PFM <-> REMIND gdx interface}
 \usage{
 pfmReplayInterface(
@@ -18,17 +18,17 @@ pfmReplayInterface(
   quiet = FALSE
 )
 
-.psmReplayFixture(regs, yrs)
+.pfmReplayFixture(regs, yrs)
 
-.psmReplaySymbols(fx, regs, iter)
+.pfmReplaySymbols(fx, regs, iter)
 
-.psmReplayDeclarations(declGms)
+.pfmReplayDeclarations(declGms)
 
-.psmReplayStub(dir, decls, fx, regs, ttot, mkts, iter)
+.pfmReplayStub(dir, decls, fx, regs, ttot, mkts, iter)
 
-.psmReplayTransposedGdx(file, fx, regs, ttot, mkts, iter)
+.pfmReplayTransposedGdx(file, fx, regs, ttot, mkts, iter)
 
-.psmReplayRunGams(gams, dir, stub)
+.pfmReplayRunGams(gams, dir, stub)
 }
 \arguments{
 \item{remindDir}{Path to the REMIND fork carrying the module. Default: the
@@ -74,7 +74,7 @@ against what R wrote can catch it.
 \section{The negative control}{
 
 With \code{negativeControl = TRUE} (the default) a second gdx is built \emph{by hand}
-through gamstransfer - \code{\link{.psmCouplingSymMkt2d}} would refuse to produce it -
+through gamstransfer - \code{\link{.pfmCouplingSymMkt2d}} would refuse to produce it -
 carrying \code{p45_pfmPriceBoundMkt} transposed to \code{(all_regi, ttot, all_emiMkt)},
 and fed to the same stub. A run that does not ABORT there is a failure of the harness,
 not a pass: it means the check is incapable of detecting the defect it exists for.

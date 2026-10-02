@@ -34,7 +34,7 @@ scoped around the data calls so the CAPMF coverage filter sees the right mapping
 \item{includePolicyStringency}{logical; if TRUE, adds the CAPMF-based Policy
 Stringency Model outcomes ("Policy Stringency|Bulk", "Policy Stringency|Diffuse"
 and, when available, "Policy Stringency|Composite"; ADR 0036). Default FALSE so
-the carbon-price panel (and its end-year rule) is unchanged unless the PSM
+the carbon-price panel (and its end-year rule) is unchanged unless the PFM
 explicitly asks for it. Years the CAPMF source does not reach are NA-filled;
 preparePanelData later drops rows with a missing outcome.}
 

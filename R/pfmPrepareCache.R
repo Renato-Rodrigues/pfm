@@ -200,7 +200,7 @@ pfmPrepareCache <- function(config = NULL, group = NULL, compute = NULL, force =
 # manifest: change one and the next run re-prepares.
 .cacheBuilderSpec <- function() {
   list(histYears = 2000:2022, includePolicyStringency = TRUE,
-       # psmCouplingWeights as iterativePFM calls it under default.cfg: weightYear 2025, SSP2.
+       # pfmCouplingWeights as iterativePFM calls it under default.cfg: weightYear 2025, SSP2.
        weightYear = 2025, weightScenario = "SSP2")
 }
 
@@ -208,7 +208,7 @@ pfmPrepareCache <- function(config = NULL, group = NULL, compute = NULL, force =
   b <- list(list(id = "historical-panel", label = paste0("historical panel (", res, ")"), f = function()
     panelDataHistorical(aggregate = TRUE, y = spec$histYears, outputRegionMappingFile = res,
                         includePolicyStringency = spec$includePolicyStringency)),
-    # psm-sector-speeds builds its own panel at four-sector policy-stringency resolution, a
+    # pfm-sector-speeds builds its own panel at four-sector policy-stringency resolution, a
     # different calcPolicyStringency call (and cache file) from the two-sector one above.
     list(id = "historical-panel-four", label = paste0("historical panel, 4 sectors (", res, ")"), f = function()
       panelDataHistorical(aggregate = TRUE, y = spec$histYears, outputRegionMappingFile = res,
@@ -222,7 +222,7 @@ pfmPrepareCache <- function(config = NULL, group = NULL, compute = NULL, force =
                                                          outputRegionMappingFile = "country"))))
   }
   c(b, list(list(id = "coupling-weights", label = paste0("coupling weights (", spec$weightYear, ", ", spec$weightScenario, ")"),
-                 f = function() psmCouplingWeights(year = spec$weightYear, scenario = spec$weightScenario))))
+                 f = function() pfmCouplingWeights(year = spec$weightYear, scenario = spec$weightScenario))))
 }
 
 # --- watching madrat's cache lookups -------------------------------------------------------

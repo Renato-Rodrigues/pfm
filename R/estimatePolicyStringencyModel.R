@@ -1,6 +1,6 @@
 # nolint start
 #' @title estimatePolicyStringencyModel
-#' @description Estimates the Policy Stringency Model (PSM, ADR 0036): a
+#' @description Estimates the Political Feasibility Model (PFM, ADR 0036): a
 #' single-stage bounded-response panel model of the CAPMF policy-stringency
 #' index (0 to \code{indexMax}) on Actor Power, Institutional Quality and their
 #' interactions. There is \strong{no adoption hurdle} — zero-stringency
@@ -8,7 +8,7 @@
 #' \code{\link{estimatePriceStringencyModel}}, which subsets to positive prices).
 #'
 #' The dependent variable is bounded structurally by the \emph{estimator}
-#' ("PSM Estimator Suite" in CONTEXT.md), never by clamps:
+#' ("PFM Estimator Suite" in CONTEXT.md), never by clamps:
 #' \describe{
 #'   \item{satP}{\emph{The selection engine.} Gaussian-identity GLM on
 #'     \code{logit(y/indexMax)} (the ADR 0026 saturating form with the index's true
@@ -84,7 +84,7 @@
 #'   \code{\link{preparePanelData}}. The saturating form bounds the extrapolation
 #'   of the actor-power slopes (and hence of the AP x IQ interactions) outside
 #'   the historical share range; it is swept as an axis by
-#'   \code{\link{psmSpecs}}. Part of the fit-cache key, so linear and saturating
+#'   \code{\link{pfmSpecs}}. Part of the fit-cache key, so linear and saturating
 #'   fits never collide.
 #' @param form Character. \code{"static"} (default) or \code{"ecm"} — the
 #'   error-correction dynamics form (satP engine only; see Description). Appended
@@ -209,7 +209,7 @@ estimatePolicyStringencyModel <- function(
     # control that is NEVER in the structural formula.
     prepControls <- controlDrivers
     if (estimator == "satP-iv") {
-      data <- .psmAddShiftShareIV(data, sector)
+      data <- .pfmAddShiftShareIV(data, sector)
       prepControls <- c(prepControls, "ShiftShare IV")
     }
     df <- preparePanelData(
@@ -253,11 +253,11 @@ estimatePolicyStringencyModel <- function(
     transformResponse <- function(v) {
       p <- pmin(pmax(v / indexMax, 0), 1)
       switch(estimator,
-        satP = stats::qlogis(.psmSqueeze(p, nSV)),
-        `satP-re` = stats::qlogis(.psmSqueeze(p, nSV)),
-        frontier = stats::qlogis(.psmSqueeze(p, nSV)),
-        `satP-iv` = stats::qlogis(.psmSqueeze(p, nSV)),
-        beta = .psmSqueeze(p, nSV),
+        satP = stats::qlogis(.pfmSqueeze(p, nSV)),
+        `satP-re` = stats::qlogis(.pfmSqueeze(p, nSV)),
+        frontier = stats::qlogis(.pfmSqueeze(p, nSV)),
+        `satP-iv` = stats::qlogis(.pfmSqueeze(p, nSV)),
+        beta = .pfmSqueeze(p, nSV),
         fractional = p,
         levels = v
       )
@@ -266,7 +266,7 @@ estimatePolicyStringencyModel <- function(
     if (estimator %in% c("satP", "satP-re", "frontier", "satP-iv", "beta")) {
       squeeze <- list(type = "smithson-verkuilen", n = nSV)
       if (isTRUE(verbose)) {
-        message("  [psm] ", estimator, ": response -> ",
+        message("  [pfm] ", estimator, ": response -> ",
                 if (estimator != "beta") "logit(" else "", "squeeze(y/", indexMax, ")",
                 if (estimator != "beta") ")" else "",
                 " (Smithson-Verkuilen n = ", nSV, ")")
@@ -361,7 +361,7 @@ estimatePolicyStringencyModel <- function(
           error = function(e) NULL
         )
         cr$ameIndex <- if (identical(form, "ecm")) NULL else tryCatch(
-          .psmAMEIndex(cr$model, cr$vcov, estimator, indexMax, df, fml),
+          .pfmAMEIndex(cr$model, cr$vcov, estimator, indexMax, df, fml),
           error = function(e) NULL
         )
         cr
@@ -427,7 +427,7 @@ estimatePolicyStringencyModel <- function(
     hitCap <- isTRUE(tryCatch(fit$nIter >= fit$maxit, error = function(e) FALSE))
     convergedFlag <- all(is.finite(stats::coef(fit))) && !hitCap
     if (hitCap && isTRUE(verbose)) {
-      message("  [psm] frontier::sfa hit its iteration cap (", fit$maxit,
+      message("  [pfm] frontier::sfa hit its iteration cap (", fit$maxit,
               ") for ", sector, " - treating as NOT converged.")
     }
   } else if (estimator == "satP-iv") {
@@ -471,7 +471,7 @@ estimatePolicyStringencyModel <- function(
     )
     convergedFlag <- isTRUE(fit$converged)
     if (!convergedFlag && isTRUE(verbose)) {
-      message("  [psm] ", estimator, " GLM did not converge within maxit = ", maxit, ".")
+      message("  [pfm] ", estimator, " GLM did not converge within maxit = ", maxit, ".")
     }
   }
   if (estimator == "satP-re") {
@@ -491,9 +491,9 @@ estimatePolicyStringencyModel <- function(
     # NOT stats::vcov(fit): FRONTIER 4.1's own covariance matrix is not reliable.
     # It returned standard errors 14.8x too large for Run-Group v4 Bulk while the
     # log-likelihood, the estimates and `converged` were all correct (TODO 14f).
-    # .psmFrontierVcov() recomputes the information matrix from the likelihood
+    # .pfmFrontierVcov() recomputes the information matrix from the likelihood
     # that was actually maximised and reports which matrix it handed back.
-    frontierVcov <- .psmFrontierVcov(fit, fml, df)
+    frontierVcov <- .pfmFrontierVcov(fit, fml, df)
     b <- stats::coef(fit)
     if (identical(frontierVcov$source, "recomputed")) {
       # The recomputed matrix carries log(sigmaSq) and qlogis(gamma); map those two
@@ -512,7 +512,7 @@ estimatePolicyStringencyModel <- function(
     robustTest <- cbind(Estimate = b, `Std. Error` = se, `z value` = z,
                         `Pr(>|z|)` = 2 * stats::pnorm(-abs(z)))
     if (identical(frontierVcov$status, "corrupt") && isTRUE(verbose)) {
-      message("[psm] frontier::sfa reported standard errors ",
+      message("[pfm] frontier::sfa reported standard errors ",
               format(frontierVcov$ratio, digits = 3), "x the recomputed ones for ",
               sector, "; using the recomputed matrix (TODO 14f).")
     }
@@ -661,7 +661,7 @@ estimatePolicyStringencyModel <- function(
     NULL
   } else {
     tryCatch(
-      .psmAMEIndex(fit, vcovClust, estimator, indexMax, df, fml),
+      .pfmAMEIndex(fit, vcovClust, estimator, indexMax, df, fml),
       error = function(e) NULL
     )
   }
@@ -671,7 +671,7 @@ estimatePolicyStringencyModel <- function(
 
 # Smithson-Verkuilen (2006) boundary squeeze: maps [0,1] into the open interval,
 # p' = (p*(n-1) + 0.5)/n. Required by logit/beta transforms that cannot take 0/1.
-.psmSqueeze <- function(p, n) {
+.pfmSqueeze <- function(p, n) {
   (p * (n - 1) + 0.5) / n
 }
 
@@ -679,7 +679,7 @@ estimatePolicyStringencyModel <- function(
 # squeeze is an estimation device; the structural mean is indexMax * logit^{-1}(eta)).
 # Names (model-frame row labels) are preserved so callers can align with the
 # original panel rows even when the fit dropped NA-driver rows.
-.psmNaturalFitted <- function(fit, estimator, indexMax) {
+.pfmNaturalFitted <- function(fit, estimator, indexMax) {
   fv <- stats::fitted(fit)
   switch(estimator,
     satP = indexMax * stats::plogis(fv), # identity link: fitted = eta
@@ -699,7 +699,7 @@ estimatePolicyStringencyModel <- function(
 # global technology-diffusion aggregate no single mid-sized polity drives; the
 # leave-one-out mean removes the own-country component. Rides through
 # preparePanelData (lagged, standardized) like any driver.
-.psmAddShiftShareIV <- function(data, sector) {
+.pfmAddShiftShareIV <- function(data, sector) {
   vre <- "VRE share"
   incName <- paste0("Incumbent Power|", sector)
   nms <- magclass::getNames(data)
@@ -733,7 +733,7 @@ estimatePolicyStringencyModel <- function(
 #   AME_k = indexMax * (1/N) sum_i dlogis(eta_i) * beta_k
 # gradient wrt beta_j: indexMax * [ (1/N) sum_i l''(eta_i) x_ij * beta_k + 1(j=k) (1/N) sum_i dlogis(eta_i) ]
 # with l''(eta) = dlogis(eta) * (1 - 2*plogis(eta)). For levels, AME_k = beta_k.
-.psmAMEIndex <- function(fit, vcovMat, estimator, indexMax, df, fml) {
+.pfmAMEIndex <- function(fit, vcovMat, estimator, indexMax, df, fml) {
   mm <- stats::model.matrix(fml, data = df)
   beta <- if (inherits(fit, "betareg")) stats::coef(fit, model = "mean") else stats::coef(fit)
   beta <- beta[colnames(mm)]

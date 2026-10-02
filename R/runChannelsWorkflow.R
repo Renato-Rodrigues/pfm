@@ -548,7 +548,7 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
   }
   base$sigInteractions <- sigInt
   if (identical(stage, "PolicyStringency")) {
-    # PSM tier attribution (R1, 2026-07-06): significant interaction terms count
+    # PFM tier attribution (R1, 2026-07-06): significant interaction terms count
     # toward BOTH parent theory groups, not only the sigInteractions bucket. The
     # mains-only rule structurally favours composite-AP specs (concentrating the
     # actor-power signal in one coefficient buys main-effect significance), while

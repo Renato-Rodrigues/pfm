@@ -3,7 +3,7 @@
 #'
 #' @description
 #' Extracts the three things a downstream consumer needs that a coefficient table alone cannot
-#' supply, and that were previously discarded when \code{\link{runPSMFrontier}} assembled its
+#' supply, and that were previously discarded when \code{\link{runPFMFrontier}} assembled its
 #' artifact:
 #'
 #' \describe{
@@ -31,7 +31,7 @@
 #'   \code{fit$driverScaling}.
 #' @return A list with \code{vcov}, \code{support}, \code{correlation} and \code{nObs}, or
 #'   \code{NULL} if the fit does not carry what is needed.
-#' @seealso \code{\link{computeFrontierRobustness}}, \code{\link{runPSMFrontier}}
+#' @seealso \code{\link{computeFrontierRobustness}}, \code{\link{runPFMFrontier}}
 #' @export
 #' @author Renato Rodrigues
 computeFrontierDiagnostics <- function(fit, driverScaling = NULL) {

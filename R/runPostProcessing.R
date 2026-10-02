@@ -777,29 +777,30 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
   selectionMethod <- match.arg(selectionMethod)
   allSteps <- c("sweep", "robustness", "temporal", "subnational", "difference-first",
                 "projection", "selection-bootstrap",
-                # Policy Stringency Model pipeline (ADR 0036) — run in its OWN Run-Group
+                # Political Feasibility Model pipeline (ADR 0036) — run in its OWN Run-Group
                 # (e.g. group = "psm-exhaustive"), never mixed into a price-model group.
                 # IN DEPENDENCY ORDER, and it must stay that way: the intersect() below
                 # re-sorts the caller's step list into THIS order, so declaration order is
-                # execution order. Fixed 2026-08-18 - psm-projection previously sat second
-                # and so preceded psm-frontier and psm-donor, which silently projected
-                # against a stale frontier and re-sorted the psm-downstream alias out of the
+                # execution order. Fixed 2026-08-18 - pfm-projection previously sat second
+                # and so preceded pfm-frontier and pfm-donor, which silently projected
+                # against a stale frontier and re-sorted the pfm-downstream alias out of the
                 # very order the alias was written in.
-                "psm-sweep", "psm-frontier", "psm-temporal", "psm-sector-speeds",
-                "psm-agreement", "psm-iv", "psm-influence", "psm-inference", "psm-replay",
-                "psm-regfront",
-                "psm-donor", "psm-projection", "psm-coupling-bound",
-                "psm-selection-bootstrap", "psm-remind-inputs")
+                "pfm-sweep", "pfm-frontier", "pfm-temporal", "pfm-sector-speeds",
+                "pfm-agreement", "pfm-iv", "pfm-influence", "pfm-inference", "pfm-replay",
+                "pfm-regfront",
+                "pfm-donor", "pfm-projection", "pfm-coupling-bound",
+                "pfm-selection-bootstrap", "pfm-remind-inputs")
   # Aliases expand to an ORDERED step list, so the whole downstream build is one
   # argument instead of a bash script that re-implements ordering, resume and
   # artifact checks outside the package. Everything downstream of the sweep needs
   # the donor table before the bound, and the bound before anything consumes it.
   stepAliases <- list(
-    "psm-downstream" = c("psm-donor", "psm-projection", "psm-coupling-bound",
-                         "psm-selection-bootstrap"),
-    "psm-all" = c("psm-sweep", "psm-frontier", "psm-temporal", "psm-sector-speeds",
-                  "psm-donor", "psm-projection", "psm-coupling-bound",
-                  "psm-selection-bootstrap"))
+    "pfm-downstream" = c("pfm-donor", "pfm-projection", "pfm-coupling-bound",
+                         "pfm-selection-bootstrap"),
+    "pfm-all" = c("pfm-sweep", "pfm-frontier", "pfm-temporal", "pfm-sector-speeds",
+                  "pfm-donor", "pfm-projection", "pfm-coupling-bound",
+                  "pfm-selection-bootstrap"))
+  steps <- .pfmLegacySteps(steps)
   for (a in names(stepAliases)) {
     if (a %in% steps) steps <- c(setdiff(steps, a), stepAliases[[a]])
   }
@@ -811,21 +812,21 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
   # re-paying expensive steps, esp. the multi-hour selection-bootstrap). The caller asserts the
   # existing artifacts are current; use forceRefit / a fresh group to force a clean recompute.
   groupDir <- file.path(resultsDir, group)
-  # The step -> artifact map lives in psmStepArtifacts() because pfmRun()'s `clean`
+  # The step -> artifact map lives in pfmStepArtifacts() because pfmRun()'s `clean`
   # needs the same map to decide what to DELETE. Two copies would eventually
   # disagree, and a step listed in one and not the other either re-runs forever or
   # is skipped on the strength of a stale file.
   # resume asks only the FIRST artifact whether the step finished; clean removes all.
-  stepArtifact <- vapply(psmStepArtifacts(), function(a)
+  stepArtifact <- vapply(pfmStepArtifacts(), function(a)
     if (length(a)) a[1] else NA_character_, character(1))
   stepArtifact <- stepArtifact[!is.na(stepArtifact)]
-  stepArtifact["psm-coupling-bound"] <- file.path("coupling", "coupling-summary.rds")
+  stepArtifact["pfm-coupling-bound"] <- file.path("coupling", "coupling-summary.rds")
   # A step counts as "already done" (resume-skippable) only when ALL its expected artifacts exist.
   # For the projection step (ADR 0035) that means one projections/<id>.rds per configured scenario
   # PLUS the legacy projection.rds — so a stale single-scenario projection.rds no longer masks
   # missing per-scenario projections and silently skips the fan-out. Other steps key off one file.
   stepComplete <- function(step) {
-    if (step %in% c("projection", "psm-projection")) {
+    if (step %in% c("projection", "pfm-projection")) {
       legacy <- file.exists(file.path(groupDir, "projection.rds"))
       ids <- if (!is.null(scenarios) && length(scenarios))
         vapply(scenarios, function(s) s$id %||% "", character(1)) else character(0)
@@ -864,86 +865,86 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
   if (doStep("difference-first")) { say("step: difference-first"); runDifferenceFirst(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile, verbose = verbose) }
   if (doStep("projection")) { say("step: projection"); runProjection(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, gdxFile = gdxFile, scenarios = scenarios, verbose = verbose) }
   if (doStep("selection-bootstrap")) { say("step: selection-bootstrap"); runSelectionBootstrap(group, resultsDir = resultsDir, modelDir = modelDir, cachefolder = cachefolder, nResamples = bootstrapResamples, detail = bootstrapDetail, topK = bootstrapTopK, verbose = verbose) }
-  # ── Policy Stringency Model steps (ADR 0036). Dots are forwarded to runPSMSweep filtered to
+  # ── Political Feasibility Model steps (ADR 0036). Dots are forwarded to runPFMSweep filtered to
   # its own formals (runSweep-specific knobs like selectionMethod would otherwise error). ──
-  if (doStep("psm-sweep")) {
-    say("step: psm-sweep")
+  if (doStep("pfm-sweep")) {
+    say("step: pfm-sweep")
     dots <- list(...)
-    psmArgs <- c(list(group = group, mode = mode, resultsDir = resultsDir, modelDir = modelDir,
+    pfmArgs <- c(list(group = group, mode = mode, resultsDir = resultsDir, modelDir = modelDir,
                       cachefolder = cachefolder, gdxFile = gdxFile, nCores = nCores,
                       forceRefit = forceRefit, verbose = verbose),
-                 dots[names(dots) %in% names(formals(runPSMSweep))])
-    do.call(runPSMSweep, psmArgs)
+                 dots[names(dots) %in% names(formals(runPFMSweep))])
+    do.call(runPFMSweep, pfmArgs)
   }
-  # Dots are forwarded to BOTH of these (as they already are to psm-temporal /
+  # Dots are forwarded to BOTH of these (as they already are to pfm-temporal /
   # -frontier / -sector-speeds / -selection-bootstrap). Without it there was no way
   # to reach `outputRegionMappingFile` from the launcher, so a country-resolution
-  # Run-Group silently projected at R54 — see the guard in runPSMProjection().
-  if (doStep("psm-agreement")) {
-    say("step: psm-agreement")
+  # Run-Group silently projected at R54 — see the guard in runPFMProjection().
+  if (doStep("pfm-agreement")) {
+    say("step: pfm-agreement")
     dots <- list(...)
     agArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
                      cachefolder = cachefolder, verbose = verbose),
-                dots[names(dots) %in% setdiff(names(formals(runPSMEstimatorAgreement)),
+                dots[names(dots) %in% setdiff(names(formals(runPFMEstimatorAgreement)),
                                               c("group", "resultsDir", "modelDir",
                                                 "cachefolder", "verbose"))])
-    do.call(runPSMEstimatorAgreement, agArgs)
+    do.call(runPFMEstimatorAgreement, agArgs)
   }
-  if (doStep("psm-temporal")) {
-    say("step: psm-temporal")
+  if (doStep("pfm-temporal")) {
+    say("step: pfm-temporal")
     dots <- list(...)
     tvArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
                      cachefolder = cachefolder, verbose = verbose),
-                dots[names(dots) %in% names(formals(runPSMTemporalValidation))])
-    do.call(runPSMTemporalValidation, tvArgs)
+                dots[names(dots) %in% names(formals(runPFMTemporalValidation))])
+    do.call(runPFMTemporalValidation, tvArgs)
   }
-  if (doStep("psm-frontier")) {
-    say("step: psm-frontier")
+  if (doStep("pfm-frontier")) {
+    say("step: pfm-frontier")
     dots <- list(...)
     frArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
                      cachefolder = cachefolder, verbose = verbose),
-                dots[names(dots) %in% names(formals(runPSMFrontier))])
-    do.call(runPSMFrontier, frArgs)
+                dots[names(dots) %in% names(formals(runPFMFrontier))])
+    do.call(runPFMFrontier, frArgs)
   }
-  # These two forward dots for the same reason psm-agreement does: without it
+  # These two forward dots for the same reason pfm-agreement does: without it
   # `outputRegionMappingFile` cannot be reached from the launcher, so a
   # country-resolution Run-Group is diagnosed at R54. That is what happened in v1 —
   # influence clustered on 36 R54 regions (ANZ, BELUX, ...) rather than 48 countries.
-  if (doStep("psm-iv")) {
-    say("step: psm-iv")
+  if (doStep("pfm-iv")) {
+    say("step: pfm-iv")
     dots <- list(...)
     ivArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
                      cachefolder = cachefolder, verbose = verbose),
-                dots[names(dots) %in% setdiff(names(formals(runPSMIV)),
+                dots[names(dots) %in% setdiff(names(formals(runPFMIV)),
                                               c("group", "resultsDir", "modelDir",
                                                 "cachefolder", "verbose"))])
-    do.call(runPSMIV, ivArgs)
+    do.call(runPFMIV, ivArgs)
   }
-  if (doStep("psm-influence")) {
-    say("step: psm-influence")
+  if (doStep("pfm-influence")) {
+    say("step: pfm-influence")
     dots <- list(...)
     infArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
                       cachefolder = cachefolder, verbose = verbose),
-                 dots[names(dots) %in% setdiff(names(formals(runPSMInfluence)),
+                 dots[names(dots) %in% setdiff(names(formals(runPFMInfluence)),
                                                c("group", "resultsDir", "modelDir",
                                                  "cachefolder", "verbose"))])
-    do.call(runPSMInfluence, infArgs)
+    do.call(runPFMInfluence, infArgs)
   }
-  if (doStep("psm-inference")) {
-    say("step: psm-inference")
+  if (doStep("pfm-inference")) {
+    say("step: pfm-inference")
     dots <- list(...)
     infcArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
                        cachefolder = cachefolder, verbose = verbose),
-                  dots[names(dots) %in% setdiff(names(formals(runPSMInference)),
+                  dots[names(dots) %in% setdiff(names(formals(runPFMInference)),
                                                 c("group", "resultsDir", "modelDir",
                                                   "cachefolder", "verbose"))])
-    do.call(runPSMInference, infcArgs)
+    do.call(runPFMInference, infcArgs)
   }
   # regional-frontier.rds was exported but wired into no stage, so Run-Group v4 simply never
   # produced it and `fig-frontier-by-region` failed for weeks with "artifact not found".
   # An artifact a figure reads must be written by a step (TODO.md item 24).
-  if (doStep("psm-regfront")) {
-    say("step: psm-regfront")
+  if (doStep("pfm-regfront")) {
+    say("step: pfm-regfront")
     dots <- list(...)
     rfArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
                      cachefolder = cachefolder, verbose = verbose),
@@ -952,86 +953,86 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                                                 "cachefolder", "verbose"))])
     do.call(computeRegionalFrontier, rfArgs)
   }
-  if (doStep("psm-sector-speeds")) {
-    say("step: psm-sector-speeds")
+  if (doStep("pfm-sector-speeds")) {
+    say("step: pfm-sector-speeds")
     dots <- list(...)
     ssArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
                      cachefolder = cachefolder, verbose = verbose),
-                dots[names(dots) %in% names(formals(runPSMSectorSpeeds))])
-    do.call(runPSMSectorSpeeds, ssArgs)
+                dots[names(dots) %in% names(formals(runPFMSectorSpeeds))])
+    do.call(runPFMSectorSpeeds, ssArgs)
   }
 
   # ── the coupling chain, in dependency order ────────────────────────────────
   # It sits HERE, after frontier/temporal/sector-speeds, because every link reads
   # their artifacts: the donor table needs frontier.rds, and the bound needs
   # frontier.rds plus temporal-validation.rds for lambda. Run earlier (where the
-  # projection block used to live) a fresh `psm-all` group would skip both with
+  # projection block used to live) a fresh `pfm-all` group would skip both with
   # "missing frontier.rds" and produce a coupling with no donor assumptions at all.
   #
   # Dots are forwarded to all three. Without that there was no way to reach
   # `outputRegionMappingFile` from the launcher, so a country-resolution Run-Group
-  # silently projected at R54 — see the guard in runPSMProjection().
-  if (doStep("psm-donor")) {
-    say("step: psm-donor")
+  # silently projected at R54 — see the guard in runPFMProjection().
+  if (doStep("pfm-donor")) {
+    say("step: pfm-donor")
     dots <- list(...)
     dnArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
                      cachefolder = cachefolder, verbose = verbose),
-                dots[names(dots) %in% setdiff(names(formals(runPSMDonorAssumptions)),
+                dots[names(dots) %in% setdiff(names(formals(runPFMDonorAssumptions)),
                                               c("group", "resultsDir", "modelDir",
                                                 "cachefolder", "verbose"))])
-    do.call(runPSMDonorAssumptions, dnArgs)
+    do.call(runPFMDonorAssumptions, dnArgs)
   }
-  if (doStep("psm-projection")) {
-    say("step: psm-projection")
+  if (doStep("pfm-projection")) {
+    say("step: pfm-projection")
     dots <- list(...)
     pjArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
                      cachefolder = cachefolder, gdxFile = gdxFile,
                      scenarios = scenarios, verbose = verbose),
-                dots[names(dots) %in% setdiff(names(formals(runPSMProjection)),
+                dots[names(dots) %in% setdiff(names(formals(runPFMProjection)),
                                               c("group", "resultsDir", "modelDir",
                                                 "cachefolder", "gdxFile", "scenarios",
                                                 "verbose"))])
-    do.call(runPSMProjection, pjArgs)
+    do.call(runPFMProjection, pjArgs)
   }
-  if (doStep("psm-coupling-bound")) {
-    say("step: psm-coupling-bound")
+  if (doStep("pfm-coupling-bound")) {
+    say("step: pfm-coupling-bound")
     dots <- list(...)
     cbArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
                      cachefolder = cachefolder, scenarios = scenarios, verbose = verbose),
-                dots[names(dots) %in% setdiff(names(formals(runPSMCouplingBound)),
+                dots[names(dots) %in% setdiff(names(formals(runPFMCouplingBound)),
                                               c("group", "resultsDir", "modelDir",
                                                 "cachefolder", "scenarios", "verbose"))])
-    do.call(runPSMCouplingBound, cbArgs)
+    do.call(runPFMCouplingBound, cbArgs)
   }
   # Last: hand the finished Run-Group to REMIND as a self-contained folder.
-  if (doStep("psm-remind-inputs")) {
-    say("step: psm-remind-inputs")
+  if (doStep("pfm-remind-inputs")) {
+    say("step: pfm-remind-inputs")
     dots <- list(...)
     riArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
                      cachefolder = cachefolder, verbose = verbose),
-                dots[names(dots) %in% setdiff(names(formals(runPSMExportREMINDInputs)),
+                dots[names(dots) %in% setdiff(names(formals(runPFMExportREMINDInputs)),
                                               c("group", "resultsDir", "modelDir",
                                                 "cachefolder", "verbose"))])
-    do.call(runPSMExportREMINDInputs, riArgs)
+    do.call(runPFMExportREMINDInputs, riArgs)
   }
 
-  if (doStep("psm-selection-bootstrap")) {
-    say("step: psm-selection-bootstrap")
+  if (doStep("pfm-selection-bootstrap")) {
+    say("step: pfm-selection-bootstrap")
     dots <- list(...)
     sbArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
                      cachefolder = cachefolder, nResamples = bootstrapResamples,
                      topK = bootstrapTopK, verbose = verbose),
-                dots[names(dots) %in% setdiff(names(formals(runPSMSelectionBootstrap)),
+                dots[names(dots) %in% setdiff(names(formals(runPFMSelectionBootstrap)),
                                               c("nResamples", "topK"))])
-    do.call(runPSMSelectionBootstrap, sbArgs)
+    do.call(runPFMSelectionBootstrap, sbArgs)
   }
-  if (doStep("psm-replay")) {
-    say("step: psm-replay")
+  if (doStep("pfm-replay")) {
+    say("step: pfm-replay")
     dots <- list(...)
     rpArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
                      cachefolder = cachefolder, verbose = verbose),
-                dots[names(dots) %in% names(formals(runPSMHistoricalReplay))])
-    do.call(runPSMHistoricalReplay, rpArgs)
+                dots[names(dots) %in% names(formals(runPFMHistoricalReplay))])
+    do.call(runPFMHistoricalReplay, rpArgs)
   }
   # ── Completion audit ────────────────────────────────────────────────────────────────
   # A step that cannot run - a missing input, an uninstalled optional package - reports

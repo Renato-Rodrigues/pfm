@@ -1,8 +1,8 @@
 # nolint start
-#' Wild-cluster bootstrap-t inference for PSM satP fits
+#' Wild-cluster bootstrap-t inference for PFM satP fits
 #'
 #' @description
-#' With 25 regional clusters the asymptotic cluster-robust SEs behind every PSM
+#' With 25 regional clusters the asymptotic cluster-robust SEs behind every PFM
 #' headline are optimistic (Cameron–Gelbach–Miller). This implements the
 #' Rademacher wild-cluster bootstrap-t for the gaussian satP engine: residuals
 #' are flipped per cluster, the model is refit, and each coefficient's t

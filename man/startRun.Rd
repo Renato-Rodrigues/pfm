@@ -35,17 +35,17 @@ startRun(
 \item{group}{Character. Run-Group name. Required.}
 
 \item{steps}{Character subset of \code{c("sweep","robustness","temporal","subnational",
-  "difference-first","projection","selection-bootstrap","psm-sweep","psm-projection",
-  "psm-agreement")}. Default is the first four;
+  "difference-first","projection","selection-bootstrap","pfm-sweep","pfm-projection",
+  "pfm-agreement")}. Default is the first four;
 \code{"difference-first"} is the ADR 0014 alternative-selection comparison,
 \code{"projection"} writes the per-scenario feasibility projections (ADR 0035; needs a
 scenario gdx) and \code{"selection-bootstrap"} the selection-uncertainty bootstrap — all
 off by default and enabled by the \code{--paper} publication workflow. The
-\code{psm-*} steps are the Policy Stringency Model pipeline (ADR 0036:
-\code{\link{runPSMSweep}}, \code{\link{runPSMProjection}},
-\code{\link{runPSMEstimatorAgreement}}, \code{\link{runPSMTemporalValidation}},
-\code{\link{runPSMFrontier}}, \code{\link{runPSMIV}}, \code{\link{runPSMInfluence}},
-\code{\link{runPSMSectorSpeeds}}, \code{\link{runPSMSelectionBootstrap}}); run them
+\code{pfm-*} steps are the Political Feasibility Model pipeline (ADR 0036:
+\code{\link{runPFMSweep}}, \code{\link{runPFMProjection}},
+\code{\link{runPFMEstimatorAgreement}}, \code{\link{runPFMTemporalValidation}},
+\code{\link{runPFMFrontier}}, \code{\link{runPFMIV}}, \code{\link{runPFMInfluence}},
+\code{\link{runPFMSectorSpeeds}}, \code{\link{runPFMSelectionBootstrap}}); run them
 in their OWN Run-Group (e.g. \code{group = "psm-exhaustive"}), never mixed into a
 price-model group.}
 

@@ -53,7 +53,7 @@
 #'     \item{alpha, clusters, nClusters}{Inputs echoed for the report.}
 #'   }
 #'
-#' @seealso \code{\link{computeWildClusterBootstrap}}, \code{\link{runPSMInfluence}},
+#' @seealso \code{\link{computeWildClusterBootstrap}}, \code{\link{runPFMInfluence}},
 #'   ADR 0037
 #' @importFrom stats model.matrix as.formula complete.cases var pt
 #' @export
@@ -191,21 +191,21 @@ computeInfluenceDiagnostics <- function(fit, terms = NULL, alpha = 0.05,
        clusters = clusters, nClusters = length(clusters))
 }
 
-#' Influence-diagnostics Run-Group step (psm-influence)
+#' Influence-diagnostics Run-Group step (pfm-influence)
 #'
 #' @description
 #' Runs \code{\link{computeInfluenceDiagnostics}} on the deployed spec
-#' (\code{selected-models-psm.yml}) for both sectors, tracking the \emph{theory}
+#' (\code{selected-models-pfm.yml}) for both sectors, tracking the \emph{theory}
 #' terms (Actor Power mains/index, Institutional Quality channels, and their
 #' interactions). Writes \code{<group>/influence.rds}. Report-only - it never
 #' changes the deliverable (ADR 0037).
 #'
-#' @inheritParams runPSMIV
+#' @inheritParams runPFMIV
 #' @param alpha,wcbB Forwarded to \code{\link{computeInfluenceDiagnostics}}.
 #' @return Invisibly, the artifact list, or \code{NULL} when skipped.
 #' @export
 #' @author Renato Rodrigues
-runPSMInfluence <- function(group,
+runPFMInfluence <- function(group,
                             resultsDir = getOption("pfm.resultsDir", "output"),
                             modelDir = getOption("pfm.modelDir", "output"),
                             cachefolder = NULL, panelData = NULL,
@@ -214,12 +214,12 @@ runPSMInfluence <- function(group,
                             indexMax = 10, alpha = 0.05, wcbB = 999,
                             verbose = TRUE) {
   groupDir <- .resolveGroupDir(group, resultsDir, modelDir, cachefolder)
-  say <- function(...) if (isTRUE(verbose)) message("[PSM-INFLUENCE:", group, "] ", ...)
+  say <- function(...) if (isTRUE(verbose)) message("[PFM-INFLUENCE:", group, "] ", ...)
   t0 <- Sys.time()
-  selPath <- file.path(groupDir, "selected-models-psm.yml")
+  selPath <- .pfmSelectedModels(groupDir)
   if (!file.exists(selPath)) {
     .recordStep(groupDir, group, "influence", t0, status = "skipped",
-                metrics = list(reason = "no selected-models-psm.yml (run runPSMSweep first)"))
+                metrics = list(reason = "no selected-models-pfm.yml (run runPFMSweep first)"))
     return(invisible(NULL))
   }
   sel <- yaml::read_yaml(selPath)
@@ -260,9 +260,9 @@ runPSMInfluence <- function(group,
       do.call(estimatePolicyStringencyModel, c(
         list(data = panel, sector = sec, estimator = "satP", indexMax = indexMax,
              modelDir = NULL, verbose = FALSE),
-        # See .psmSpecArgs(): hand-listing these dropped apTransform, so the
+        # See .pfmSpecArgs(): hand-listing these dropped apTransform, so the
         # "deployed satP refit" was not the deployed spec.
-        .psmSpecArgs(cfg))),
+        .pfmSpecArgs(cfg))),
       error = function(e) { say("  ", sec, " refit failed: ", conditionMessage(e)); NULL }
     )
     if (is.null(fit)) next

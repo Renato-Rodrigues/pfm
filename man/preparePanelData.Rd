@@ -77,7 +77,7 @@ freeze, leaving the in-sample design unchanged.}
 \item{outcomeVar}{Character. Base name of the dependent variable; the
 sector-qualified column \code{"<outcomeVar>|<sector>"} is read from the data.
 Default \code{"Effective Carbon Price"} (the carbon-price hurdle model);
-the Policy Stringency Model passes \code{"Policy Stringency"} (ADR 0036).
+the Political Feasibility Model passes \code{"Policy Stringency"} (ADR 0036).
 Whatever the outcome, its panel column is named \code{ecp} (and its lag
 \code{lagged_ecp}) for historical reasons, so all downstream estimation
 machinery works unchanged.}

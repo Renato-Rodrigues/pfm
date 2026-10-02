@@ -47,7 +47,7 @@
 #'   column): \code{sector, resolution, tierYear, n, medianE, medianU, gapMin, gapMax,
 #'   theta, inRange}.
 #'
-#' @seealso \code{\link{aggregateFeasibilityToRegions}}, \code{\link{runPSMCouplingBound}},
+#' @seealso \code{\link{aggregateFeasibilityToRegions}}, \code{\link{runPFMCouplingBound}},
 #'   ADR 0041 and its 2026-08-17 amendment, \code{MODEL.md} §5.3
 #' @export
 #' @author Renato Rodrigues

@@ -13,7 +13,7 @@
 collidable <- c("cachefolder", "scenarios", "outputRegionMappingFile")
 
 test_that("caller arguments override pfmRun's resolved defaults instead of colliding", {
-  base <- list(group = "g", steps = "psm-sweep", cluster = "slurm",
+  base <- list(group = "g", steps = "pfm-sweep", cluster = "slurm",
                resultsDir = "r", modelDir = "m", resume = TRUE,
                scenarios = NULL, cachefolder = "FROM_CONFIG",
                outputRegionMappingFile = "country")
@@ -47,7 +47,7 @@ test_that("every function the dots check calls actually EXISTS", {
   # instead: pull every formals(<name>) target out of the body and look it up.
   # Use codetools rather than regexing the source: the broken reference was
   # `formals(runPostProcessing)`, but a text search for `formals(<name>)` misses
-  # the equally breakable `list(startRun, runPSMSweep, runModelGroup)` form.
+  # the equally breakable `list(startRun, runPFMSweep, runModelGroup)` form.
   # findGlobals resolves the whole question -- every free symbol in the body.
   skip_if_not_installed("codetools")
   ns <- asNamespace("pfm")
@@ -63,7 +63,7 @@ test_that("the dots check runs, warns on a typo, and stays silent on real argume
   # Executes the logic rather than grepping for it.
   check <- function(...) {
     dn <- names(list(...)); dn <- dn[nzchar(dn)]
-    fns <- list(startRun, runPSMSweep, runModelGroup)
+    fns <- list(startRun, runPFMSweep, runModelGroup)
     known <- unique(unlist(lapply(fns, function(f) names(formals(f)))))
     setdiff(dn, known)
   }
@@ -84,7 +84,7 @@ test_that("a broken dots check cannot abort the run", {
   iCheck <- regexpr("not recognised by startRun", body, fixed = TRUE)
   expect_match(body, "argument check skipped", fixed = TRUE)
   # Anchor on the EXIT message, not on "dryRun = TRUE" -- that string also appears
-  # in the earlier psmCleanSteps(dryRun = TRUE) preview call, and matching it made
+  # in the earlier pfmCleanSteps(dryRun = TRUE) preview call, and matching it made
   # this test compare against the wrong line.
   iDry <- regexpr("nothing was run", body, fixed = TRUE)
   expect_true(iCheck > 0)
@@ -94,16 +94,16 @@ test_that("a broken dots check cannot abort the run", {
   expect_lt(iCheck, iDry)
 })
 
-test_that("gammaGate and sanityMaxModels survive the dots filter into runPSMSweep", {
-  # runPostProcessing filters dots to formals(runPSMSweep); a gate that does not
+test_that("gammaGate and sanityMaxModels survive the dots filter into runPFMSweep", {
+  # runPostProcessing filters dots to formals(runPFMSweep); a gate that does not
   # appear there is DROPPED SILENTLY and the sweep runs ungated with no error.
-  fs <- names(formals(runPSMSweep))
+  fs <- names(formals(runPFMSweep))
   expect_true("gammaGate" %in% fs)
   expect_true("sanityMaxModels" %in% fs)
   # `config` is the known casualty of this filter -- keep it documented in a test
   expect_false("config" %in% names(formals(startRun)))
 })
-test_that("panel resolution is declared in config and threaded to every psm step", {
+test_that("panel resolution is declared in config and threaded to every pfm step", {
   # 2026-08-25: pfmRun hardcoded outputRegionMappingFile = "country" with no comment
   # and nothing in the printed plan. A gate-comparison sweep was therefore fitted on a
   # country-resolution panel (hash f8845f66) while the Run-Group it was meant to be
@@ -111,7 +111,7 @@ test_that("panel resolution is declared in config and threaded to every psm step
   # it read as a gate effect.
   #
   # Two halves are pinned. (1) pfmResolveConfig must SUPPLY the key, so the value is
-  # declared in config.yml rather than buried in a function default. (2) every psm step
+  # declared in config.yml rather than buried in a function default. (2) every pfm step
   # must ACCEPT it -- runModelGroup forwards dots filtered by each step's own formals,
   # so a step lacking the formal silently keeps its own default and splits the group
   # across two resolutions: the PITFALLS 15/20/21 failure class.
@@ -128,9 +128,9 @@ test_that("panel resolution is declared in config and threaded to every psm step
   expect_identical(pfmResolveConfig(cfgBare)$outputRegionMappingFile, "country")
 
   # (2)
-  psmSteps <- list(runPSMSweep, runPSMTemporalValidation, runPSMFrontier,
-                   runPSMSectorSpeeds, runPSMSelectionBootstrap, runPSMHistoricalReplay)
-  for (f in psmSteps) expect_true("outputRegionMappingFile" %in% names(formals(f)))
+  pfmSteps <- list(runPFMSweep, runPFMTemporalValidation, runPFMFrontier,
+                   runPFMSectorSpeeds, runPFMSelectionBootstrap, runPFMHistoricalReplay)
+  for (f in pfmSteps) expect_true("outputRegionMappingFile" %in% names(formals(f)))
 
   # pfmRun must supply it from config rather than leaving each default to disagree
   body <- paste(deparse(pfmRun), collapse = "\n")

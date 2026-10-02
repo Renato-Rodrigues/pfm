@@ -28,7 +28,7 @@ test_that("every symbol the replay loads is declared in the module", {
   if (is.na(remindDir())) skip("remind_pfm not found next to the package")
   decl <- file.path(remindDir(), "modules", "45_carbonprice", "functionalForm",
                     "declarations.gms")
-  d <- pfm:::.psmReplayDeclarations(decl)
+  d <- pfm:::.pfmReplayDeclarations(decl)
   expect_length(d, 18L)
   expect_true(all(nzchar(d)))
   # The economy-wide closure rate and its aux, added 2026-09-11. Before then the module
@@ -46,7 +46,7 @@ test_that("every symbol the replay loads is declared in the module", {
 test_that("a renamed or missing declaration is an error, not a silent pass", {
   tmp <- withr::local_tempfile(fileext = ".gms")
   writeLines(c("parameters", "  p45_regiDiff_phi(all_regi) \"only this one\"", ";"), tmp)
-  expect_error(pfm:::.psmReplayDeclarations(tmp), "not declared in declarations.gms")
+  expect_error(pfm:::.pfmReplayDeclarations(tmp), "not declared in declarations.gms")
 })
 
 test_that("GAMS loads every coupling symbol, rank 3 included, with the right values", {

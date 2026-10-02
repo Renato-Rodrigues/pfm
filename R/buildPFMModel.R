@@ -28,7 +28,7 @@ buildPFMModel <- function(fit, training_data, sector, stage, family, useFirth, l
   # Stringency fits sharing a formula+data can still differ by family/link
   # (Gamma-log vs gaussian-identity); key them apart so a family change does not
   # reuse a stale cached fit. Adoption (logistf) keeps the legacy key (extra = NULL).
-  # Callers whose cache lookup uses a richer key (e.g. the PSM estimator suite)
+  # Callers whose cache lookup uses a richer key (e.g. the PFM estimator suite)
   # pass their exact key through idExtra so lookup id == save id.
   idExtra <- idExtra %||% (if (identical(stage, "stringency")) family else NULL)
   ids <- computeModelId(fml, training_data, extra = idExtra)

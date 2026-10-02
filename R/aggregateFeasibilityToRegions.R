@@ -134,8 +134,8 @@ aggregateFeasibilityToRegions <- function(path, mapping, weights = NULL,
     stop("aggregateFeasibilityToRegions: nTiers must be an integer >= 2.")
   }
 
-  map <- .psmResolveCountryMap(mapping)
-  w <- .psmResolveWeights(weights, unique(as.character(path$region)))
+  map <- .pfmResolveCountryMap(mapping)
+  w <- .pfmResolveWeights(weights, unique(as.character(path$region)))
   weightSource <- attr(w, "source")
   if (identical(weightSource, "equal")) {
     warning("aggregateFeasibilityToRegions: no weights supplied - using EQUAL ",
@@ -328,17 +328,17 @@ aggregateFeasibilityToRegions <- function(path, mapping, weights = NULL,
 
 # Country -> IAM region lookup, from a data.frame or a madrat regional mapping.
 #' @keywords internal
-.psmResolveCountryMap <- function(mapping) {
+.pfmResolveCountryMap <- function(mapping) {
   if (is.character(mapping) && length(mapping) == 1) {
     mapping <- pfmGetMapping(mapping, type = "regional")
   }
   if (!is.data.frame(mapping)) {
-    stop(".psmResolveCountryMap: 'mapping' must be a data.frame or a mapping file name.")
+    stop(".pfmResolveCountryMap: 'mapping' must be a data.frame or a mapping file name.")
   }
   cc <- grep("^(CountryCode|iso3c?|country)$", colnames(mapping), ignore.case = TRUE)
   rc <- grep("^(RegionCode|region)$", colnames(mapping), ignore.case = TRUE)
   if (!length(cc) || !length(rc)) {
-    stop(".psmResolveCountryMap: could not find country and region columns in the ",
+    stop(".pfmResolveCountryMap: could not find country and region columns in the ",
          "mapping (have: ", paste(colnames(mapping), collapse = ", "), ").")
   }
   stats::setNames(as.character(mapping[[rc[1]]]), as.character(mapping[[cc[1]]]))
@@ -346,7 +346,7 @@ aggregateFeasibilityToRegions <- function(path, mapping, weights = NULL,
 
 # Aggregation weights, defaulting to equal (flagged by the "source" attribute).
 #' @keywords internal
-.psmResolveWeights <- function(weights, countries) {
+.pfmResolveWeights <- function(weights, countries) {
   if (is.null(weights)) {
     w <- stats::setNames(rep(1, length(countries)), countries)
     attr(w, "source") <- "equal"
@@ -357,19 +357,19 @@ aggregateFeasibilityToRegions <- function(path, mapping, weights = NULL,
                ignore.case = TRUE)
     vc <- grep("^(value|weight|emissions)$", colnames(weights), ignore.case = TRUE)
     if (!length(cc) || !length(vc)) {
-      stop(".psmResolveWeights: a weights data.frame needs a country column and a ",
+      stop(".pfmResolveWeights: a weights data.frame needs a country column and a ",
            "value/weight column (have: ", paste(colnames(weights), collapse = ", "), ").")
     }
     weights <- stats::setNames(as.numeric(weights[[vc[1]]]), as.character(weights[[cc[1]]]))
   }
   if (is.null(names(weights))) {
-    stop(".psmResolveWeights: 'weights' must be NAMED by country code.")
+    stop(".pfmResolveWeights: 'weights' must be NAMED by country code.")
   }
   w <- weights[countries]
   names(w) <- countries
   w[!is.finite(w)] <- 0
   if (all(w == 0)) {
-    stop(".psmResolveWeights: no supplied weight matches any country in the path.")
+    stop(".pfmResolveWeights: no supplied weight matches any country in the path.")
   }
   attr(w, "source") <- "supplied"
   w

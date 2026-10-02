@@ -17,7 +17,7 @@ specFP <- function() list(
 )
 
 fpFixture <- function() {
-  list(spec = specFP(), hist = makePSMagpie(), scen = makePSMScenarioMagpie())
+  list(spec = specFP(), hist = makePFMagpie(), scen = makePFMScenarioMagpie())
 }
 
 test_that("the path runs on the transformed scale and converges to the ECM equilibrium", {

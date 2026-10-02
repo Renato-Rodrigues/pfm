@@ -7,7 +7,7 @@ R package **pfm**, version **0.3.0**
 ## Purpose and Functionality
 
 Econometric model for the political feasibility of climate policy in integrated
-    assessment models. The deployed model is the Policy Stringency Model (PSM): a
+    assessment models. The deployed model is the Political Feasibility Model (PFM): a
     single-stage bounded index estimated on OECD CAPMF stringency scores for the Bulk and
     Diffuse sectors, with a stochastic-frontier feasibility ceiling and an error-correction
     adjustment speed. Projects a politically feasible carbon-price bound and couples

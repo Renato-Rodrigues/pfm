@@ -1,0 +1,143 @@
+# Historical-replay gate (TODO 2.3): does the coupling reproduce the past at least
+# as well as the uncoupled dynamics? Deliberately weak to pass, decisive to fail —
+# the ceiling can only bind downward, so a coupling that fires spuriously shows up
+# immediately as a worse RMSE.
+
+replayGroup <- function(dir, withFrontier = TRUE) {
+  gd <- file.path(dir, "grp")
+  dir.create(gd, recursive = TRUE, showWarnings = FALSE)
+  spec <- list(
+    name = "T-0001 test spec",
+    actorPowerDrivers = "Actor Power Index", actorPowerIndex = "Actor Power Index",
+    instQualityDrivers = "Rule of Law (VDem)", controlDrivers = NULL,
+    regionMappingFixedEffects = NULL, panelTransform = "levels",
+    logisticTimeTrend = FALSE, estimator = "satP", indexMax = 10
+  )
+  yaml::write_yaml(lapply(c("Bulk", "Diffuse"), function(s) {
+    e <- spec
+    e$model_type <- paste0("PolicyStringency: ", s)
+    e
+  }), file.path(gd, "selected-models-pfm.yml"))
+  if (withFrontier) {
+    ct <- data.frame(term = "(Intercept)", estimate = 0.8, stringsAsFactors = FALSE)
+    saveRDS(list(bySector = list(Bulk = list(coefTable = ct),
+                                 Diffuse = list(coefTable = ct))),
+            file.path(gd, "frontier.rds"))
+  }
+  gd
+}
+
+# The shared fixture is Bulk-only; give Diffuse the same series so both sectors run.
+replayPanel <- function() {
+  m <- makePFMagpie()
+  d <- m[, , "Policy Stringency|Bulk"]
+  magclass::getNames(d) <- "Policy Stringency|Diffuse"
+  a <- m[, , "Actor Power Index|Bulk"]
+  magclass::getNames(a) <- "Actor Power Index|Diffuse"
+  magclass::mbind(m, d, a)
+}
+
+test_that("the replay scores the coupling against the ECM and persistence", {
+  dir <- withr::local_tempdir()
+  gd <- replayGroup(dir)
+  res <- runPFMHistoricalReplay("grp", resultsDir = dir, modelDir = NULL,
+                                panelData = replayPanel(), verbose = FALSE)
+  expect_true(file.exists(file.path(gd, "historical-replay.rds")))
+  expect_setequal(names(res$bySector), c("Bulk", "Diffuse"))
+  m <- res$bySector$Bulk$metrics
+  expect_true(all(c("n", "rmseCoupled", "rmseEcm", "rmsePersistence",
+                    "skillVsEcm", "skillVsPersistence", "pass") %in% names(m)))
+  expect_gt(m$n, 0)
+  expect_true(all(vapply(list(m$rmseCoupled, m$rmseEcm, m$rmsePersistence),
+                         is.finite, logical(1))))
+  expect_true(m$ceilingAvailable)
+})
+
+test_that("without a frontier the coupled and uncoupled paths are identical", {
+  dir <- withr::local_tempdir()
+  replayGroup(dir, withFrontier = FALSE)
+  res <- runPFMHistoricalReplay("grp", resultsDir = dir, modelDir = NULL,
+                                panelData = replayPanel(), verbose = FALSE)
+  m <- res$bySector$Bulk$metrics
+  # No ceiling => nothing can bind => the gate degenerates to an identity check,
+  # which is REPORTED (ceilingAvailable = FALSE) rather than silently "passed".
+  expect_false(m$ceilingAvailable)
+  expect_equal(m$rmseCoupled, m$rmseEcm, tolerance = 1e-10)
+  expect_true(m$pass)
+  expect_equal(m$skillVsEcm, 0, tolerance = 1e-10)
+})
+
+test_that("a binding ceiling can only hurt the replay, and the gate catches it", {
+  dir <- withr::local_tempdir()
+  gd <- replayGroup(dir)
+  # A ceiling far below the data: the coupling is forced to under-predict, so the
+  # gate must FAIL. This is the failure mode the gate exists to catch.
+  ct <- data.frame(term = "(Intercept)", estimate = -3, stringsAsFactors = FALSE)
+  saveRDS(list(bySector = list(Bulk = list(coefTable = ct),
+                               Diffuse = list(coefTable = ct))),
+          file.path(gd, "frontier.rds"))
+  res <- runPFMHistoricalReplay("grp", resultsDir = dir, modelDir = NULL,
+                                panelData = replayPanel(), verbose = FALSE)
+  m <- res$bySector$Bulk$metrics
+  expect_gt(m$ceilingBindShare, 0)
+  expect_gt(m$rmseCoupled, m$rmseEcm)
+  expect_false(m$pass)
+  expect_false(res$pass)
+  expect_lt(m$skillVsEcm, 0)
+})
+
+test_that("the gate tolerance is respected and the step record is written", {
+  dir <- withr::local_tempdir()
+  gd <- replayGroup(dir)
+  ct <- data.frame(term = "(Intercept)", estimate = -3, stringsAsFactors = FALSE)
+  saveRDS(list(bySector = list(Bulk = list(coefTable = ct),
+                               Diffuse = list(coefTable = ct))),
+          file.path(gd, "frontier.rds"))
+  strict <- runPFMHistoricalReplay("grp", resultsDir = dir, modelDir = NULL,
+                                   panelData = replayPanel(), verbose = FALSE)
+  file.remove(file.path(gd, "historical-replay.rds"))
+  loose <- runPFMHistoricalReplay("grp", resultsDir = dir, modelDir = NULL,
+                                  panelData = replayPanel(), tolerance = 10,
+                                  verbose = FALSE)
+  expect_false(strict$pass)
+  expect_true(loose$pass)
+  expect_true(file.exists(file.path(gd, "manifest.json")))
+})
+
+test_that("a group without a deployed spec skips cleanly", {
+  dir <- withr::local_tempdir()
+  dir.create(file.path(dir, "grp"), recursive = TRUE, showWarnings = FALSE)
+  expect_null(runPFMHistoricalReplay("grp", resultsDir = dir, modelDir = NULL,
+                                     panelData = replayPanel(), verbose = FALSE))
+})
+
+test_that("pfm-replay is a recognised pipeline step", {
+  # It is in the ALLOWED set and has an artifact mapping, not in the short default
+  # `steps` argument.
+  body <- paste(deparse(runModelGroup), collapse = " ")
+  expect_true(grepl('"pfm-replay"', body, fixed = TRUE))
+  # The step -> artifact map used to be inlined in runModelGroup and now lives in
+  # pfmStepArtifacts(), which runModelGroup reads for `resume` and pfmRun() reads for
+  # `clean`. Assert the contract where it actually lives, or this passes/fails for
+  # reasons unrelated to whether the step is wired up.
+  expect_identical(pfmStepArtifacts("pfm-replay")[["pfm-replay"]],
+                   "historical-replay.rds")
+  expect_true(grepl('"pfm-replay"', paste(deparse(startRun), collapse = " "),
+                    fixed = TRUE))
+})
+
+test_that("pfm-replay is reachable from a stage, not only from `steps`", {
+  # The gate must be runnable without knowing its step name: it was reachable only
+  # through pfmRun()'s interactive `custom` menu until 2026-08-14, which is how a
+  # Run-Group was produced with no replay artifact and no warning.
+  res <- withr::local_tempdir()
+  dir.create(file.path(res, "g"), recursive = TRUE, showWarnings = FALSE)
+  writeLines("- name: dummy", file.path(res, "g", "selected-models-pfm.yml"))
+  plan <- function(stage) {
+    suppressMessages(pfmRun(group = "g", stage = stage, cluster = "local",
+                            resultsDir = res, modelDir = res, ask = FALSE,
+                            dryRun = TRUE))$steps
+  }
+  expect_true("pfm-replay" %in% plan("diagnostics"))
+  expect_true("pfm-replay" %in% plan("all"))
+})

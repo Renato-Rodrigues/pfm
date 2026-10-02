@@ -6,7 +6,7 @@
 # silently matched.
 
 donorFit <- function() {
-  m <- makePSMagpie()
+  m <- makePFMagpie()
   estimatePolicyStringencyModel(
     data = m, sector = "Bulk", estimator = "satP",
     actorPowerDrivers = "Actor Power Index", actorPowerIndex = "Actor Power Index",
@@ -182,7 +182,7 @@ test_that("bad inputs fail loudly", {
                    year = max(fit$data$year), efficiencyRatio = 0.6,
                    stringsAsFactors = FALSE)
   expect_error(computeDonorAssignment(list(), sc, donorDesign(fit)),
-               "must be a fitted PSM model")
+               "must be a fitted PFM model")
   expect_error(computeDonorAssignment(fit, sc[, c("region", "year")], donorDesign(fit)),
                "efficiencyRatio")
 })

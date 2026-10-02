@@ -11,7 +11,7 @@ test_that("channelSpecs builds the expected suites", {
   # 3 forms x 15 IQ x 8 controls x 3 FE = 1080 raw + 1080 twins = 2160 -> 5385.
   expect_length(ex, 5385)
   # The base grid is unchanged and the new forms are strictly additive - this is the
-  # numbering-stability contract test-psmImprovements.R also pins.
+  # numbering-stability contract test-pfmImprovements.R also pins.
   expect_length(channelSpecs("exhaustive", apPcForms = character(0)), 3225)
   # every spec has the fields the report schema needs
   needed <- c("name", "description", "actorPowerDrivers", "actorPowerIndex",

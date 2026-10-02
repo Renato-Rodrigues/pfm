@@ -22,7 +22,7 @@ Data.frame \code{apTerm, moderator, m, me, se, lo, hi, inSupport}
 moderator scale), or \code{NULL} when the fit carries no interaction terms.
 }
 \description{
-The single most informative robustness exhibit for the PSM interaction claims
+The single most informative robustness exhibit for the PFM interaction claims
 (R2, 2026-07-06; docs/psm-nature-readiness-assessment.md): for every
 actor-power term \code{a} interacting with an institutional-quality moderator
 \code{b} (a fitted \code{a_x_b} column), the marginal effect of \code{a} on the
