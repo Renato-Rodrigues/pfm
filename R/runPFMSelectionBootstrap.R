@@ -4,7 +4,8 @@
 # sector + panel fingerprint + seed; excludes nResamples (so a smaller cache is found
 # and extended) and the pfm version (cleared by hand on code changes). The "psm" tag
 # and the includeLaggedPS/indexMax fields keep the keys disjoint from the price-model
-# bootstrap cache in the same boot-cache/ folder.
+# bootstrap cache in the same boot-cache/ folder. The tag predates the psm -> pfm rename
+# and stays: it only enters the hash, and changing it would orphan every cached resample.
 #' @keywords internal
 .pfmBootCacheKey <- function(cfg, sector, panelHash, seed) {
   fitFields <- cfg[intersect(names(cfg), c(
@@ -227,8 +228,15 @@ runPFMSelectionBootstrap <- function(group,
       utils::flush.console()
     }
     key <- .pfmBootCacheKey(specByName[[mdl]], sec, panelHash, seed)
-    cf <- if (!is.null(cacheDir)) file.path(cacheDir, paste0("psmboot_", sec, "_", key, ".rds")) else NULL
-    cached <- if (!is.null(cf) && file.exists(cf)) tryCatch(readRDS(cf), error = function(e) NULL) else NULL
+    cf <- if (!is.null(cacheDir)) file.path(cacheDir, paste0("pfmboot_", sec, "_", key, ".rds")) else NULL
+    # Same key, legacy file stem: caches written before the psm -> pfm rename (2026-10-02)
+    # are named psmboot_. Read one on a miss; the extended cache is saved under pfmboot_.
+    cfRead <- cf
+    if (!is.null(cf) && !file.exists(cf)) {
+      legacy <- file.path(cacheDir, paste0("psmboot_", sec, "_", key, ".rds"))
+      if (file.exists(legacy)) cfRead <- legacy
+    }
+    cached <- if (!is.null(cfRead) && file.exists(cfRead)) tryCatch(readRDS(cfRead), error = function(e) NULL) else NULL
     if (!(is.data.frame(cached) && all(validCols %in% names(cached)))) cached <- NULL  # stale schema -> drop
     nHave <- if (is.null(cached)) 0L else nrow(cached)
     if (nHave >= nResamples) {                       # full hit / truncate: no fitting

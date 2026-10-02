@@ -313,17 +313,28 @@ estimatePolicyStringencyModel <- function(
   # necessarily changing the formula, so they belong in the cache key: a fit
   # cached before the 2026-08-22 re-parameterization must never be served for a
   # request made under the new one.
-  cacheExtra <- paste0("psm-", estimator, "+max", indexMax,
+  cacheExtra <- paste0("pfm-", estimator, "+max", indexMax,
                        if (identical(form, "ecm")) "+ecm" else "",
                        if (identical(apTransform, "saturating")) "+satAP" else "",
                        "+trend", trendMidpoint, "_", trendSteepness, "+scaledTrend")
   usesCache <- identical(estimator, "satP") && !is.null(modelDir)
   if (usesCache && !isTRUE(ignoreCache)) {
     ids <- computeModelId(fml, df, extra = cacheExtra)
-    cachedPath <- file.path(modelDir, "models", paste0(ids[["id"]], ".rds"))
+    loadId <- ids[["id"]]
+    cachedPath <- file.path(modelDir, "models", paste0(loadId, ".rds"))
+    # Fits cached before the psm -> pfm rename (2026-10-02; v5 and earlier) are keyed on the
+    # legacy "psm-" prefix. Read one on a miss; a refit is always saved under the new key.
+    if (!file.exists(cachedPath)) {
+      legacyId <- computeModelId(fml, df, extra = sub("^pfm-", "psm-", cacheExtra))[["id"]]
+      legacyPath <- file.path(modelDir, "models", paste0(legacyId, ".rds"))
+      if (file.exists(legacyPath)) {
+        loadId <- legacyId
+        cachedPath <- legacyPath
+      }
+    }
     if (file.exists(cachedPath)) {
       cached_result <- tryCatch({
-        cached <- loadPFMModel(ids[["id"]], modelDir)
+        cached <- loadPFMModel(loadId, modelDir)
         cr <- list(
           model = .rehydrateFitForConsumers(cached$model, df, fml, "ecp"),
           coeftest = cached$coeftest,
@@ -366,13 +377,13 @@ estimatePolicyStringencyModel <- function(
         )
         cr
       }, error = function(e) {
-        warning("estimatePolicyStringencyModel: cached fit '", ids[["id"]],
+        warning("estimatePolicyStringencyModel: cached fit '", loadId,
                 "' unreadable (", conditionMessage(e), "); refitting.", call. = FALSE)
         NULL
       })
       if (!is.null(cached_result)) {
         if (isTRUE(verbose)) {
-          message("  [cache hit] Loading policy-stringency model ", ids[["id"]], " from disk.")
+          message("  [cache hit] Loading policy-stringency model ", loadId, " from disk.")
         }
         return(cached_result)
       }

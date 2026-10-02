@@ -33,7 +33,7 @@ test_that("PFM selection bootstrap runs, caches, extends, and tracks the deploye
   expect_identical(res$knobs$rankBy, "worseDeltaR2")
   expect_identical(res$knobs$tierGate, "Blue")
   # Per-spec resample caches were written.
-  expect_gt(length(list.files(file.path(modelDir, "boot-cache"), pattern = "^psmboot_")), 0)
+  expect_gt(length(list.files(file.path(modelDir, "boot-cache"), pattern = "^pfmboot_")), 0)
   # Step recorded in the manifest.
   mf <- jsonlite::fromJSON(file.path(resultsDir, "psm-boot", "manifest.json"))
   expect_true("selection-bootstrap" %in% names(mf$steps))

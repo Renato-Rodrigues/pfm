@@ -32,6 +32,29 @@ test_that("the old exported names still work, with a deprecation warning", {
   expect_identical(old, pfmStepArtifacts("pfm-frontier"))
 })
 
+test_that("a fit cached under the pre-rename psm- key is still a cache hit", {
+  # The id hashes formula + data + a key string that was "psm-<estimator>..." before the
+  # rename and is "pfm-<estimator>..." now. The mock makes the id depend on that string only,
+  # so the cached file can be moved to the legacy id without rebuilding the design matrix.
+  extras <- new.env()
+  local_mocked_bindings(computeModelId = function(formula, training_data, extra = NULL) {
+    if (!is.null(extra)) assign("last", extra, envir = extras)
+    h <- digest::digest(list(extra), algo = "sha256")
+    c(id = substr(h, 1, 12), id_full = h, data_hash = "x")
+  })
+  m <- makePFMagpie()
+  tmp <- withr::local_tempdir()
+  fit1 <- suppressMessages(pfmFit(m, estimator = "satP", modelDir = tmp))
+  newKey <- get("last", envir = extras)
+  expect_match(newKey, "^pfm-")
+  idOf <- function(x) substr(digest::digest(list(x), algo = "sha256"), 1, 12)
+  newFile <- file.path(tmp, "models", paste0(idOf(newKey), ".rds"))
+  expect_true(file.exists(newFile))
+  file.rename(newFile, file.path(tmp, "models", paste0(idOf(sub("^pfm-", "psm-", newKey)), ".rds")))
+  msgs <- capture_messages(pfmFit(m, estimator = "satP", modelDir = tmp, verbose = TRUE))
+  expect_true(any(grepl("cache hit", msgs)))
+})
+
 test_that("the frozen v5 Run-Group resolves through the new code", {
   # Workstation only: output/ is not in git. tests/testthat -> models/pfm -> models -> project.
   v5 <- normalizePath(file.path(testthat::test_path(), "..", "..", "..", "..", "output", "pfm", "v5"),
