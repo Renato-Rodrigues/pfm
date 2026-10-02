@@ -35,6 +35,10 @@
 #' @keywords internal
 #' @author Renato Rodrigues
 .driverSupportRanges <- function(df, scaling = attr(df, "driverScaling")) {
+  # The time trend is deliberately NOT guarded (design note 0005 E14): the projection freezes it
+  # at its last training value, so it never leaves the training support and winsorising it would
+  # be a no-op. It is not a driver the scenario moves, so it is also kept out of the
+  # out-of-support share, which reports only on drivers the energy system and the SSPs move.
   excl <- c("region", "year", "ecp", "lagged_ecp", "lagged_adoption",
             "timeTrend", "logisticTimeTrend", "regionFE")
   cols <- setdiff(colnames(df), excl)

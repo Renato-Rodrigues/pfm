@@ -14,6 +14,7 @@ panelDataScenario(
   movingAverage = .pfmPanelMA(),
   histYears = .pfmPanelYears(),
   ieaVersion = pfmPanelDef()$ieaVersion,
+  geothermal = pfmPanelDef()$geothermal,
   ssp = "SSP2",
   institutions = "storyline",
   coeff = list(bulk = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
@@ -37,8 +38,9 @@ panelDataScenario(
 \code{"country"} (see \code{\link[=panelDataHistorical]{panelDataHistorical()}}; projection/REMIND coupling normally
 stays at REMIND resolution - the sentinel here is for symmetry, not the default)}
 
-\item{histYears, movingAverage, ieaVersion}{the historical panel the scenario is harmonised to:
-its years, moving-average window and IEA edition. Default: the active panel definition
+\item{histYears, movingAverage, ieaVersion, geothermal}{the historical panel the scenario is
+harmonised to: its years, moving-average window, IEA edition and clean-baseload definition
+(\code{geothermal} also applies to the scenario's own control). Default: the active panel definition
 (\code{\link{pfmPanelDef}}), which must be the one the Run-Group was fitted on.}
 
 \item{ssp}{\code{"SSP1"} ... \code{"SSP5"}: the SSP of GDP, population and the SSP-extension

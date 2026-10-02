@@ -23,7 +23,7 @@ Depends:
     madrat,
     magclass,
     mrremind,
-    mrpfm
+    mrpfm (>= 0.4.0)
 Imports:
     dplyr,
     gamstransfer,

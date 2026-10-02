@@ -8,7 +8,7 @@ pfmPanelDef()
 }
 \arguments{
 \item{def}{A panel definition (\code{firstYear}, \code{lastYear}, \code{movingAverage},
-\code{ieaVersion}).}
+\code{ieaVersion}, \code{geothermal}).}
 }
 \value{
 \code{pfmPanelDef()}: the active definition (the \code{pfm.panel} option, else the
@@ -16,7 +16,8 @@ legacy one).
 }
 \description{
 Which years the historical panel spans, whether it is smoothed, and which edition of the IEA
-World Energy Balances its energy drivers come from. Every step that builds a historical or a
+World Energy Balances its energy drivers come from, and whether geothermal counts in the clean
+baseload control (\code{geothermal}; design note 0005 A4). Every step that builds a historical or a
 scenario panel must use the definition the group was fitted on: a group fitted on annual data
 but projected (or coupled inside REMIND) on smoothed data would run to completion and be
 wrong, with nothing to say so.

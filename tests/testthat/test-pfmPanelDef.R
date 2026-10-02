@@ -3,7 +3,8 @@
 test_that("the legacy definition is the v5 panel and the option overrides it", {
   withr::local_options(pfm.panel = NULL)
   d <- pfmPanelDef()
-  expect_identical(d, list(firstYear = 2000L, lastYear = 2022L, movingAverage = 5L, ieaVersion = "default"))
+  expect_identical(d, list(firstYear = 2000L, lastYear = 2022L, movingAverage = 5L, ieaVersion = "default",
+                           geothermal = FALSE))
   expect_identical(pfm:::.pfmPanelYears(d), 2000:2022)
   expect_identical(pfm:::.pfmPanelMA(d), 5L)
 
@@ -104,4 +105,23 @@ test_that("the scenario registry carries ssp and institutions, defaulting to SSP
   expect_identical(reg$scenarios$a$institutions, "storyline")
   expect_identical(reg$scenarios$b$ssp, "SSP3")
   expect_identical(reg$scenarios$b$institutions, "hold")
+})
+
+test_that("geothermal enters the baseload control only when the panel definition says so", {
+  x <- magclass::new.magpie(c("ISL", "DEU"), 2020, c("pecoal", "peoil", "pegas", "pewin", "pesol", "peur",
+                                                     "pehyd", "pegeo", "petotal", "seel", "wind", "solar",
+                                                     "fe_indst_fossil", "fe_indst", "fe_seel", "fe_total",
+                                                     "fe_liqbio_tran", "fe_liqtran"), fill = 1)
+  x["ISL", , "pehyd"] <- 0.2
+  x["ISL", , "pegeo"] <- 0.6
+  x[, , "peur"] <- 0
+  x[, , "petotal"] <- 2
+  off <- suppressWarnings(iamCalculatedDrivers(x, geothermal = FALSE))
+  on <- suppressWarnings(iamCalculatedDrivers(x, geothermal = TRUE))
+  expect_equal(as.numeric(off["ISL", , "Hydro Nuclear Share"]), 0.1)
+  expect_equal(as.numeric(on["ISL", , "Hydro Nuclear Share"]), 0.4)
+  other <- setdiff(magclass::getNames(on), "Hydro Nuclear Share")
+  expect_identical(on[, , other], off[, , other])
+  withr::local_options(pfm.panel = NULL)
+  expect_identical(suppressWarnings(iamCalculatedDrivers(x)), off)
 })

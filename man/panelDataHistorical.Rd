@@ -10,6 +10,7 @@ panelDataHistorical(
   outputRegionMappingFile = "regionmappingH12.csv",
   movingAverage = .pfmPanelMA(),
   ieaVersion = pfmPanelDef()$ieaVersion,
+  geothermal = pfmPanelDef()$geothermal,
   coeff = list(bulk = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
     list(vre = 1, elec = 0.6), incumbents_power = list(coal = 1, oilgas = 1, fossilInd =
     0.5)), diffuse = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
@@ -36,6 +37,9 @@ scoped around the data calls so the CAPMF coverage filter sees the right mapping
 
 \item{ieaVersion}{edition of the IEA World Energy Balances behind the energy drivers, see
 \code{\link{iamHistoricalData}}. Default: the active panel definition.}
+
+\item{geothermal}{count geothermal in the clean-baseload control ("Hydro Nuclear Share"), see
+\code{\link{iamCalculatedDrivers}}. Default: the active panel definition.}
 
 \item{coeff}{list of coefficients for actor power index calculation}
 

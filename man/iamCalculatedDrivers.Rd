@@ -4,10 +4,14 @@
 \alias{iamCalculatedDrivers}
 \title{Calculated drivers}
 \usage{
-iamCalculatedDrivers(data)
+iamCalculatedDrivers(data, geothermal = pfmPanelDef()$geothermal)
 }
 \arguments{
 \item{data}{A \code{\link[magclass:magclass-package]{magpie}} object.}
+
+\item{geothermal}{Logical. Count geothermal with hydro and nuclear in the "Hydro Nuclear Share"
+control (the inherited clean baseload; design note 0005 A4). A panel-definition field
+(\code{pfmPanelDef()$geothermal}): \code{FALSE} for every Run-Group up to v5, \code{TRUE} from v6.}
 }
 \value{
 A \code{\link[magclass:magclass-package]{magpie}} object with calculated drivers
