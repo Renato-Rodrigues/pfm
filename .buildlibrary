@@ -1,4 +1,4 @@
-ValidationKey: '618720'
+ValidationKey: '1036400'
 AutocreateReadme: yes
 AutocreateCITATION: yes
 AcceptedWarnings: .*
@@ -7,3 +7,4 @@ allowLinterWarnings: no
 enforceVersionUpdate: no
 skipCoverage: no
 UsePkgDown: no
+AddInReadme: README-quickstart.md
