@@ -4,16 +4,16 @@
 # X-2367 was deployed at gamma = 0.99999999 in BOTH sectors unremarked.
 #
 # Two properties are pinned here:
-#   1. The gate is OFF by default. Turning it on must stay a deliberate, dated act
-#      -- it would reject the currently deployed specification, so a silent default
-#      change would retro-invalidate a Run-Group.
+#   1. The gate is ON by default at 0.999 (ADR 0046, 2026-09-15 - the deliberate, dated
+#      act that switched it on; until then it was off). A silent change of the default
+#      would retro-invalidate a Run-Group, so the value is pinned, not just "set".
 #   2. gamma is CARRIED whether or not the gate is on, so enabling it is never the
 #      first time the number is seen. This mirrors test-ceilingFallGate.R's
 #      reasoning about production defaults not drifting.
 
-test_that("gammaGate is off by default in both the sweep and the sanity walk", {
-  expect_true(is.na(eval(formals(runPSMSweep)$gammaGate)))
-  expect_true(is.na(eval(formals(pfm:::.psmSanitySelect)$gammaGate)))
+test_that("gammaGate defaults to 0.999 in both the sweep and the sanity walk (ADR 0046)", {
+  expect_identical(eval(formals(runPSMSweep)$gammaGate), 0.999)
+  expect_identical(eval(formals(pfm:::.psmSanitySelect)$gammaGate), 0.999)
 })
 
 test_that("gammaGate reaches every sanity-walk call site", {

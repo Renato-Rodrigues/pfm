@@ -130,6 +130,14 @@ pfmPrepareCache <- function(config = NULL, group = NULL, compute = NULL, force =
   }
 
   # --- 3. builders, watched -----------------------------------------------------------------
+  # mrpfm registers its calc* functions with madrat only when ATTACHED (.onAttach). Called as
+  # pfm::pfmPrepareCache() from a bare Rscript nothing attaches it, and every builder failed
+  # with madrat's 'Type "CarbonPrice" is not a valid output type' - found on a fresh clone,
+  # 2026-10-01. library(pfm) attaches it (Depends).
+  if (!"mrpfm" %in% madrat::getConfig("packages", verbose = FALSE)) {
+    stop("pfmPrepareCache: mrpfm is not attached, so madrat cannot find its calculations. ",
+         "Call library(pfm) first.", call. = FALSE)
+  }
   suppressMessages(madrat::setConfig(cachefolder = cf, forcecache = TRUE, .verbose = FALSE))
   if (!is.null(sourcefolder)) suppressMessages(madrat::setConfig(sourcefolder = sourcefolder, .verbose = FALSE))
   if (!length(gdxs)) say("scenario panel: no registry gdx exists here - its files are not checked")
