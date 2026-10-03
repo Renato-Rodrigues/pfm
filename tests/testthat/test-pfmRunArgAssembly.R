@@ -137,4 +137,26 @@ test_that("panel resolution is declared in config and threaded to every pfm step
   expect_match(body, "outputRegionMappingFile = rc$outputRegionMappingFile", fixed = TRUE)
   expect_false(grepl('outputRegionMappingFile = "country"', body, fixed = TRUE))
 })
+
+test_that("the sweep's gdx mapping is the GATING scenario's own, not the H12 default", {
+  # Run-Groups v6 and v6-annual (2026-10-03): pfmRun passed the gating gdx (EU21) but not
+  # its mapping, runPFMSweep defaulted to H12, the scenario panel died with "subscript out
+  # of bounds", and both groups were selected on maximin alone (PITFALLS 5).
+  gdx <- normalizePath(withr::local_tempfile(fileext = ".gdx"), winslash = "/", mustWork = FALSE)
+  writeLines("", gdx)
+  cfgPath <- withr::local_tempfile(fileext = ".yml")
+  writeLines(c("scenarios:",
+               "  - id: ref",
+               paste0('    gdx: "', gdx, '"'),
+               '    gdxRegionMapping: "regionmappingH12.csv"',
+               "  - id: amb",
+               paste0('    gdx: "', gdx, '"'),
+               '    gdxRegionMapping: "regionmapping_21_EU11.csv"',
+               "    gating: true"), cfgPath)
+  rc <- pfmResolveConfig(cfgPath, verbose = FALSE)
+  expect_identical(rc$gdxRegionMapping, "regionmapping_21_EU11.csv")
+
+  body <- paste(deparse(pfmRun), collapse = "\n")
+  expect_match(body, "args$gdxRegionMappingFile <- rc$gdxRegionMapping", fixed = TRUE)
+})
 # nolint end

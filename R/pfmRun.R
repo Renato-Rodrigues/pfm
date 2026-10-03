@@ -580,6 +580,11 @@ pfmRun <- function(group = NULL,
            outputRegionMappingFile = rc$outputRegionMappingFile),
       c(unclass(sweepOpts), list(...)))
     if (!is.null(rc$gdxFile)) args$gdxFile <- rc$gdxFile
+    # The sweep reads the gating gdx at ITS native resolution; without this it fell back to
+    # H12 on an EU21 gdx and every scenario gate was skipped (PITFALLS 5). Caller wins.
+    if (!is.null(rc$gdxFile) && is.null(args$gdxRegionMappingFile)) {
+      args$gdxRegionMappingFile <- rc$gdxRegionMapping
+    }
     # Absolute: a SLURM job's working directory is not necessarily this one.
     if ("pfm-remind-inputs" %in% pipelineSteps) {
       args$dest <- normalizePath(remindDir, winslash = "/", mustWork = FALSE)

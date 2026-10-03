@@ -787,8 +787,7 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                 # very order the alias was written in.
                 "pfm-sweep", "pfm-frontier", "pfm-temporal", "pfm-sector-speeds",
                 "pfm-agreement", "pfm-iv", "pfm-influence", "pfm-inference", "pfm-replay",
-                "pfm-regfront",
-                "pfm-donor", "pfm-projection", "pfm-coupling-bound",
+                "pfm-donor", "pfm-projection", "pfm-regfront", "pfm-coupling-bound",
                 "pfm-selection-bootstrap", "pfm-remind-inputs")
   # Aliases expand to an ORDERED step list, so the whole downstream build is one
   # argument instead of a bash script that re-implements ordering, resume and
@@ -834,6 +833,12 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
       perScen <- file.path(groupDir, "projections",
                            paste0(gsub("[^A-Za-z0-9._-]", "_", ids), ".rds"))
       legacy && all(file.exists(perScen))
+    } else if (!step %in% names(stepArtifact)) {
+      # No in-group artifact (pfm-remind-inputs writes outside the group): never "done".
+      # `stepArtifact[[step]]` on it was "subscript out of bounds" under resume = TRUE,
+      # which killed Run-Group v6 after pfm-coupling-bound, before the export, the
+      # selection bootstrap, the replay and the completion audit.
+      FALSE
     } else {
       file.exists(file.path(groupDir, stepArtifact[[step]]))
     }
@@ -940,19 +945,6 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                                                   "cachefolder", "verbose"))])
     do.call(runPFMInference, infcArgs)
   }
-  # regional-frontier.rds was exported but wired into no stage, so Run-Group v4 simply never
-  # produced it and `fig-frontier-by-region` failed for weeks with "artifact not found".
-  # An artifact a figure reads must be written by a step (TODO.md item 24).
-  if (doStep("pfm-regfront")) {
-    say("step: pfm-regfront")
-    dots <- list(...)
-    rfArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
-                     cachefolder = cachefolder, verbose = verbose),
-                dots[names(dots) %in% setdiff(names(formals(computeRegionalFrontier)),
-                                              c("group", "resultsDir", "modelDir",
-                                                "cachefolder", "verbose"))])
-    do.call(computeRegionalFrontier, rfArgs)
-  }
   if (doStep("pfm-sector-speeds")) {
     say("step: pfm-sector-speeds")
     dots <- list(...)
@@ -993,6 +985,21 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                                                 "cachefolder", "gdxFile", "scenarios",
                                                 "verbose"))])
     do.call(runPFMProjection, pjArgs)
+  }
+  # regional-frontier.rds was exported but wired into no stage, so Run-Group v4 simply never
+  # produced it and `fig-frontier-by-region` failed for weeks with "artifact not found".
+  # An artifact a figure reads must be written by a step (TODO.md item 24).
+  # AFTER pfm-projection: it reads projections/. Placed before it, Run-Group v6 wrote a
+  # regional frontier with history only and "0 scenario(s)".
+  if (doStep("pfm-regfront")) {
+    say("step: pfm-regfront")
+    dots <- list(...)
+    rfArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
+                     cachefolder = cachefolder, verbose = verbose),
+                dots[names(dots) %in% setdiff(names(formals(computeRegionalFrontier)),
+                                              c("group", "resultsDir", "modelDir",
+                                                "cachefolder", "verbose"))])
+    do.call(computeRegionalFrontier, rfArgs)
   }
   if (doStep("pfm-coupling-bound")) {
     say("step: pfm-coupling-bound")

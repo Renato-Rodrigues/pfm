@@ -103,6 +103,11 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
   scenReg <- parseScenarioRegistry(cfg, baseDir = confDir)
   scenarios <- if (length(scenReg$scenarios)) scenReg$scenarios else NULL
   gdxFile <- scenarioGatingGdx(scenReg) %||% absify(def("gdxPath", NULL))
+  # The gating gdx's OWN native mapping (PITFALLS 5), for the sweep's scenario panel. Not
+  # passed until 2026-10-03, so runPFMSweep defaulted to H12 on the EU21 gdx, the panel died
+  # with "subscript out of bounds", and v6 / v6-annual were selected on maximin alone.
+  gdxRegionMapping <- if (!is.null(scenReg$gating))
+    scenReg$scenarios[[scenReg$gating]]$gdxRegionMapping else def("gdxRegionMapping", NULL)
   if (!is.null(gdxFile) && !file.exists(gdxFile)) {
     say("gating gdx not found (", gdxFile, ") — the Projection-Sanity gate will be skipped.")
     gdxFile <- NULL
@@ -156,7 +161,7 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
     sweep <- .pfmSweepOptionsNormalise(sweep)
   }
 
-  list(scenarios = scenarios, gdxFile = gdxFile,
+  list(scenarios = scenarios, gdxFile = gdxFile, gdxRegionMapping = gdxRegionMapping,
        cachefolder = cachefolder, sourcefolder = sourcefolder, madrat = madratBlock,
        panel = panel, sweep = sweep, group = group,
        resultsDir = def("resultsDir", NULL), modelDir = def("modelDir", NULL),
