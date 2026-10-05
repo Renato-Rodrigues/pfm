@@ -159,4 +159,46 @@ test_that("the sweep's gdx mapping is the GATING scenario's own, not the H12 def
   body <- paste(deparse(pfmRun), collapse = "\n")
   expect_match(body, "args$gdxRegionMappingFile <- rc$gdxRegionMapping", fixed = TRUE)
 })
+
+test_that("the sweep gets the REFERENCE scenario, so the responsiveness gate runs", {
+  # Run-Group v6 (2026-10-03): nothing passed a reference gdx to runPFMSweep, so the
+  # scenarioBlind gate (ADR 0039) never ran, and the deployed spec's gating and reference
+  # projections differed by 0.004 index points against a 0.05 gate (PITFALLS 28).
+  # v5 had applied the gate by hand, outside pfmRun.
+  dir <- withr::local_tempdir()
+  gdxAmb <- file.path(dir, "amb.gdx"); gdxRef <- file.path(dir, "npi.gdx")
+  gdxOther <- file.path(dir, "other.gdx")
+  for (g in c(gdxAmb, gdxRef, gdxOther)) writeLines("", g)
+  cfgPath <- file.path(dir, "config.yml")
+  writeLines(c("scenarios:",
+               "  - id: SSP2-Other",
+               '    gdx: "other.gdx"',
+               "  - id: SSP2-NPi2025-PFMbase",
+               '    gdx: "npi.gdx"',
+               '    gdxRegionMapping: "regionmapping_21_EU11.csv"',
+               "  - id: SSP2-PkBudg1000-PFMref",
+               '    gdx: "amb.gdx"',
+               '    gdxRegionMapping: "regionmapping_21_EU11.csv"',
+               "gatingScenario: SSP2-PkBudg1000-PFMref"), cfgPath)
+  rc <- pfmResolveConfig(cfgPath, verbose = FALSE)
+  # The gating id contains "ref" (PFMref); the reference must still be the NPi run, i.e.
+  # the current-policy-looking id among the NON-gating scenarios, not the first listed.
+  expect_identical(basename(rc$gdxFile), "amb.gdx")
+  expect_identical(basename(rc$referenceGdxFile), "npi.gdx")
+  expect_identical(rc$referenceGdxRegionMapping, "regionmapping_21_EU11.csv")
+
+  # One rule for the sweep and the coupling bound: both go through scenarioReferenceEntry.
+  expect_match(paste(deparse(runPFMCouplingBound), collapse = "\n"),
+               "scenarioReferenceEntry(sc)", fixed = TRUE)
+  # No reference scenario -> NULL, which the sweep reports as a skipped gate.
+  expect_null(scenarioReferenceEntry(list(a = list(id = "a", gdx = gdxAmb, gating = TRUE))))
+
+  # pfmRun hands both to startRun, and both survive the dots filter into runPFMSweep.
+  body <- paste(deparse(pfmRun), collapse = "\n")
+  expect_match(body, "args$referenceGdxFile <- rc$referenceGdxFile", fixed = TRUE)
+  expect_match(body, "args$referenceGdxRegionMappingFile <- rc$referenceGdxRegionMapping",
+               fixed = TRUE)
+  fs <- names(formals(runPFMSweep))
+  expect_true(all(c("referenceGdxFile", "referenceGdxRegionMappingFile") %in% fs))
+})
 # nolint end

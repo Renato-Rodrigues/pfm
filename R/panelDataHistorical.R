@@ -122,7 +122,7 @@ panelDataHistorical <- function(aggregate = TRUE,
   .popRaw <- magclass::collapseNames(calcOutput("Population", scenario = "SSP2",
     aggregate = aggregate, regionmapping = outputRegionMappingFile))
   histAPI <- actorPowerIndex(histCalculatedDrivers, coeff = coeff,
-                             energyPerCapita = .energyPerCapita(histData, .popRaw))
+                             energyPerCapita = .energyPerCapita(histData, .popRaw, peUnit = "EJ"))
   out <- mbind(out, histAPI[, y, c(
     "Actor Power Index|Bulk", "Actor Power Index|Diffuse",
     "Innovator Power|Bulk", "Innovator Power|Diffuse",

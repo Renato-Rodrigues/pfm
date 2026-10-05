@@ -17,7 +17,10 @@ working directory and returns empty defaults if there is none.}
 }
 \value{
 List with \code{scenarios} (or \code{NULL}), \code{gdxFile} (the gating
-scenario's gdx, or \code{NULL}), \code{cachefolder}, \code{sourcefolder},
+scenario's gdx, or \code{NULL}), \code{gdxRegionMapping} (its native mapping),
+\code{referenceGdxFile} and \code{referenceGdxRegionMapping} (the non-gating scenario
+the responsiveness gate compares against, \code{\link{scenarioReferenceEntry}}, or
+\code{NULL}), \code{cachefolder}, \code{sourcefolder},
 \code{madrat} (the resolved madrat block), \code{panel} and \code{sweep} (the blocks
 resolved for \code{group}, or \code{NULL}), \code{group}, \code{recordsDir}, \code{resultsDir},
 \code{modelDir}, \code{path} and \code{dir}.

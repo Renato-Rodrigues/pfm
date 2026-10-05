@@ -135,13 +135,11 @@ runPFMCouplingBound <- function(group,
     }
     optGdx <- optGdx %||% (if (length(gate)) usable(gate[[1]]) else NULL)
     # The REFERENCE is current policy: the non-gating scenario, preferring an
-    # explicitly NPi/base-looking id when several remain.
+    # explicitly NPi/base-looking id when several remain. The same rule the sweep's
+    # responsiveness gate uses (scenarioReferenceEntry).
     if (is.null(refGdx)) {
-      rest <- Filter(function(s) !isTRUE(s$gating), sc)
-      named <- Filter(function(s) grepl("npi|base|ref|current",
-                                        s$id %||% "", ignore.case = TRUE), rest)
-      pool <- if (length(named)) named else rest
-      refGdx <- if (length(pool)) usable(pool[[1]]) else NULL
+      ref <- scenarioReferenceEntry(sc)
+      refGdx <- if (!is.null(ref)) usable(ref) else NULL
     }
     if (length(sc) > 2 && (is.null(refGdx) || is.null(optGdx))) {
       say("registry has ", length(sc), " usable scenarios — pass refGdx=/optGdx= ",
@@ -195,7 +193,10 @@ runPFMCouplingBound <- function(group,
   # same projection), which every group up to v5 cached under the bare name.
   scenTag <- if (identical(optSsp, "SSP2") && optInstitutions %in% c("storyline", "convergence")) "" else
     paste0("-", optSsp, "-", optInstitutions)
-  scenCache <- file.path(resultsDir, "panel-cache", paste0(group, scenTag, "-scen-ca.rds"))
+  # "-peEJ": panels written before the scenario primary-energy unit fix (PITFALLS 28) carry
+  # per-capita drivers at 1/31.5 scale after 2040 and must never be read again. The name is
+  # the only key this cache has, so the fix changes the name.
+  scenCache <- file.path(resultsDir, "panel-cache", paste0(group, scenTag, "-scen-ca-peEJ.rds"))
   if (file.exists(scenCache)) {
     say("scenario panel: cache hit ", scenCache)
     scen <- readRDS(scenCache)

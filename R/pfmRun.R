@@ -585,6 +585,15 @@ pfmRun <- function(group = NULL,
     if (!is.null(rc$gdxFile) && is.null(args$gdxRegionMappingFile)) {
       args$gdxRegionMappingFile <- rc$gdxRegionMapping
     }
+    # ... and the REFERENCE scenario, which the responsiveness gate (scenarioBlind) needs.
+    # Without it that gate never ran: v6 deployed a scenario-blind spec (PITFALLS 28).
+    if (!is.null(rc$gdxFile) && !is.null(rc$referenceGdxFile) &&
+          is.null(args$referenceGdxFile)) {
+      args$referenceGdxFile <- rc$referenceGdxFile
+      if (is.null(args$referenceGdxRegionMappingFile)) {
+        args$referenceGdxRegionMappingFile <- rc$referenceGdxRegionMapping
+      }
+    }
     # Absolute: a SLURM job's working directory is not necessarily this one.
     if ("pfm-remind-inputs" %in% pipelineSteps) {
       args$dest <- normalizePath(remindDir, winslash = "/", mustWork = FALSE)

@@ -143,4 +143,31 @@ scenarioGatingGdx <- function(registry) {
   if (is.null(registry) || is.null(registry$gating)) return(NULL)
   registry$scenarios[[registry$gating]]$gdx
 }
+
+#' Reference (current-policy) scenario of a registry
+#'
+#' The non-gating scenario that the gating one is compared against: by the sweep's
+#' scenario-responsiveness gate (\code{scenarioBlind}, ADR 0039) and by
+#' \code{\link{runPFMCouplingBound}} as \eqn{P_{ref}}. One rule for both, so the two can
+#' never compare against different pathways: among the scenarios that are not gating and
+#' whose gdx exists, prefer an id that reads as current policy (\code{npi}, \code{base},
+#' \code{ref}, \code{current}), else the first.
+#'
+#' Until 2026-10-05 nothing passed a reference to the sweep, so \code{scenarioBlind} never
+#' ran in a \code{pfmRun} sweep: \code{v5} applied it by hand, \code{v6} not at all
+#' (PITFALLS 28).
+#'
+#' @param scenarios A named list of scenario descriptors, as in
+#'   \code{parseScenarioRegistry()$scenarios}.
+#' @return The reference descriptor (with \code{gdx} and \code{gdxRegionMapping}), or
+#'   \code{NULL} when there is none.
+#' @seealso \code{\link{parseScenarioRegistry}}, \code{\link{scenarioGatingGdx}}
+#' @export
+scenarioReferenceEntry <- function(scenarios) {
+  sc <- Filter(function(s) nzchar(s$gdx %||% "") && file.exists(s$gdx), scenarios %||% list())
+  rest <- Filter(function(s) !isTRUE(s$gating), sc)
+  named <- Filter(function(s) grepl("npi|base|ref|current", s$id %||% "", ignore.case = TRUE), rest)
+  pool <- if (length(named)) named else rest
+  if (length(pool)) pool[[1]] else NULL
+}
 # nolint end

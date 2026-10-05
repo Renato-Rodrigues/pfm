@@ -89,9 +89,12 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   .popRaw <- calcOutput("Population", scenario = ssp,
     aggregate = aggregate, regionmapping = outputRegionMappingFile
   )
+  # vm_prodPe is TWa; the historical panel is EJ. Unconverted, every per-capita driver fell
+  # to 1/31.5 of its historical scale once the harmonisation offset faded (PITFALLS 28).
   modelAPI <- actorPowerIndex(modelCalculatedDrivers, coeff = coeff,
                               energyPerCapita = .energyPerCapita(
-                                modelDownscale, magclass::collapseNames(.popRaw)))
+                                modelDownscale, magclass::collapseNames(.popRaw),
+                                peUnit = "TWa"))
   out <- mbind(out, modelAPI[, y, c(
     "Actor Power Index|Bulk", "Actor Power Index|Diffuse",
     "Innovator Power|Bulk", "Innovator Power|Diffuse",

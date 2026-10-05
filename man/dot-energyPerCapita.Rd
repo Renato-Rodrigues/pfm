@@ -4,7 +4,7 @@
 \alias{.energyPerCapita}
 \title{Total primary energy per capita, aligned to a driver panel}
 \usage{
-.energyPerCapita(iamData, population)
+.energyPerCapita(iamData, population, peUnit)
 }
 \arguments{
 \item{iamData}{A magpie object carrying \code{"petotal"} (total primary energy),
@@ -13,11 +13,14 @@ as returned by \code{\link{iamHistoricalData}} or
 
 \item{population}{A magpie object of raw population, e.g.
 \code{calcOutput("Population", scenario = "SSP2")}.}
+
+\item{peUnit}{\code{"EJ"} (history) or \code{"TWa"} (a REMIND gdx): the unit of
+\code{petotal} in \code{iamData}. Required.}
 }
 \value{
-A magpie object of total primary energy per capita over the shared
-region-year support, or \code{NULL} when either input is missing
-\code{"petotal"} or shares no support — in which case
+A magpie object of total primary energy per capita (EJ/yr per unit of
+population) over the shared region-year support, or \code{NULL} when either input
+is missing \code{"petotal"} or shares no support — in which case
 \code{\link{actorPowerIndex}} simply emits no per-capita variants.
 }
 \description{
@@ -34,6 +37,14 @@ indices were multiplied as if they were physical.
 
 Regions and years are intersected, so a population series that is shorter than the
 energy panel silently restricts the result rather than recycling.
+
+\strong{The two sides carry primary energy in different units} (PITFALLS §28):
+history in EJ/yr (IEA, \code{\link{iamHistoricalData}}), the scenario in TWa/yr
+(REMIND's \code{vm_prodPe}, \code{\link{downscaleREMINDResults}}). The result is
+always EJ per capita, so \code{peUnit} has no default: a caller that does not say
+which side it is on cannot silently mix the two. Until 2026-10-05 the scenario side
+was not converted, and every scenario per-capita driver fell to 1/31.5 of its
+historical scale once the harmonisation offset faded out (2040).
 }
 \author{
 Renato Rodrigues

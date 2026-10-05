@@ -72,7 +72,11 @@
 #'   \code{scenarioBlind} and deselected.
 #' @param referenceGdxFile Optional path to the reference scenario's
 #'   \code{fulldata.gdx}; used to build \code{referenceScenarioData} when that is
-#'   \code{NULL}.
+#'   \code{NULL}. \code{\link{pfmRun}} passes the registry's non-gating scenario
+#'   (\code{\link{scenarioReferenceEntry}}); without it \code{scenarioBlind} is skipped,
+#'   with a warning.
+#' @param referenceGdxRegionMappingFile The reference gdx's own native mapping (PITFALLS
+#'   §5). \code{NULL} (default) uses \code{gdxRegionMappingFile}.
 #' @param apPcForms Character vector. Per-capita actor-power forms appended to the spec
 #'   grid (design-notes/0001); forwarded to \code{\link{createChannelConfigs}}. Defaults
 #'   to all three — \code{"splitAPpc"}, \code{"mixedAP"} and \code{"bothIncAP"} — so
@@ -177,6 +181,7 @@ runPFMSweep <- function(group,
                         documentTierGates = c("Green", "Blue"),
                         referenceScenarioData = NULL,
                         referenceGdxFile = NULL,
+                        referenceGdxRegionMappingFile = NULL,
                         minScenarioDelta = 0.05,
                         deltaWindow = c(2040, 2060),
                         supportShareGate = 0.275,
@@ -271,10 +276,11 @@ runPFMSweep <- function(group,
   # non-gating pathway to compare against).
   if (is.null(referenceScenarioData) && !is.null(referenceGdxFile) &&
         file.exists(referenceGdxFile)) {
-    say("Building REFERENCE scenario panel from gdx ...")
+    refMapping <- referenceGdxRegionMappingFile %||% gdxRegionMappingFile
+    say("Building REFERENCE scenario panel from gdx (gdx mapping: ", refMapping, ") ...")
     referenceScenarioData <- tryCatch(
       panelDataScenario(gdxFile = referenceGdxFile, aggregate = TRUE,
-                        gdxRegionMappingFile = gdxRegionMappingFile,
+                        gdxRegionMappingFile = refMapping,
                         outputRegionMappingFile = outputRegionMappingFile,
                         histYears = y, movingAverage = movingAverage),
       error = function(e) {
@@ -287,6 +293,13 @@ runPFMSweep <- function(group,
   if (!is.null(referenceScenarioData) && is.null(scenarioData)) {
     say("WARNING: reference scenario supplied without a gating scenario - ",
         "responsiveness gate needs both; it will be skipped.")
+  }
+  # The silent case: a gating panel but no reference. Every other scenario gate runs, so
+  # the walk looks complete - v6 was selected like this and deployed a spec whose gating
+  # and reference projections differ by 0.004 index points (PITFALLS 28).
+  if (!is.null(scenarioData) && is.null(referenceScenarioData)) {
+    say("WARNING: no reference scenario panel - the responsiveness gate (scenarioBlind) ",
+        "is NOT applied. Pass referenceGdxFile (pfmRun does, from the scenario registry).")
   }
 
   # ── Specs: shared channel grid adapted for the PFM ───────────────────────────
@@ -512,8 +525,14 @@ runPFMSweep <- function(group,
     panelDef = list(firstYear = min(y), lastYear = max(y), movingAverage = movingAverage %||% 1L,
                     ieaVersion = pfmPanelDef()$ieaVersion, geothermal = pfmPanelDef()$geothermal)
   )
+  # Which scenario gates the selection actually saw, in the audit: a skipped gate has no
+  # error, so its absence must be readable after the fact (PITFALLS 18, 28).
   .recordStep(groupDir, group, "sweep-pfm", t0, mode = paste0("pfm-", mode),
-              metrics = c(res$fitSummary, list(nCores = nCores)))
+              metrics = c(res$fitSummary,
+                          list(nCores = nCores,
+                               sanityGate = !is.null(scenarioData),
+                               responsivenessGate = !is.null(scenarioData) &&
+                                 !is.null(referenceScenarioData))))
 
   say("PFM Run-Group written: ", groupDir)
   invisible(res)

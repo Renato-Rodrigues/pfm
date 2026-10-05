@@ -34,6 +34,7 @@ runPFMSweep(
   documentTierGates = c("Green", "Blue"),
   referenceScenarioData = NULL,
   referenceGdxFile = NULL,
+  referenceGdxRegionMappingFile = NULL,
   minScenarioDelta = 0.05,
   deltaWindow = c(2040, 2060),
   supportShareGate = 0.275,
@@ -124,7 +125,12 @@ reference projections are indistinguishable (median in-coverage |Δindex| below
 
 \item{referenceGdxFile}{Optional path to the reference scenario's
 \code{fulldata.gdx}; used to build \code{referenceScenarioData} when that is
-\code{NULL}.}
+\code{NULL}. \code{\link{pfmRun}} passes the registry's non-gating scenario
+(\code{\link{scenarioReferenceEntry}}); without it \code{scenarioBlind} is skipped,
+with a warning.}
+
+\item{referenceGdxRegionMappingFile}{The reference gdx's own native mapping (PITFALLS
+§5). \code{NULL} (default) uses \code{gdxRegionMappingFile}.}
 
 \item{minScenarioDelta, deltaWindow}{Responsiveness-gate knobs (default
 \code{0.05} index points over \code{c(2040, 2060)}).}

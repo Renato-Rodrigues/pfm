@@ -16,20 +16,35 @@
 #' Regions and years are intersected, so a population series that is shorter than the
 #' energy panel silently restricts the result rather than recycling.
 #'
+#' \strong{The two sides carry primary energy in different units} (PITFALLS §28):
+#' history in EJ/yr (IEA, \code{\link{iamHistoricalData}}), the scenario in TWa/yr
+#' (REMIND's \code{vm_prodPe}, \code{\link{downscaleREMINDResults}}). The result is
+#' always EJ per capita, so \code{peUnit} has no default: a caller that does not say
+#' which side it is on cannot silently mix the two. Until 2026-10-05 the scenario side
+#' was not converted, and every scenario per-capita driver fell to 1/31.5 of its
+#' historical scale once the harmonisation offset faded out (2040).
+#'
 #' @param iamData A magpie object carrying \code{"petotal"} (total primary energy),
 #'   as returned by \code{\link{iamHistoricalData}} or
 #'   \code{\link{downscaleREMINDResults}}.
 #' @param population A magpie object of raw population, e.g.
 #'   \code{calcOutput("Population", scenario = "SSP2")}.
+#' @param peUnit \code{"EJ"} (history) or \code{"TWa"} (a REMIND gdx): the unit of
+#'   \code{petotal} in \code{iamData}. Required.
 #'
-#' @return A magpie object of total primary energy per capita over the shared
-#'   region-year support, or \code{NULL} when either input is missing
-#'   \code{"petotal"} or shares no support — in which case
+#' @return A magpie object of total primary energy per capita (EJ/yr per unit of
+#'   population) over the shared region-year support, or \code{NULL} when either input
+#'   is missing \code{"petotal"} or shares no support — in which case
 #'   \code{\link{actorPowerIndex}} simply emits no per-capita variants.
 #'
 #' @keywords internal
 #' @author Renato Rodrigues
-.energyPerCapita <- function(iamData, population) {
+.energyPerCapita <- function(iamData, population, peUnit) {
+  if (missing(peUnit)) {
+    stop(".energyPerCapita: 'peUnit' is required (\"EJ\" for history, \"TWa\" for a REMIND ",
+         "gdx) - the two sides differ by 31.536 (PITFALLS 28).", call. = FALSE)
+  }
+  peUnit <- match.arg(peUnit, c("EJ", "TWa"))
   if (is.null(iamData) || is.null(population)) return(NULL)
   if (!"petotal" %in% magclass::getNames(iamData)) return(NULL)
 
@@ -39,6 +54,7 @@
   if (length(regs) == 0 || length(yrs) == 0) return(NULL)
 
   pe  <- magclass::collapseNames(iamData[regs, yrs, "petotal"])
+  if (identical(peUnit, "TWa")) pe <- pe * 31.536  # EJ per TWa
   pop <- magclass::collapseNames(population[regs, yrs, ])
   epc <- pe / pop
   # A zero-population cell would otherwise produce Inf and poison the standardisation

@@ -52,17 +52,40 @@ test_that("per-capita variants are share x energy-per-capita, and shares are unc
 test_that(".energyPerCapita divides raw energy by raw population and refuses nonsense", {
   iam <- magclass::new.magpie(c("AAA", "BBB"), c(2010, 2020), "petotal", fill = 100)
   pop <- magclass::new.magpie(c("AAA", "BBB"), c(2010, 2020), NULL, fill = 10)
-  epc <- pfm:::.energyPerCapita(iam, pop)
+  epc <- pfm:::.energyPerCapita(iam, pop, peUnit = "EJ")
   expect_equal(unique(as.numeric(epc)), 10)
 
   # zero population must not leak Inf into the standardisation of every other driver
   pop0 <- pop; pop0["AAA", , ] <- 0
-  expect_true(all(is.na(as.numeric(pfm:::.energyPerCapita(iam, pop0)["AAA", , ]))))
+  expect_true(all(is.na(as.numeric(pfm:::.energyPerCapita(iam, pop0, peUnit = "EJ")["AAA", , ]))))
 
   # missing petotal, or no shared support, degrades to NULL rather than erroring
-  expect_null(pfm:::.energyPerCapita(magclass::new.magpie("AAA", 2010, "other"), pop))
-  expect_null(pfm:::.energyPerCapita(iam, magclass::new.magpie("ZZZ", 2010, NULL, fill = 1)))
-  expect_null(pfm:::.energyPerCapita(NULL, pop))
+  expect_null(pfm:::.energyPerCapita(magclass::new.magpie("AAA", 2010, "other"), pop, peUnit = "EJ"))
+  expect_null(pfm:::.energyPerCapita(iam, magclass::new.magpie("ZZZ", 2010, NULL, fill = 1),
+                                     peUnit = "EJ"))
+  expect_null(pfm:::.energyPerCapita(NULL, pop, peUnit = "EJ"))
+})
+
+test_that("history (EJ) and a REMIND gdx (TWa) give the same energy per capita (PITFALLS 28)", {
+  # One physical quantity, written in each side's own unit: 31.536 EJ = 1 TWa.
+  pop <- magclass::new.magpie(c("AAA", "BBB"), c(2010, 2020), NULL, fill = 10)
+  histSide <- magclass::new.magpie(c("AAA", "BBB"), c(2010, 2020), "petotal", fill = 31.536)
+  scenSide <- magclass::new.magpie(c("AAA", "BBB"), c(2010, 2020), "petotal", fill = 1)
+  expect_equal(as.numeric(pfm:::.energyPerCapita(scenSide, pop, peUnit = "TWa")),
+               as.numeric(pfm:::.energyPerCapita(histSide, pop, peUnit = "EJ")),
+               tolerance = 1e-12)
+
+  # No default: a caller that does not say which side it is on is an error, not EJ.
+  expect_error(pfm:::.energyPerCapita(histSide, pop), "peUnit")
+  expect_error(pfm:::.energyPerCapita(histSide, pop, peUnit = "PJ"))
+
+  # ... and each panel builder declares its own side. Until 2026-10-05 the scenario panel
+  # passed TWa as if it were EJ, and every scenario per-capita driver fell to 1/31.5 of its
+  # historical scale once the harmonisation offset faded (v5 and v6 both).
+  scen <- paste(deparse(pfm::panelDataScenario), collapse = "\n")
+  hist <- paste(deparse(pfm::panelDataHistorical), collapse = "\n")
+  expect_match(scen, 'peUnit = "TWa"', fixed = TRUE)
+  expect_match(hist, 'peUnit = "EJ"', fixed = TRUE)
 })
 
 test_that("the sweep grid carries all four actor-power forms and can be restricted", {

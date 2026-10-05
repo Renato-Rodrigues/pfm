@@ -63,7 +63,10 @@
 #' (\code{sweepOptions}), and a group swept before the record keeps the v5 grid.
 #'
 #' @return List with \code{scenarios} (or \code{NULL}), \code{gdxFile} (the gating
-#'   scenario's gdx, or \code{NULL}), \code{cachefolder}, \code{sourcefolder},
+#'   scenario's gdx, or \code{NULL}), \code{gdxRegionMapping} (its native mapping),
+#'   \code{referenceGdxFile} and \code{referenceGdxRegionMapping} (the non-gating scenario
+#'   the responsiveness gate compares against, \code{\link{scenarioReferenceEntry}}, or
+#'   \code{NULL}), \code{cachefolder}, \code{sourcefolder},
 #'   \code{madrat} (the resolved madrat block), \code{panel} and \code{sweep} (the blocks
 #'   resolved for \code{group}, or \code{NULL}), \code{group}, \code{recordsDir}, \code{resultsDir},
 #'   \code{modelDir}, \code{path} and \code{dir}.
@@ -111,6 +114,16 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
   if (!is.null(gdxFile) && !file.exists(gdxFile)) {
     say("gating gdx not found (", gdxFile, ") — the Projection-Sanity gate will be skipped.")
     gdxFile <- NULL
+  }
+  # The REFERENCE scenario, for the sweep's responsiveness gate (scenarioBlind, ADR 0039).
+  # Not passed until 2026-10-05, so that gate never ran in a pfmRun sweep and v6 deployed a
+  # spec whose two projections differ by 0.004 index points (PITFALLS 28).
+  refEntry <- if (!is.null(gdxFile)) scenarioReferenceEntry(scenReg$scenarios) else NULL
+  referenceGdxFile <- refEntry$gdx
+  referenceGdxRegionMapping <- refEntry$gdxRegionMapping
+  if (!is.null(gdxFile) && is.null(referenceGdxFile)) {
+    say("no reference (non-gating) scenario with an existing gdx — the responsiveness gate ",
+        "(scenarioBlind) will be skipped.")
   }
   if (!is.null(scenarios)) {
     say("scenario registry: ", length(scenarios), " scenario(s) [",
@@ -162,6 +175,8 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
   }
 
   list(scenarios = scenarios, gdxFile = gdxFile, gdxRegionMapping = gdxRegionMapping,
+       referenceGdxFile = referenceGdxFile,
+       referenceGdxRegionMapping = referenceGdxRegionMapping,
        cachefolder = cachefolder, sourcefolder = sourcefolder, madrat = madratBlock,
        panel = panel, sweep = sweep, group = group,
        resultsDir = def("resultsDir", NULL), modelDir = def("modelDir", NULL),
