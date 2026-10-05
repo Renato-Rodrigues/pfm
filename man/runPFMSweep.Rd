@@ -79,7 +79,10 @@ still passed through \code{\link{pfmSpecs}}.}
 deliverable (model-name \code{fe:} tags), as in the price-model selection.}
 
 \item{nearTieEps, feParsimonyWeight, dropIdleControls, softVifGate}{Maximin knobs,
-forwarded to \code{\link{computeMaximinScore}}.}
+forwarded to \code{\link{computeMaximinScore}}. \code{softVifGate} and
+\code{inferenceTGate} are the within-band soft keys of ADR 0048: \code{pfmRun} takes them
+from \code{config.yml} \code{sweep:} (\code{Inf} / \code{0} when declared \code{"off"}),
+and the manifest records them (\code{sweepOptions}).}
 
 \item{trendDominanceGate}{Numeric or \code{NULL}. Hard trend-dominance gate
 forwarded to \code{\link{computeMaximinScore}} (ADR 0033). \strong{Defaults to
@@ -101,8 +104,9 @@ bound on the incremental McFadden pseudo-R2; a spec exceeding it is degenerate).
 preference (ADR 0037), forwarded to \code{\link{computeMaximinScore}}. Defaults
 to \code{2.33} (roughly p < .02) for the PFM: among theory-equivalent specs a
 p=.049 squeaker on a theory term loses the near-tie to a comfortable margin.
-Never a hard gate — significance is not an admission criterion. \code{NULL}
-disables.}
+Never a hard gate — significance is not an admission criterion. \code{NULL} or
+\code{0} disables; through \code{pfmRun} use \code{0}, since \code{modifyList} drops a
+\code{NULL} (ADR 0048).}
 
 \item{rankBy, tierGate}{Tournament v2 (ADR 0039), forwarded to
 \code{\link{computeMaximinScore}}. PFM defaults: \code{rankBy = "worseDeltaR2"}

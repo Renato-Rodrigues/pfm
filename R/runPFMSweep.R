@@ -33,7 +33,10 @@
 #' @param selectFE Character vector or NULL. Region-FE constraint on the
 #'   deliverable (model-name \code{fe:} tags), as in the price-model selection.
 #' @param nearTieEps,feParsimonyWeight,dropIdleControls,softVifGate Maximin knobs,
-#'   forwarded to \code{\link{computeMaximinScore}}.
+#'   forwarded to \code{\link{computeMaximinScore}}. \code{softVifGate} and
+#'   \code{inferenceTGate} are the within-band soft keys of ADR 0048: \code{pfmRun} takes them
+#'   from \code{config.yml} \code{sweep:} (\code{Inf} / \code{0} when declared \code{"off"}),
+#'   and the manifest records them (\code{sweepOptions}).
 #' @param trendDominanceGate Numeric or \code{NULL}. Hard trend-dominance gate
 #'   forwarded to \code{\link{computeMaximinScore}} (ADR 0033). \strong{Defaults to
 #'   \code{0.9} for the PFM}, relaxed from the price model's \code{0.5}: the CAPMF
@@ -52,8 +55,9 @@
 #'   preference (ADR 0037), forwarded to \code{\link{computeMaximinScore}}. Defaults
 #'   to \code{2.33} (roughly p < .02) for the PFM: among theory-equivalent specs a
 #'   p=.049 squeaker on a theory term loses the near-tie to a comfortable margin.
-#'   Never a hard gate — significance is not an admission criterion. \code{NULL}
-#'   disables.
+#'   Never a hard gate — significance is not an admission criterion. \code{NULL} or
+#'   \code{0} disables; through \code{pfmRun} use \code{0}, since \code{modifyList} drops a
+#'   \code{NULL} (ADR 0048).
 #' @param rankBy,tierGate Tournament v2 (ADR 0039), forwarded to
 #'   \code{\link{computeMaximinScore}}. PFM defaults: \code{rankBy = "worseDeltaR2"}
 #'   (rank gate-passers by the worse sector's \eqn{\Delta R^2}(theory)) and
@@ -521,7 +525,10 @@ runPFMSweep <- function(group,
     # (.pfmSweepOptionsForGroup, pfmPanelDef).
     sweepOptions = list(apTransforms = as.list(apTransforms), dropCompositeAP = dropCompositeAP,
                         apExtrapolationGate = apExtrapolationGate, apExtrapolationSd = apExtrapolationSd,
-                        apExtrapolationWindow = as.list(apExtrapolationWindow)),
+                        apExtrapolationWindow = as.list(apExtrapolationWindow),
+                        # The within-band rule the group was selected under (ADR 0048); the
+                        # selection bootstrap re-ranks its resamples under the same one.
+                        softVifGate = softVifGate %||% Inf, inferenceTGate = inferenceTGate %||% 0),
     panelDef = list(firstYear = min(y), lastYear = max(y), movingAverage = movingAverage %||% 1L,
                     ieaVersion = pfmPanelDef()$ieaVersion, geothermal = pfmPanelDef()$geothermal)
   )

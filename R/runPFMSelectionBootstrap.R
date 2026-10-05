@@ -63,7 +63,9 @@
 #' @param seed Integer. RNG seed for the region draws. Default \code{1}.
 #' @param nearTieEps,feParsimonyWeight,dropIdleControls,softVifGate,trendDominanceGate,deltaR2Max,inferenceTGate,rankBy,tierGate
 #'   Maximin knobs forwarded to \code{\link{computeMaximinScore}}; defaults mirror
-#'   \code{\link{runPFMSweep}} — pass the same overrides the sweep ran with.
+#'   \code{\link{runPFMSweep}} — pass the same overrides the sweep ran with. \code{softVifGate}
+#'   and \code{inferenceTGate}, when not passed, are read from the group's manifest record
+#'   (\code{sweepOptions}, ADR 0048) before falling back to these defaults.
 #' @param verbose Logical. Default \code{TRUE}.
 #' @return Invisibly, the bootstrap summary list (also saved as
 #'   \code{selection-bootstrap.rds}), or \code{NULL} when skipped.
@@ -87,6 +89,12 @@ runPFMSelectionBootstrap <- function(group,
   groupDir <- .resolveGroupDir(group, resultsDir, modelDir, cachefolder)
   say <- function(...) if (isTRUE(verbose)) message("[pfm-boot:", group, "] ", ...)
   t0 <- Sys.time()
+  # The resamples must be re-ranked under the rule the group was SELECTED under (ADR 0048): a
+  # soft key the caller did not pass comes from the group's manifest record, not the default.
+  # pfmRun passes them anyway; this covers a direct call on a group selected with keys off.
+  rec <- .pfmSweepOptionsForGroup(groupDir)
+  if (missing(softVifGate) && !is.null(rec$softVifGate)) softVifGate <- rec$softVifGate
+  if (missing(inferenceTGate) && !is.null(rec$inferenceTGate)) inferenceTGate <- rec$inferenceTGate
   sectors <- c("Bulk", "Diffuse")
   stg <- "PolicyStringency"
 

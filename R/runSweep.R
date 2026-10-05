@@ -212,9 +212,16 @@ runSweep <- function(group,
   # The panel definition (years, smoothing, IEA edition): see pfmPanelDef. Recorded once, by
   # the sweep that fits the group; later steps only read it.
   if (!is.null(panelDef)) man$panel <- .pfmPanelDefNormalise(panelDef)
-  # The actor-power axes and the extrapolation gate the grid was selected with (0005 D7).
+  # The actor-power axes and the extrapolation gate the grid was selected with (0005 D7), and the
+  # within-band soft keys (ADR 0048). A disabled gate or key is written "off": JSON has no Inf.
   if (!is.null(sweepOptions)) {
     if (!is.finite(sweepOptions$apExtrapolationGate %||% Inf)) sweepOptions$apExtrapolationGate <- "off"
+    if (!is.null(sweepOptions$softVifGate) && !is.finite(sweepOptions$softVifGate)) {
+      sweepOptions$softVifGate <- "off"
+    }
+    if (!is.null(sweepOptions$inferenceTGate) && !(sweepOptions$inferenceTGate > 0)) {
+      sweepOptions$inferenceTGate <- "off"
+    }
     man$sweepOptions <- sweepOptions
   }
   if (!is.null(scenarioData)) man$scenario <- "present"

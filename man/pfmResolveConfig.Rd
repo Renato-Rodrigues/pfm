@@ -79,11 +79,15 @@ sweep:
   apExtrapolationGate: 0.275      # share of country-years; omit to leave the gate off
   apExtrapolationSd: 1
   apExtrapolationWindow: [2025, 2100]
+  softVifGate: "off"              # within-band soft keys (ADR 0048): a number, or "off"
+  inferenceTGate: "off"
   groups: {}                      # per-Run-Group overrides, as for panel
 }
-Arguments of \code{\link{runPFMSweep}} (design note 0005 D7). Like \code{panel}, it applies
-only to a group not swept yet: the sweep records them in the manifest
-(\code{sweepOptions}), and a group swept before the record keeps the v5 grid.
+Arguments of \code{\link{runPFMSweep}} (design note 0005 D7, ADR 0048). Like \code{panel}, it
+applies only to a group not swept yet: the sweep records them in the manifest
+(\code{sweepOptions}), and a group swept before the record keeps the v5 grid. Per key: a key
+the record does not hold, because it was added after the group was swept, is taken from
+here. The soft keys omitted everywhere mean \code{runPFMSweep}'s defaults (6 and 2.33).
 }
 
 \author{

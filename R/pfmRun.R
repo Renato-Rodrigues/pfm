@@ -286,8 +286,7 @@ pfmRun <- function(group = NULL,
   # The sweep's actor-power axes and extrapolation gate (0005 D7), resolved the same way; they
   # reach runPFMSweep as arguments below, and the caller's own arguments still win.
   sweepOpts <- .pfmSweepOptionsForGroup(groupDir, rc$sweep)
-  sweepKeys <- c("apTransforms", "dropCompositeAP", "apExtrapolationGate", "apExtrapolationSd",
-                 "apExtrapolationWindow")
+  sweepKeys <- .pfmSweepOptionKeys
   hasSpec <- file.exists(.pfmSelectedModels(groupDir))
 
   # ── stage / steps ───────────────────────────────────────────────────────────

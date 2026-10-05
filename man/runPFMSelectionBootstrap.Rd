@@ -52,7 +52,9 @@ the deployed spec is always included). Default \code{40}.}
 \item{seed}{Integer. RNG seed for the region draws. Default \code{1}.}
 
 \item{nearTieEps, feParsimonyWeight, dropIdleControls, softVifGate, trendDominanceGate, deltaR2Max, inferenceTGate, rankBy, tierGate}{Maximin knobs forwarded to \code{\link{computeMaximinScore}}; defaults mirror
-\code{\link{runPFMSweep}} — pass the same overrides the sweep ran with.}
+\code{\link{runPFMSweep}} — pass the same overrides the sweep ran with. \code{softVifGate}
+and \code{inferenceTGate}, when not passed, are read from the group's manifest record
+(\code{sweepOptions}, ADR 0048) before falling back to these defaults.}
 
 \item{verbose}{Logical. Default \code{TRUE}.}
 }

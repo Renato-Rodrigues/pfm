@@ -56,11 +56,15 @@
 #'   apExtrapolationGate: 0.275      # share of country-years; omit to leave the gate off
 #'   apExtrapolationSd: 1
 #'   apExtrapolationWindow: [2025, 2100]
+#'   softVifGate: "off"              # within-band soft keys (ADR 0048): a number, or "off"
+#'   inferenceTGate: "off"
 #'   groups: {}                      # per-Run-Group overrides, as for panel
 #' }
-#' Arguments of \code{\link{runPFMSweep}} (design note 0005 D7). Like \code{panel}, it applies
-#' only to a group not swept yet: the sweep records them in the manifest
-#' (\code{sweepOptions}), and a group swept before the record keeps the v5 grid.
+#' Arguments of \code{\link{runPFMSweep}} (design note 0005 D7, ADR 0048). Like \code{panel}, it
+#' applies only to a group not swept yet: the sweep records them in the manifest
+#' (\code{sweepOptions}), and a group swept before the record keeps the v5 grid. Per key: a key
+#' the record does not hold, because it was added after the group was swept, is taken from
+#' here. The soft keys omitted everywhere mean \code{runPFMSweep}'s defaults (6 and 2.33).
 #'
 #' @return List with \code{scenarios} (or \code{NULL}), \code{gdxFile} (the gating
 #'   scenario's gdx, or \code{NULL}), \code{gdxRegionMapping} (its native mapping),
@@ -196,8 +200,7 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
 # config form and the manifest form (lists, "off" for a disabled gate).
 #' @keywords internal
 .pfmSweepOptionsNormalise <- function(o) {
-  keys <- c("apTransforms", "dropCompositeAP", "apExtrapolationGate", "apExtrapolationSd",
-            "apExtrapolationWindow")
+  keys <- .pfmSweepOptionKeys
   unknown <- setdiff(names(o), keys)
   if (length(unknown)) {
     stop("sweep options: unknown key(s) ", paste(unknown, collapse = ", "), "; known: ",
@@ -217,18 +220,48 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
   if (!is.null(o$apExtrapolationWindow)) {
     o$apExtrapolationWindow <- as.numeric(unlist(o$apExtrapolationWindow))
   }
+  # The within-band soft keys of the maximin order (ADR 0048). "off" disables a key; so does an
+  # unquoted YAML `off`, which the yaml reader turns into FALSE. Disabled means a value no spec
+  # can trip - Inf for the VIF key, 0 for the |t| key - never NULL: modifyList() drops a NULL
+  # and the function default would silently come back.
+  isOff <- function(v) identical(v, "off") || isFALSE(v)
+  if (!is.null(o$softVifGate)) {
+    o$softVifGate <- if (isOff(o$softVifGate)) Inf else as.numeric(o$softVifGate)
+  }
+  if (!is.null(o$inferenceTGate)) {
+    o$inferenceTGate <- if (isOff(o$inferenceTGate)) 0 else as.numeric(o$inferenceTGate)
+  }
+  for (k in c("softVifGate", "inferenceTGate")) {
+    if (!is.null(o[[k]]) && (length(o[[k]]) != 1 || is.na(o[[k]]))) {
+      stop("sweep options: '", k, "' must be one number or \"off\"", call. = FALSE)
+    }
+  }
   o
 }
 
+# Every key a `sweep:` block or a manifest `sweepOptions` record may carry: the actor-power axes
+# and extrapolation gate (0005 D7), and the within-band soft keys (ADR 0048).
+.pfmSweepOptionKeys <- c("apTransforms", "dropCompositeAP", "apExtrapolationGate",
+                         "apExtrapolationSd", "apExtrapolationWindow",
+                         "softVifGate", "inferenceTGate")
+
 # A group's sweep options: the manifest record > none for a group swept before the record
 # (runPFMSweep's defaults, the v5 grid) > config.yml sweep: > none. As .pfmPanelDefForGroup.
+# Per KEY: a key the record does not hold (it was added after the group was swept - the soft
+# keys of ADR 0048 on v6 / v6-annual) comes from config.yml, so a re-sweep of that group takes
+# the declared rule, and records it, without the record's other keys moving.
 #' @keywords internal
 .pfmSweepOptionsForGroup <- function(groupDir, configSweep = NULL) {
   mf <- file.path(groupDir, "manifest.json")
   man <- if (file.exists(mf)) tryCatch(jsonlite::fromJSON(mf, simplifyVector = FALSE),
                                        error = function(e) NULL) else NULL
   if (!is.null(man[["sweepOptions"]])) {
-    return(structure(.pfmSweepOptionsNormalise(man[["sweepOptions"]]), source = "manifest"))
+    rec <- .pfmSweepOptionsNormalise(man[["sweepOptions"]])
+    fill <- configSweep[setdiff(names(configSweep), names(rec))]
+    if (length(fill)) {
+      return(structure(c(rec, fill), source = paste0("manifest + config (", paste(names(fill), collapse = ", "), ")")))
+    }
+    return(structure(rec, source = "manifest"))
   }
   if (!is.null(man[["panel_hash"]])) {
     return(structure(list(), source = "legacy (swept before the record): the v5 grid"))
@@ -242,11 +275,14 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
 .pfmSweepOptionsLabel <- function(o) {
   tf <- o$apTransforms %||% c("linear", "saturating")
   gate <- o$apExtrapolationGate %||% Inf
+  vif <- o$softVifGate %||% 6; tg <- o$inferenceTGate %||% 2.33
   paste0("actor power ", paste(tf, collapse = "/"),
          if (isTRUE(o$dropCompositeAP)) ", no composite AP" else "",
          if (is.finite(gate)) {
            paste0(", AP-extrapolation gate ", gate, " (> ", o$apExtrapolationSd %||% 1, " SD, ",
                   paste(o$apExtrapolationWindow %||% c(2025, 2100), collapse = "-"), ")")
-         } else ", no AP-extrapolation gate")
+         } else ", no AP-extrapolation gate",
+         "; within-band soft keys: VIF ", if (is.finite(vif)) paste0("> ", vif) else "off",
+         ", |t| ", if (tg > 0) paste0("< ", tg) else "off")
 }
 # nolint end
