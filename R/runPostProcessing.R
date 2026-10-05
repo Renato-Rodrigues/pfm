@@ -788,17 +788,17 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                 "pfm-sweep", "pfm-frontier", "pfm-temporal", "pfm-sector-speeds",
                 "pfm-agreement", "pfm-iv", "pfm-influence", "pfm-inference", "pfm-replay",
                 "pfm-donor", "pfm-projection", "pfm-regfront", "pfm-coupling-bound",
-                "pfm-selection-bootstrap", "pfm-remind-inputs")
+                "pfm-sanity-pool", "pfm-selection-bootstrap", "pfm-remind-inputs")
   # Aliases expand to an ORDERED step list, so the whole downstream build is one
   # argument instead of a bash script that re-implements ordering, resume and
   # artifact checks outside the package. Everything downstream of the sweep needs
   # the donor table before the bound, and the bound before anything consumes it.
   stepAliases <- list(
     "pfm-downstream" = c("pfm-donor", "pfm-projection", "pfm-coupling-bound",
-                         "pfm-selection-bootstrap"),
+                         "pfm-sanity-pool", "pfm-selection-bootstrap"),
     "pfm-all" = c("pfm-sweep", "pfm-frontier", "pfm-temporal", "pfm-sector-speeds",
                   "pfm-donor", "pfm-projection", "pfm-coupling-bound",
-                  "pfm-selection-bootstrap"))
+                  "pfm-sanity-pool", "pfm-selection-bootstrap"))
   steps <- .pfmLegacySteps(steps)
   for (a in names(stepAliases)) {
     if (a %in% steps) steps <- c(setdiff(steps, a), stepAliases[[a]])
@@ -1023,6 +1023,19 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
     do.call(runPFMExportREMINDInputs, riArgs)
   }
 
+  # Before the bootstrap, which reads its verdicts: every pool spec gets a sanity verdict, so
+  # the conditional winners exclude every spec the gates reject (PITFALLS 29 follow-up).
+  if (doStep("pfm-sanity-pool")) {
+    say("step: pfm-sanity-pool")
+    dots <- list(...)
+    spArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
+                     cachefolder = cachefolder, topK = bootstrapTopK, gdxFile = gdxFile,
+                     verbose = verbose),
+                dots[names(dots) %in% setdiff(names(formals(runPFMSanityPool)),
+                                              c("group", "resultsDir", "modelDir", "cachefolder",
+                                                "topK", "gdxFile", "verbose"))])
+    do.call(runPFMSanityPool, spArgs)
+  }
   if (doStep("pfm-selection-bootstrap")) {
     say("step: pfm-selection-bootstrap")
     dots <- list(...)

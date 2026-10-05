@@ -391,7 +391,12 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
                              vcovGate = c("likelihood-mismatch", "flat"),
                              apExtrapolationGate = Inf, apExtrapolationSd = 1,
                              apExtrapolationWindow = c(2025, 2100),
-                             say = function(...) invisible()) {
+                             say = function(...) invisible(),
+                             stopAtFirstPass = TRUE) {
+  # stopAtFirstPass = FALSE walks EVERY model in passModels (up to maxModels) and returns a
+  # verdict for each; `chosen` is still the first that passed. runPFMSanityPool uses it to give
+  # the whole bootstrap pool a verdict, so the bootstrap's conditional winners exclude every
+  # spec the gates would reject, not only the ones the deployment walk happened to reach.
   ceilingByModel <- list()
   gammaByModel <- list()
   vcovByModel <- list()
@@ -713,8 +718,8 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
         else paste0(nSevere, " severe / ", nWarning, " warnings",
                     if (pass) " - PASS" else ""))
     if (pass) {
-      chosen <- m
-      break
+      if (is.null(chosen)) chosen <- m
+      if (isTRUE(stopAtFirstPass)) break
     }
   }
 

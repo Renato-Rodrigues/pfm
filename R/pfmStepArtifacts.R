@@ -38,6 +38,7 @@ pfmStepArtifacts <- function(steps = NULL) {
     "pfm-inference"           = "inference.rds",
     "pfm-regfront"            = "regional-frontier.rds",
     "pfm-sector-speeds"       = "sector-speeds.rds",
+    "pfm-sanity-pool"         = "sanity-pool.rds",
     "pfm-selection-bootstrap" = "selection-bootstrap.rds",
     "pfm-replay"              = "historical-replay.rds",
     "pfm-donor"               = c("donor-assignment-band-Bulk.rds",

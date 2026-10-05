@@ -111,7 +111,7 @@ pfmRun <- function(group = NULL,
     diagnostics = c("pfm-agreement", "pfm-iv", "pfm-influence", "pfm-inference",
                     "pfm-replay"),
     downstream  = c("pfm-donor", "pfm-projection", "pfm-coupling-bound",
-                    "pfm-selection-bootstrap", "pfm-regfront"),
+                    "pfm-sanity-pool", "pfm-selection-bootstrap", "pfm-regfront"),
     remind      = "pfm-remind-inputs",
     custom      = character(0))
 

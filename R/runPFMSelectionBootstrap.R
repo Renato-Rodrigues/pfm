@@ -150,6 +150,18 @@ runPFMSelectionBootstrap <- function(group,
   sanityRejected <- if (is.data.frame(trace) && all(c("model", "pass") %in% names(trace))) {
     unique(trace$model[!(trace$pass %in% TRUE)])
   } else character(0)
+  verdictModels <- if (is.data.frame(trace)) trace$model else character(0)
+  # ... and the verdicts for the rest of the pool (runPFMSanityPool), when the step has run.
+  # Without them only the specs the deployment walk reached can be excluded: on v6, 43% of
+  # the conditional wins went to specs the actor-power gate rejects but the walk never saw.
+  sp <- file.path(groupDir, "sanity-pool.rds")
+  if (file.exists(sp)) {
+    v <- tryCatch(readRDS(sp)$verdicts, error = function(e) NULL)
+    if (is.data.frame(v)) {
+      sanityRejected <- unique(c(sanityRejected, v$model[!(v$pass %in% TRUE)]))
+      verdictModels <- unique(c(verdictModels, v$model))
+    }
+  }
 
   # ── Historical panel, as trained ──────────────────────────────────────────────
   panel <- panelData
@@ -218,6 +230,8 @@ runPFMSelectionBootstrap <- function(group,
       length(regions), " region blocks",
       if (length(sanityRejected)) paste0(" | sanity-rejected filter: ",
                                          length(sanityRejected), " spec(s)") else "",
+      " | pool specs without a sanity verdict: ", length(setdiff(pool, verdictModels)),
+      if (length(setdiff(pool, verdictModels))) " (run pfm-sanity-pool to screen them)" else "",
       " | deployed: ", if (is.na(deployed)) "(none)" else deployed)
 
   # Full-fit $data computed lazily and only for specs that still need (re)computation.
@@ -357,6 +371,9 @@ runPFMSelectionBootstrap <- function(group,
     } else NULL,
     gateEmptyShare = mean(perResample$nGatePass == 0),
     sanityRejected = sanityRejected,
+    # Pool specs with no sanity verdict: their conditional wins are not screened. 0 once
+    # runPFMSanityPool has run; read this before quoting a conditional share.
+    sanityUnwalked = setdiff(pool, verdictModels),
     perResample = perResample,
     pool = pool, poolSize = length(pool), topK = topK, seed = seed,
     knobs = list(nearTieEps = nearTieEps, feParsimonyWeight = feParsimonyWeight,
