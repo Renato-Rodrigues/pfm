@@ -6,12 +6,20 @@
 # and the includeLaggedPS/indexMax fields keep the keys disjoint from the price-model
 # bootstrap cache in the same boot-cache/ folder. The tag predates the psm -> pfm rename
 # and stays: it only enters the hash, and changing it would orphan every cached resample.
+#
+# `apTransform` is part of the key (2026-10-06, PITFALLS 29). Without it the linear, satAP,
+# satInn and satInc twins of one spec shared a single cache file: whichever twin was cached
+# first supplied every twin's resample rows, under its own name, so the other three vanished
+# from the bootstrap. v6's deployed X-1791 satAP showed 0% wins and 0% gate passes for that
+# reason alone. Adding the field orphans every earlier cached resample, deliberately: any of
+# them may hold a twin's rows.
 #' @keywords internal
 .pfmBootCacheKey <- function(cfg, sector, panelHash, seed) {
   fitFields <- cfg[intersect(names(cfg), c(
     "actorPowerDrivers", "actorPowerIndex", "instQualityDrivers", "controlDrivers",
     "regionMappingFixedEffects", "useMundlak", "includeLaggedPS", "logisticTimeTrend",
     "gdpGovInteraction", "interactRegionFE", "indexMax"))]
+  fitFields$apTransform <- as.character(cfg$apTransform %||% "linear")
   substr(digest::digest(list("psm", fitFields, sector, panelHash, seed), algo = "sha256"), 1, 16)
 }
 
@@ -246,6 +254,13 @@ runPFMSelectionBootstrap <- function(group,
     }
     cached <- if (!is.null(cfRead) && file.exists(cfRead)) tryCatch(readRDS(cfRead), error = function(e) NULL) else NULL
     if (!(is.data.frame(cached) && all(validCols %in% names(cached)))) cached <- NULL  # stale schema -> drop
+    # Rows written for a DIFFERENT spec under the same key are another model's resamples:
+    # drop them rather than relabel them (the twin collision of PITFALLS 29, and any future one).
+    if (!is.null(cached) && !all(cached$model == mdl)) {
+      say("cache file for '", mdl, "' (", sec, ") holds rows of ",
+          paste(unique(setdiff(cached$model, mdl)), collapse = ", "), " - ignored, refitting")
+      cached <- NULL
+    }
     nHave <- if (is.null(cached)) 0L else nrow(cached)
     if (nHave >= nResamples) {                       # full hit / truncate: no fitting
       specRows[[paste(mdl, sec)]] <- cached[cached$resample <= nResamples, , drop = FALSE]

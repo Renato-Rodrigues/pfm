@@ -64,6 +64,40 @@ test_that("PFM selection bootstrap runs, caches, extends, and tracks the deploye
   expect_true(all(resG$perResample$deployedRank[resG$perResample$deployedGatePass] >= 1))
 })
 
+test_that("the bootstrap cache keeps actor-power transform twins apart (PITFALLS 29)", {
+  # v6 (2026-10-05): the linear / satAP / satInn / satInc twins of one spec differ ONLY in
+  # apTransform. The key ignored it, so the twins shared one cache file, the first twin's rows
+  # served all four under its own name, and the deployed X-1791 satAP showed 0% wins.
+  base <- list(actorPowerDrivers = c("Innovator Power", "Incumbent Power", "Incumbent Power pc"),
+               actorPowerIndex = c("Innovator Power", "Incumbent Power", "Incumbent Power pc"),
+               instQualityDrivers = "Government Effectiveness (WGI)", controlDrivers = "GDP per Capita (Q-centred)",
+               regionMappingFixedEffects = "regionmapping_EU_OECDp.csv", logisticTimeTrend = TRUE)
+  tf <- c("linear", "saturating", "saturating-innovator", "saturating-incumbent")
+  keys <- vapply(tf, function(t) pfm:::.pfmBootCacheKey(c(base, list(apTransform = t)), "Bulk", "h", 1L), "")
+  expect_length(unique(keys), 4)
+  # a spec without the field is the linear one
+  expect_identical(pfm:::.pfmBootCacheKey(base, "Bulk", "h", 1L), keys[["linear"]])
+})
+
+test_that("a cache file holding another spec's rows is refit, never relabelled", {
+  resultsDir <- withr::local_tempdir()
+  modelDir <- withr::local_tempdir()
+  pfmTestSweep("psm-boot-poison", resultsDir, modelDir)
+  run <- function() suppressMessages(suppressWarnings(runPFMSelectionBootstrap(
+    group = "psm-boot-poison", resultsDir = resultsDir, modelDir = modelDir,
+    nResamples = 4L, topK = 5L, tierGate = "Blue", verbose = FALSE)))
+  res <- run()
+  files <- list.files(file.path(modelDir, "boot-cache"), pattern = "^pfmboot_", full.names = TRUE)
+  expect_gt(length(files), 0)
+  # Poison every cache file: same key, rows labelled as some other model.
+  for (f in files) { d <- readRDS(f); d$model <- "X-9999 POISON"; saveRDS(d, f) }
+  res2 <- run()
+  expect_false(any(res2$perResample$winner %in% "X-9999 POISON"))
+  expect_identical(res2$perResample$winner, res$perResample$winner)
+  # ... and the refit rewrote the files under their own spec names
+  expect_false(any(vapply(files, function(f) any(readRDS(f)$model == "X-9999 POISON"), logical(1))))
+})
+
 test_that("PFM selection bootstrap skips cleanly without a sweep artifact", {
   resultsDir <- withr::local_tempdir()
   modelDir <- withr::local_tempdir()
