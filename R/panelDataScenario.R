@@ -283,38 +283,24 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
       outAtStitch <- out
     }
 
-    # Exclude variables already perfectly anchored by their own projection method
-    constants <- c("Voice and Accountability (WGI)", "Political Stability (WGI)",
-                   "Regulatory Quality (WGI)",
-                   magclass::getNames(vdemNorm),
-                   magclass::getNames(scNorm))
-
+    # EVERY series shared with the historical panel is harmonised, the institution-rule ones
+    # included. Until 2026-10-06 the V-Dem series and three WGI ones were excluded as "already
+    # anchored by their own projection method" - but that method starts from the last RAW
+    # observation (V-Dem 2025, WGI 2024), while the panel holds a moving average at its last
+    # year. The gap reached 0.2-0.4 (normalised) for some countries (Myanmar, Qatar) and moved
+    # their stringency by up to 6.6 index points at the anchor seam (PITFALLS 30).
     varsToHarmonize <- intersect(magclass::getNames(out), magclass::getNames(histPanel))
-    varsToHarmonize <- setdiff(varsToHarmonize, constants)
-
-    for (v in varsToHarmonize) {
-      offset <- magclass::setYears(histPanel[, stitchYear, v], NULL) -
-                magclass::setYears(outAtStitch[, stitchYear, v], NULL)
-
-      for (year_val in scenYears) {
-        if (year_val <= stitchYear) {
-          weight <- 1.0
-        } else if (year_val >= harmonizeScenarioYear) {
-          weight <- 0.0
-        } else {
-          weight <- (harmonizeScenarioYear - year_val) / (harmonizeScenarioYear - stitchYear)
-        }
-        out[, year_val, v] <- out[, year_val, v] + offset * weight
-      }
-    }
+    out <- .pfmHarmoniseScenario(out, histPanel, outAtStitch, varsToHarmonize, stitchYear,
+                                 harmonizeScenarioYear)
   }
 
   # ── Post-harmonization additions (need historical PCA rotation + quartile breaks) ──
   # V-Dem state-capacity PCA: apply the historical rotation cached by the
   # panelDataHistorical() call inside the harmonization block above.
   storedRot <- .pfm_env$sc_pca_rotation
+  # The inputs are read back from `out`, i.e. harmonised like every other series (PITFALLS 30).
   scPC_scen <- computeVDemStateCapacityPC(
-    scNorm[, y, ],
+    out[, , magclass::getNames(scNorm)],
     rotation = storedRot   # NULL triggers fit mode if historical call didn't run
   )
   if (!is.null(scPC_scen)) out <- mbind(out, scPC_scen)
@@ -326,6 +312,23 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
 
   return(out)
 }
+# Harmonisation (DATA.md §5.5): each variable is shifted by its offset to history at the stitch
+# year (the panel's last year; `atStitch` is the scenario interpolated there when the year is not a
+# scenario period), the full offset up to the stitch year, fading linearly to zero by `fadeYear`.
+#' @keywords internal
+.pfmHarmoniseScenario <- function(out, histPanel, atStitch, vars, stitchYear, fadeYear) {
+  for (v in vars) {
+    offset <- magclass::setYears(histPanel[, stitchYear, v], NULL) -
+      magclass::setYears(atStitch[, stitchYear, v], NULL)
+    offset[!is.finite(offset)] <- 0
+    for (yv in magclass::getYears(out, as.integer = TRUE)) {
+      wt <- if (yv <= stitchYear) 1 else if (yv >= fadeYear) 0 else (fadeYear - yv) / (fadeYear - stitchYear)
+      out[, yv, v] <- out[, yv, v] + offset * wt
+    }
+  }
+  out
+}
+
 # The harmonisation's historical panel, from `cache` when it holds one built with the same
 # arguments (and pfm version), else built and written there. The .pfm_env state the historical
 # call leaves for the scenario panel travels with it.

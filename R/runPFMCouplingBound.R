@@ -196,7 +196,9 @@ runPFMCouplingBound <- function(group,
   # "-peEJ": panels written before the scenario primary-energy unit fix (PITFALLS 28) carry
   # per-capita drivers at 1/31.5 scale after 2040 and must never be read again. The name is
   # the only key this cache has, so the fix changes the name.
-  scenCache <- file.path(resultsDir, "panel-cache", paste0(group, scenTag, "-scen-ca-peEJ.rds"))
+  # "-harm": panels written before 2026-10-06 left the institution-rule series unharmonised
+  # (PITFALLS 30), so the same rule applies.
+  scenCache <- file.path(resultsDir, "panel-cache", paste0(group, scenTag, "-scen-ca-peEJ-harm.rds"))
   if (file.exists(scenCache)) {
     say("scenario panel: cache hit ", scenCache)
     scen <- readRDS(scenCache)

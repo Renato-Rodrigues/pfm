@@ -36,6 +36,10 @@
 #'   climate regulation and states with almost none, so the national outcome sits
 #'   far below the frontier its institutions could support.
 #' @param k Number of donors per recipient.
+#' @param qualityQuantiles Passed to \code{\link{computeDonorAssignment}}: the covered
+#'   nearest-neighbour distance quantiles bounding "close" and "far". The default
+#'   \code{c(0.5, 0.9)} is the deployed rule; \code{c(0.5, Inf)} matches every recipient to
+#'   its nearest donors (the "nearest donors always" arm, design note 0005 §7a decision 3).
 #' @param verbose Logical.
 #'
 #' @return Invisibly, the donor table (both sectors stacked).
@@ -48,6 +52,7 @@ runPFMDonorAssumptions <- function(group,
                                    panelData = NULL,
                                    basisOverride = c(USA = "median"),
                                    k = 3,
+                                   qualityQuantiles = c(0.5, 0.9),
                                    verbose = TRUE) {
   groupDir <- .resolveGroupDir(group, resultsDir, modelDir, cachefolder)
   say <- function(...) if (isTRUE(verbose)) message("[PFM-DONOR:", group, "] ", ...)
@@ -108,7 +113,8 @@ runPFMDonorAssumptions <- function(group,
       regionMappingFixedEffects = NULL, driverScaling = fit$driverScaling,
       outcomeVar = "Policy Stringency")
     d <- computeDonorAssignment(fit, fr$bySector[[sec]]$scores, sDf, k = k,
-                                basisOverride = basisOverride, sector = sec)
+                                basisOverride = basisOverride, sector = sec,
+                                qualityQuantiles = qualityQuantiles)
     say(sprintf("%-8s recipients %d | close %d / far %d / none %d | median inherited E %.3f",
                 sec, nrow(d), sum(d$donorQuality == "close"), sum(d$donorQuality == "far"),
                 sum(d$donorQuality == "none"), stats::median(d$efficiencyRatio, na.rm = TRUE)))
@@ -159,7 +165,8 @@ runPFMDonorAssumptions <- function(group,
     recipients = nrow(tab),
     close = sum(tab$donorQuality == "close"),
     far = sum(tab$donorQuality == "far"),
-    none = sum(tab$donorQuality == "none")))
+    none = sum(tab$donorQuality == "none"),
+    qualityQuantiles = as.character(qualityQuantiles)))   # "Inf": the nearest-donors arm
   invisible(tab)
 }
 # nolint end

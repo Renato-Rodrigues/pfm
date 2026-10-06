@@ -14,9 +14,11 @@
 #' @param instQualityDrivers character vector
 #' @param controlDrivers character vector
 #' @param regionMappingFixedEffects character, mapping file name
-#' @param lag integer. Time lag for independent variables (drivers).
-#'   If \code{lag > 0}, drivers at time \code{t-lag} are used to predict the
-#'   dependent variable at time \code{t}. Default: \code{1}.
+#' @param lag integer. Time lag for independent variables (drivers), in YEARS.
+#'   If \code{lag > 0}, drivers at year \code{t-lag} are used to predict the
+#'   dependent variable at time \code{t}; a lagged year not on the panel's year axis
+#'   (a scenario panel in 5- to 20-year steps) is linearly interpolated between its
+#'   neighbours (docs/PITFALLS.md section 31). Default: \code{1}.
 #' @param useMundlak Logical. If \code{TRUE}, applies the Mundlak (1978) correction:
 #'   computes within-region means of all theory and control variables and appends
 #'   them as \code{<var>_grp_mean} columns. Region fixed-effect dummies are
@@ -177,6 +179,20 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
     )
   }
 
+  # --- The driver lag, in YEARS (PITFALLS 31) ---
+  # `lag` counts calendar years, not rows of the year axis. On the annual estimation panel the two
+  # are the same (and the fit is unchanged); on a scenario panel with REMIND's 5/10/20-year steps a
+  # row lag would read drivers 5-20 years old. A lagged year that is not on the axis is linearly
+  # interpolated between its neighbours; one before the first year is NA, as before.
+  lagLookup <- lapply(years, function(yr) .pfmLagLookup(years, yr - lag))
+  lagValue <- function(r, yi, v) {
+    lk <- lagLookup[[yi]]
+    if (is.null(lk)) return(NA_real_)
+    v0 <- data_arr[r, lk[["i0"]], v]
+    if (lk[["w"]] == 0) return(v0)
+    (1 - lk[["w"]]) * v0 + lk[["w"]] * data_arr[r, lk[["i1"]], v]
+  }
+
   # --- Build flat data.frame row by row (region x year) ---
   rows <- list()
   idx <- 1
@@ -237,12 +253,11 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
         row$ecp <- NA_real_
       }
 
-      # Fetch driver values from the lagged year index (yi - lag)
-      yiLag <- yi - lag
+      # Driver values at year - lag (lagValue above; PITFALLS 31)
 
       # Compute lagged dependent variables
       if (hasEcp) {
-        valLag <- if (yiLag >= 1) data_arr[r, yiLag, ecpName] else NA_real_
+        valLag <- lagValue(r, yi, ecpName)
         row$lagged_ecp <- if (is.finite(valLag)) valLag else NA_real_
         row$lagged_adoption <- if (is.finite(valLag)) as.integer(valLag > 0) else NA_integer_
       } else {
@@ -253,7 +268,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
       # Actor Power Index
       if (!is.null(apiName)) {
         for (i in seq_along(actorPowerIndex)) {
-          valI <- if (yiLag >= 1) data_arr[r, yiLag, apiName[i]] else NA_real_
+          valI <- lagValue(r, yi, apiName[i])
           row[[make.names(actorPowerIndex[i])]] <- if (is.finite(valI)) valI else NA_real_
         }
       }
@@ -269,7 +284,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
       for (v in cleanDrivers) {
         safeName <- make.names(v)
         vMagpie <- getMagpieName(v, sector)
-        val <- if (yiLag >= 1) data_arr[r, yiLag, vMagpie] else NA_real_
+        val <- lagValue(r, yi, vMagpie)
         row[[safeName]] <- if (is.finite(val)) val else NA_real_
       }
 
@@ -568,3 +583,16 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
     stop("unknown apTransform '", apTransform, "'", call. = FALSE)
   )
 }
+
+# Where year `target` sits on the year axis `years`: the bracketing indices and the
+# interpolation weight of the upper one. NULL when `target` lies outside the axis.
+#' @keywords internal
+.pfmLagLookup <- function(years, target) {
+  i <- match(target, years)
+  if (!is.na(i)) return(c(i0 = i, i1 = i, w = 0))
+  if (target < min(years) || target > max(years)) return(NULL)
+  below <- which(years < target); above <- which(years > target)   # robust to an unsorted axis
+  i0 <- below[which.max(years[below])]; i1 <- above[which.min(years[above])]
+  c(i0 = i0, i1 = i1, w = (target - years[i0]) / (years[i1] - years[i0]))
+}
+

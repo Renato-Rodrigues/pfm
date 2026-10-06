@@ -12,6 +12,7 @@ runPFMDonorAssumptions(
   panelData = NULL,
   basisOverride = c(USA = "median"),
   k = 3,
+  qualityQuantiles = c(0.5, 0.9),
   verbose = TRUE
 )
 }
@@ -33,6 +34,11 @@ climate regulation and states with almost none, so the national outcome sits
 far below the frontier its institutions could support.}
 
 \item{k}{Number of donors per recipient.}
+
+\item{qualityQuantiles}{Passed to \code{\link{computeDonorAssignment}}: the covered
+nearest-neighbour distance quantiles bounding "close" and "far". The default
+\code{c(0.5, 0.9)} is the deployed rule; \code{c(0.5, Inf)} matches every recipient to
+its nearest donors (the "nearest donors always" arm, design note 0005 §7a decision 3).}
 
 \item{verbose}{Logical.}
 }

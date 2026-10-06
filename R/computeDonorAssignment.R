@@ -96,6 +96,14 @@
 #'   one attribute the drivers cannot see. \code{c(USA = "median")} is the honest
 #'   assignment: typical realized ambition, not the ambition its capacity permits.
 #' @param sector \code{"Bulk"} or \code{"Diffuse"} — recorded on the output.
+#' @param drivers Optional subset of the base drivers (coefficient names) that enter the
+#'   distance. \code{NULL} (default) uses all of them. A sensitivity: the deployed rule
+#'   matches on the full specification.
+#' @param weighting \code{"beta"} (default): each driver weighted by its \eqn{|\beta|} share;
+#'   \code{"equal"}: every driver alike.
+#' @param qualityQuantiles The quantiles of the covered countries' nearest-neighbour distances
+#'   that bound "close" and "far". Default \code{c(0.5, 0.9)}. A second value of \code{Inf}
+#'   removes the "none" class: every recipient takes its nearest donors.
 #'
 #' @return Data.frame, one row per recipient: \code{region, sector, donors}
 #'   (comma-separated), \code{donorWeights}, \code{distance} (to the nearest
@@ -118,7 +126,15 @@
 #' @author Renato Rodrigues
 computeDonorAssignment <- function(fit, frontierScores, panelData, year = NULL,
                                    k = 3L, maxDistance = NULL, bandPercentile = 0.25,
-                                   basisOverride = NULL, sector = NA_character_) {
+                                   basisOverride = NULL, sector = NA_character_,
+                                   drivers = NULL, weighting = c("beta", "equal"),
+                                   qualityQuantiles = c(0.5, 0.9)) {
+  weighting <- match.arg(weighting)
+  if (!is.numeric(qualityQuantiles) || length(qualityQuantiles) != 2 ||
+        any(qualityQuantiles < 0) || qualityQuantiles[1] > qualityQuantiles[2]) {
+    stop("computeDonorAssignment: 'qualityQuantiles' must be two increasing values in [0, 1], ",
+         "or Inf for the second (no 'none' class).", call. = FALSE)
+  }
   if (!is.null(basisOverride) &&
         (!is.character(basisOverride) || is.null(names(basisOverride)) ||
            !all(basisOverride %in% c("median", "lowBand", "donor")))) {
@@ -145,7 +161,15 @@ computeDonorAssignment <- function(fit, frontierScores, panelData, year = NULL,
                       names(beta))]
   beta <- beta[is.finite(beta) & abs(beta) > 0]
   if (!length(beta)) stop("computeDonorAssignment: no usable base-driver coefficients.")
-  w <- abs(beta) / sum(abs(beta))
+  # A restricted matching space (sensitivity): only the named base drivers enter the distance.
+  if (!is.null(drivers)) {
+    unknown <- setdiff(drivers, names(beta))
+    if (length(unknown)) stop("computeDonorAssignment: 'drivers' not among the base drivers: ",
+                              paste(unknown, collapse = ", "), call. = FALSE)
+    beta <- beta[drivers]
+  }
+  w <- if (identical(weighting, "equal")) stats::setNames(rep(1 / length(beta), length(beta)), names(beta)) else
+    abs(beta) / sum(abs(beta))
 
   # --- recipient design on the SAME frozen scaling as the fit ------------------
   sDf <- if (is.data.frame(panelData)) panelData else preparePanelData(
@@ -187,7 +211,8 @@ computeDonorAssignment <- function(fit, frontierScores, panelData, year = NULL,
     d <- dist2(X[r, ], X[setdiff(donors, r), , drop = FALSE])
     sqrt(min(d))
   }))
-  q <- stats::quantile(dCov, c(0.5, 0.9), na.rm = TRUE)
+  q <- stats::quantile(dCov, pmin(qualityQuantiles, 1), na.rm = TRUE)
+  if (is.infinite(qualityQuantiles[2])) q[[2]] <- Inf   # every recipient gets its nearest donors
 
   effMap <- stats::setNames(eff$efficiencyRatio, eff$region)
   kk <- max(1L, min(as.integer(k), length(donors)))

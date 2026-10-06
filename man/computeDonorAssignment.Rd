@@ -13,7 +13,10 @@ computeDonorAssignment(
   maxDistance = NULL,
   bandPercentile = 0.25,
   basisOverride = NULL,
-  sector = NA_character_
+  sector = NA_character_,
+  drivers = NULL,
+  weighting = c("beta", "equal"),
+  qualityQuantiles = c(0.5, 0.9)
 )
 }
 \arguments{
@@ -60,6 +63,17 @@ one attribute the drivers cannot see. \code{c(USA = "median")} is the honest
 assignment: typical realized ambition, not the ambition its capacity permits.}
 
 \item{sector}{\code{"Bulk"} or \code{"Diffuse"} — recorded on the output.}
+
+\item{drivers}{Optional subset of the base drivers (coefficient names) that enter the
+distance. \code{NULL} (default) uses all of them. A sensitivity: the deployed rule
+matches on the full specification.}
+
+\item{weighting}{\code{"beta"} (default): each driver weighted by its \eqn{|\beta|} share;
+\code{"equal"}: every driver alike.}
+
+\item{qualityQuantiles}{The quantiles of the covered countries' nearest-neighbour distances
+that bound "close" and "far". Default \code{c(0.5, 0.9)}. A second value of \code{Inf}
+removes the "none" class: every recipient takes its nearest donors.}
 }
 \value{
 Data.frame, one row per recipient: \code{region, sector, donors}

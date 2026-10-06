@@ -39,9 +39,11 @@ preparePanelData(
 
 \item{regionMappingFixedEffects}{character, mapping file name}
 
-\item{lag}{integer. Time lag for independent variables (drivers).
-If \code{lag > 0}, drivers at time \code{t-lag} are used to predict the
-dependent variable at time \code{t}. Default: \code{1}.}
+\item{lag}{integer. Time lag for independent variables (drivers), in YEARS.
+If \code{lag > 0}, drivers at year \code{t-lag} are used to predict the
+dependent variable at time \code{t}; a lagged year not on the panel's year axis
+(a scenario panel in 5- to 20-year steps) is linearly interpolated between its
+neighbours (docs/PITFALLS.md section 31). Default: \code{1}.}
 
 \item{useMundlak}{Logical. If \code{TRUE}, applies the Mundlak (1978) correction:
 computes within-region means of all theory and control variables and appends

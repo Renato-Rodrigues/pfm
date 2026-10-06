@@ -216,3 +216,52 @@ test_that("a malformed basisOverride fails loudly", {
   expect_error(computeDonorAssignment(fit, sc, donorDesign(fit),
                                       basisOverride = c(X1 = "nonsense")), "basisOverride")
 })
+
+# The matching-rule sensitivities (analysis/v6/donorAlternatives.R, decision 3 of 2026-10-06).
+donorScores <- function(fit) data.frame(region = unique(as.character(fit$data$region)),
+                                        year = max(fit$data$year), efficiencyRatio = 0.6,
+                                        stringsAsFactors = FALSE)
+
+test_that("the sensitivity arguments at their defaults reproduce the deployed rule", {
+  fit <- donorFit(); sc <- donorScores(fit); dd <- donorDesign(fit)
+  d0 <- computeDonorAssignment(fit, sc, dd, k = 2, sector = "Bulk")
+  d1 <- computeDonorAssignment(fit, sc, dd, k = 2, sector = "Bulk", drivers = NULL,
+                               weighting = "beta", qualityQuantiles = c(0.5, 0.9))
+  expect_identical(d0, d1)
+})
+
+test_that("'drivers' restricts the matching space and an unknown driver fails loudly", {
+  fit <- donorFit(); sc <- donorScores(fit); dd <- donorDesign(fit)
+  w0 <- attr(computeDonorAssignment(fit, sc, dd, k = 2, sector = "Bulk"), "weights")
+  one <- names(w0)[1]
+  d <- computeDonorAssignment(fit, sc, dd, k = 2, sector = "Bulk", drivers = one)
+  expect_identical(names(attr(d, "weights")), one)
+  expect_equal(sum(attr(d, "weights")), 1, tolerance = 1e-8)
+  expect_error(computeDonorAssignment(fit, sc, dd, k = 2, sector = "Bulk", drivers = "Not A Driver"),
+               "not among the base drivers")
+})
+
+test_that("equal weighting gives every base driver the same weight", {
+  fit <- donorFit(); sc <- donorScores(fit)
+  w <- attr(computeDonorAssignment(fit, sc, donorDesign(fit), k = 2, sector = "Bulk", weighting = "equal"), "weights")
+  expect_equal(unname(w), rep(1 / length(w), length(w)))
+})
+
+test_that("an infinite upper quality quantile matches every recipient to its nearest donors", {
+  fit <- donorFit(); sc <- donorScores(fit); dd <- donorDesign(fit)
+  d <- computeDonorAssignment(fit, sc, dd, k = 2, sector = "Bulk", qualityQuantiles = c(0.5, Inf))
+  expect_false(any(d$donorQuality == "none"))
+  expect_true(all(d$basis == "donor"))
+  expect_true(is.infinite(attr(d, "coveredDistanceQuantiles")[[2]]))
+  # the far recipient that the deployed rule flags is now matched, as "far"
+  expect_equal(d$donorQuality[d$region == "X2"], "far")
+  expect_error(computeDonorAssignment(fit, sc, dd, k = 2, sector = "Bulk", qualityQuantiles = c(0.9, 0.5)),
+               "qualityQuantiles")
+})
+
+test_that("the donor step passes the matching rule through, defaulting to the deployed one", {
+  f <- formals(runPFMDonorAssumptions)
+  expect_equal(eval(f$qualityQuantiles), c(0.5, 0.9))
+  src <- paste(deparse(body(runPFMDonorAssumptions)), collapse = " ")
+  expect_true(grepl("qualityQuantiles = qualityQuantiles", src, fixed = TRUE))
+})
