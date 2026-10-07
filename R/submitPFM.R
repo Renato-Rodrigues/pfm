@@ -8,6 +8,11 @@
 #'   \item the project's scenario-config validator
 #'     (\code{analysis/run-groups/validatePFMScenarioConfig.R}), when present;
 #'   \item REMIND's own check, \code{Rscript start.R --test <config> startgroup=<group>};
+#'   \item unless \code{compile = FALSE}: REMIND's GAMS compile of every row of the group,
+#'     \code{Rscript start.R --gamscompile <config> startgroup=<group>} (compile only, with the run's
+#'     inputs; the listings go to \code{output/gamscompile/}). \code{--test} checks the
+#'     configuration, not the GAMS code: on 2026-10-07 a compile error in the module stopped four
+#'     runs of a submitted chain;
 #'   \item the rows and Run-Groups that will start, printed;
 #'   \item unless \code{dry}: a \strong{batch manifest} written to \code{batchDir}
 #'     (the commit of every repository, the installed \code{pfm}/\code{mrpfm} versions, the
@@ -27,6 +32,8 @@
 #'   \code{TRUE}: a submission is always an explicit \code{dry = FALSE}.
 #' @param preflight Logical. Run \code{\link{pfmPreflight}}. \code{FALSE} only for a
 #'   deliberate exception; the manifest records it.
+#' @param compile Logical. Compile every row with GAMS before submitting (default \code{TRUE};
+#'   needs REMIND's input data, i.e. the cluster).
 #' @param slurmConfig The SLURM setup for rows of the start group that set none:
 #'   \code{"priority"} (REMIND's choice 5, 12 tasks), \code{"standby"} (choice 1, 12 tasks), a
 #'   choice number \code{"1"}-\code{"16"} of REMIND's \code{choose_slurmConfig}, or a full sbatch
@@ -42,7 +49,7 @@
 #' @export
 #' @author Renato Rodrigues
 submitPFM <- function(startGroup, remindDir = NULL, scenarioConfig = "config/scenario_config_PFM.csv",
-                      config = "config.yml", dry = TRUE, preflight = TRUE, slurmConfig = NULL, batchDir = NULL,
+                      config = "config.yml", dry = TRUE, preflight = TRUE, compile = TRUE, slurmConfig = NULL, batchDir = NULL,
                       verbose = TRUE) {
   say <- function(...) if (isTRUE(verbose)) message("[submit] ", ...)
   if (missing(startGroup) || !nzchar(startGroup)) stop("submitPFM: 'startGroup' is required.", call. = FALSE)
@@ -90,6 +97,21 @@ submitPFM <- function(startGroup, remindDir = NULL, scenarioConfig = "config/sce
   }
   say("ok    start.R --test")
 
+  # 3b. GAMS: compile every row of the group (start.R exits non-zero on any FAIL)
+  if (isTRUE(compile)) {
+    g <- .pfmRun(file.path(R.home("bin"), "Rscript"),
+                 c("start.R", "--gamscompile", shQuote(rel), paste0("startgroup=", startGroup)), wd = remindDir)
+    fails <- grep("FAIL ", g$out, value = TRUE, fixed = TRUE)
+    if (g$status != 0 || length(fails)) {
+      stop("submitPFM: GAMS compile failed for startgroup=", startGroup, " (listings in ",
+           file.path(remindDir, "output", "gamscompile"), "):\n",
+           paste(utils::tail(c(fails, g$out), 25), collapse = "\n"), call. = FALSE)
+    }
+    say("ok    start.R --gamscompile (", length(grep(" OK  ", g$out, fixed = TRUE)), " compiled)")
+  } else {
+    say("WARNING: GAMS compile skipped on request; the batch manifest records it")
+  }
+
   # 4. what will start
   rows <- .pfmCoupledRows(scenAbs, startGroup, remindDir)
   say(nrow(rows), " coupled row(s):")
@@ -115,6 +137,7 @@ submitPFM <- function(startGroup, remindDir = NULL, scenarioConfig = "config/sce
     commits = commits,
     installed = if (!is.null(pf)) pf[pf$check == "installed", c("target", "detail")] else "preflight skipped",
     preflight = if (is.null(pf)) "skipped" else "passed",
+    gamsCompile = if (isTRUE(compile)) "passed" else "skipped",
     slurmConfig = if (length(slurmArg)) attr(slurmArg, "value") else "set by every row",
     rows = rows
   )

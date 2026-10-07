@@ -133,6 +133,7 @@ test_that("submitPFM: dry run checks and plans; a submission writes the batch ma
   expect_false(r$submitted)
   expect_identical(r$rows$title, "A")
   expect_true(any(vapply(calls, function(a) "--test" %in% a, logical(1))))
+  expect_true(any(vapply(calls, function(a) "--gamscompile" %in% a, logical(1))))   # compile = TRUE by default
   expect_false(dir.exists(file.path(root, "output")))
   r <- suppressMessages(submitPFM("G1", remindDir = rd, config = file.path(root, "config.yml"),
                                   dry = FALSE, slurmConfig = "priority", verbose = FALSE))
@@ -142,8 +143,31 @@ test_that("submitPFM: dry run checks and plans; a submission writes the batch ma
   expect_identical(man$preflight, "passed")
   expect_true(file.exists(sub("[.]json$", ".log", r$manifest)))
   expect_identical(man$slurmConfig, "5")
+  expect_identical(man$gamsCompile, "passed")
   expect_true(any(vapply(calls, function(a) "startgroup=G1" %in% a && !"--test" %in% a &&
                                             paste0("slurmConfig=", shQuote("5")) %in% a, logical(1))))
+})
+
+test_that("submitPFM stops on a GAMS compile FAIL", {
+  rd <- withr::local_tempdir()
+  dir.create(file.path(rd, "config"))
+  pfmCsv <- file.path(rd, "config", "scenario_config_PFM.csv")
+  writeConf(pfmCsv, data.frame(title = "A", start = "G1", cm_taxCO2_regiDiff = 11, pfmGroup = "v6",
+                               path_gdx_ref = NA, slurmConfig = "--qos=standby"))
+  root <- withr::local_tempdir()
+  writeLines("group: v6", file.path(root, "config.yml"))
+  testthat::local_mocked_bindings(
+    pfmPreflight = function(...) data.frame(check = "installed", target = "pfm", ok = TRUE, detail = "x"),
+    .pfmRun = function(cmd, args, wd) {
+      if ("--gamscompile" %in% args) return(list(out = c("FAIL output/gamscompile/main_A.lst"), status = 1L))
+      list(out = "0 errors", status = 0L)
+    }
+  )
+  expect_error(suppressMessages(submitPFM("G1", remindDir = rd, config = file.path(root, "config.yml"), verbose = FALSE)),
+               "GAMS compile failed")
+  r <- suppressMessages(submitPFM("G1", remindDir = rd, config = file.path(root, "config.yml"), compile = FALSE,
+                                  verbose = FALSE))
+  expect_false(r$submitted)
 })
 
 test_that("mappings: the resolved H12 must be REMIND's own regions", {

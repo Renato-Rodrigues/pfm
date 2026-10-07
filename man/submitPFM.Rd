@@ -11,6 +11,7 @@ submitPFM(
   config = "config.yml",
   dry = TRUE,
   preflight = TRUE,
+  compile = TRUE,
   slurmConfig = NULL,
   batchDir = NULL,
   verbose = TRUE
@@ -32,6 +33,9 @@ Default \code{config/scenario_config_PFM.csv}.}
 
 \item{preflight}{Logical. Run \code{\link{pfmPreflight}}. \code{FALSE} only for a
 deliberate exception; the manifest records it.}
+
+\item{compile}{Logical. Compile every row with GAMS before submitting (default \code{TRUE};
+needs REMIND's input data, i.e. the cluster).}
 
 \item{slurmConfig}{The SLURM setup for rows of the start group that set none:
 \code{"priority"} (REMIND's choice 5, 12 tasks), \code{"standby"} (choice 1, 12 tasks), a
@@ -56,6 +60,11 @@ The submission procedure of \code{RUNNING.md} step 7 as one call (design note 00
 \item the project's scenario-config validator
 (\code{analysis/run-groups/validatePFMScenarioConfig.R}), when present;
 \item REMIND's own check, \code{Rscript start.R --test <config> startgroup=<group>};
+\item unless \code{compile = FALSE}: REMIND's GAMS compile of every row of the group,
+\code{Rscript start.R --gamscompile <config> startgroup=<group>} (compile only, with the run's
+inputs; the listings go to \code{output/gamscompile/}). \code{--test} checks the
+configuration, not the GAMS code: on 2026-10-07 a compile error in the module stopped four
+runs of a submitted chain;
 \item the rows and Run-Groups that will start, printed;
 \item unless \code{dry}: a \strong{batch manifest} written to \code{batchDir}
 (the commit of every repository, the installed \code{pfm}/\code{mrpfm} versions, the
