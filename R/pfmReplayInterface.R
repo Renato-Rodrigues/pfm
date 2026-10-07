@@ -123,6 +123,11 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", NULL),
     d                                          # load cannot coincidentally match
   }
   bnd <- list(Bulk = mkBnd(100), Diffuse = mkBnd(200))
+  mkPath <- function(base) {
+    d <- expand.grid(year = yrs, region = regs, stringsAsFactors = FALSE)
+    d$phi <- base + 0.01 * seq_len(nrow(d))
+    d
+  }
   list(
     phi = stats::setNames(c(0.7, 0.45, 0.9), regs),
     phiSector = list(Bulk    = stats::setNames(c(0.80, 0.60, 0.55), regs),
@@ -135,7 +140,10 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", NULL),
     lamFloor = stats::setNames(rep(0.0730, length(regs)), regs),
     bndSector = bnd,
     mpSector  = lapply(bnd, function(d) { names(d)[names(d) == "priceBound"] <- "price"; d }),
-    bnd = mkBnd(300))
+    bnd = mkBnd(300),
+    # the v6 share path (0005 D14): every cell distinct, so a transposed load cannot match
+    phiPath = mkPath(0.40),
+    phiMktPath = list(Bulk = mkPath(0.60), Diffuse = mkPath(0.70)))
 }
 
 #' @keywords internal
@@ -152,7 +160,9 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", NULL),
     .pfmCouplingSymMkt1d("p45_pfmPhiMkt",    fx$phiSector),
     .pfmCouplingSymMkt1d("p45_pfmLambdaMkt", fx$lamSector),
     .pfmCouplingSymMkt2d("p45_pfmPriceBoundMkt", fx$bndSector, "priceBound"),
-    .pfmCouplingSymMkt2d("p45_pfmMPPriceMkt",    fx$mpSector,  "price"))
+    .pfmCouplingSymMkt2d("p45_pfmMPPriceMkt",    fx$mpSector,  "price"),
+    .pfmCouplingSym2d("p45_pfmPhiPath", fx$phiPath, "phi"),
+    .pfmCouplingSymMkt2d("p45_pfmPhiMktPath", fx$phiMktPath, "phi"))
 }
 
 #' @keywords internal
@@ -166,7 +176,9 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", NULL),
             "p45_pfmPhiMkt\\(", "p45_pfmPhiMkt_aux",
             "p45_pfmLambdaMkt\\(", "p45_pfmLambdaMkt_aux",
             "p45_pfmPriceBoundMkt\\(", "p45_pfmPriceBoundMkt_aux",
-            "p45_pfmMPPriceMkt\\(", "p45_pfmMPPriceMkt_aux")
+            "p45_pfmMPPriceMkt\\(", "p45_pfmMPPriceMkt_aux",
+            "p45_pfmPhiPath\\(", "p45_pfmPhiPath_aux",
+            "p45_pfmPhiMktPath\\(", "p45_pfmPhiMktPath_aux")
   vapply(need, function(p) {
     hit <- grep(paste0("^\\s*", p), lines, value = TRUE)
     if (!length(hit)) {
@@ -215,6 +227,9 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", NULL),
     "Execute_Loadpoint 'p45_regiDiff_phi' p45_pfmLambdaMkt_aux = p45_pfmLambdaMkt;",
     "Execute_Loadpoint 'p45_regiDiff_phi' p45_pfmPriceBoundMkt_aux = p45_pfmPriceBoundMkt;",
     "Execute_Loadpoint 'p45_regiDiff_phi' p45_pfmMPPriceMkt_aux = p45_pfmMPPriceMkt;",
+    "*** the v6 share path (cm_pfmPhiPath = 1) - rank 2 and rank 3, ttot first",
+    "Execute_Loadpoint 'p45_regiDiff_phi' p45_pfmPhiPath_aux = p45_pfmPhiPath;",
+    "Execute_Loadpoint 'p45_regiDiff_phi' p45_pfmPhiMktPath_aux = p45_pfmPhiMktPath;",
     "",
     "s_iterSeen = sum(regi, p45_pfmIterSeen_aux(regi)) / max(1, card(regi));",
     sprintf("if (abs(s_iterSeen - %d) > 0.5, abort 'STALE gdx: wrong iteration stamp');",
@@ -232,6 +247,15 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", NULL),
         b$priceBound[b$year == 2050 & b$region == "CHA"]),
     chk("bndMkt 2030/USA/ES", "p45_pfmPriceBoundMkt_aux('2030','USA','ES')",
         d$priceBound[d$year == 2030 & d$region == "USA"]),
+    chk("phiPath 2050/CHA", "p45_pfmPhiPath_aux('2050','CHA')",
+        fx$phiPath$phi[fx$phiPath$year == 2050 & fx$phiPath$region == "CHA"]),
+    chk("phiMktPath 2030/USA/ES", "p45_pfmPhiMktPath_aux('2030','USA','ES')",
+        fx$phiMktPath$Diffuse$phi[fx$phiMktPath$Diffuse$year == 2030 & fx$phiMktPath$Diffuse$region == "USA"]),
+    chk("phiMktPath 2050/EUR/ETS", "p45_pfmPhiMktPath_aux('2050','EUR','ETS')",
+        fx$phiMktPath$Bulk$phi[fx$phiMktPath$Bulk$year == 2050 & fx$phiMktPath$Bulk$region == "EUR"]),
+    chk("phiPath total", "sum((ttot,regi), p45_pfmPhiPath_aux(ttot,regi))", sum(fx$phiPath$phi)),
+    chk("phiMktPath total", "sum((ttot,regi,emiMkt), p45_pfmPhiMktPath_aux(ttot,regi,emiMkt))",
+        sum(.pfmCouplingSymMkt2d("x", fx$phiMktPath, "phi")$records$value)),
     "*** totals, so a partial load that happens to get the probed cells right still fails",
     chk("phiMkt total", "sum((regi,emiMkt), p45_pfmPhiMkt_aux(regi,emiMkt))", sumPhi),
     chk("bndMkt total",
@@ -282,6 +306,10 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", NULL),
                     stringsAsFactors = FALSE)
   m$addParameter("p45_pfmMPPriceMkt", domain = list(st, sr, sk),
                  records = cbind(g3, value = 100 + seq_len(nrow(g3))))
+  # the v6 share path, in the CORRECT order, so the control fails on the one defect only
+  gp <- expand.grid(ttot = as.character(yrs), all_regi = regs, stringsAsFactors = FALSE)
+  m$addParameter("p45_pfmPhiPath", domain = list(st, sr), records = cbind(gp, value = 0.5))
+  m$addParameter("p45_pfmPhiMktPath", domain = list(st, sr, sk), records = cbind(g3, value = 0.6))
   # >>> THE DEFECT: right rank, right domain sets, wrong ORDER. GAMS reports nothing.
   bad <- expand.grid(all_regi = regs, ttot = as.character(yrs), all_emiMkt = mkts,
                      stringsAsFactors = FALSE)

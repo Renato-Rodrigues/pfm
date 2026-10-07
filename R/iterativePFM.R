@@ -95,6 +95,17 @@
 #'   scenario parameter, not an estimate — sweep it. \code{nTiers} is used only with
 #'   \code{phiRule = "tiered"}; the deployed rule is \code{"continuous"}.
 #' @param mapping Country-to-REMIND-region mapping (file name or data.frame).
+#' @param formulation \code{"auto"} (default), \code{"v6-anchor"} or \code{"v5-tier"}. \code{"auto"}
+#'   couples a Run-Group whose export carries \code{phi-anchor.rds} by the v6 formulation (design
+#'   note 0005, ADR 0049 / 0050 / 0054): the shares \eqn{\varphi_{r,s}(t)} from the anchor and the
+#'   strength factor on this solution's scenario panel, no ECM, no \eqn{\lambda}, the time-indexed
+#'   symbols \code{p45_pfmPhiPath} / \code{p45_pfmPhiMktPath}, and convergence on the share path.
+#'   Any other group couples by the \code{v5} formulation, unchanged. Inside a REMIND run it can be
+#'   set in \code{pfm-coupling.yml} (\code{formulation}). The v6 options
+#'   (\code{\link{pfmV6CouplingDefaults}}) are read from \code{pfm-coupling.yml} and the runtime
+#'   file as \code{phiHoldYear}, \code{phiHold}, \code{phiSpread}, \code{phiOrdering},
+#'   \code{phiOrderingSeed}, \code{phiKappa}, \code{phiStrength}. A runtime \code{ssp} (GAMS
+#'   \code{cm_GDPpopScen}) must equal \code{weightScenario}, or the call stops (D9).
 #' @param verbose Logical.
 #'
 #' @return Invisibly \code{TRUE} on success, \code{FALSE} if the step was skipped
@@ -129,6 +140,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
                                                    "pfm-coupling-runtime.yml"),
                          tierYear = getOption("pfm.couplingTierYear", NULL),
                          institutions = getOption("pfm.couplingInstitutions", "storyline"),
+                         formulation = getOption("pfm.couplingFormulation", "auto"),
                          verbose = TRUE) {
   say <- function(...) if (isTRUE(verbose)) message("[iterativePFM] ", ...)
   rtIteration <- NULL
@@ -138,6 +150,8 @@ iterativePFM <- function(gdx = "fulldata.gdx",
   gapClosure <- TRUE
   # The run's staged madrat cache (pfm-coupling.yml `cachefolder`), NULL = madrat's own.
   madratCache <- NULL
+  # The v6 options (0005 F8) from the static and the runtime file, flat keys phi*; later wins.
+  v6Static <- NULL; v6Runtime <- NULL; rtSsp <- NULL; rtPhiPath <- NULL
 
   # --- static settings, written into the run folder by preparePFM.R -------------
   # Paths here are RELATIVE to the run folder (the working directory when GAMS calls
@@ -157,6 +171,8 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       if (!is.null(sc$weightYear)) weightYear <- as.numeric(sc$weightYear)
       if (!is.null(sc$institutions)) institutions <- sc$institutions
       if (!is.null(sc$cachefolder)) madratCache <- sc$cachefolder
+      if (!is.null(sc$formulation)) formulation <- sc$formulation
+      v6Static <- .pfmV6OptionsFromYaml(sc)
       say("run config from '", couplingConfig, "': group ", group,
           ", resultsDir ", resultsDir)
     }
@@ -174,6 +190,9 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       if (!is.null(rt$bindMode)) bindMode <- as.integer(rt$bindMode)
       if (!is.null(rt$theta)) theta <- as.numeric(rt$theta)
       if (!is.null(rt$iteration)) rtIteration <- rt$iteration
+      v6Runtime <- .pfmV6OptionsFromYaml(rt)
+      if (!is.null(rt$ssp)) rtSsp <- as.character(rt$ssp)
+      if (!is.null(rt$phiPath)) rtPhiPath <- suppressWarnings(as.numeric(rt$phiPath))
       # cm_pfmGapClosure. 0 = the political gap PERSISTS, the deployed setting since
       # 2026-09-11 and exportFeasibilityRegiDiff()'s documented default; 1 = it closes at
       # the frontier's estimated ECM speeds. Recorded here and applied below as
@@ -280,6 +299,13 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     panelDef <- .pfmPanelDefForGroup(gd)
     say("panel: ", .pfmPanelDefLabel(panelDef), "; SSP ", weightScenario,
         "; institutions ", institutions)
+    # The group's panel definition is ALSO the default of every nested call that reads IEA data by
+    # pfmPanelDef() - the coupling weights and the downscaling of REMIND results - so it is set for
+    # this call. Without it a v6 group's run reads the v5 definition (2024 edition, no geothermal)
+    # there, while the estimation read the 2025 edition: silent (PITFALLS 32). Restored on exit.
+    oldPanelOpt <- getOption("pfm.panel")
+    on.exit(options(pfm.panel = oldPanelOpt), add = TRUE)
+    options(pfm.panel = panelDef[c("firstYear", "lastYear", "movingAverage", "ieaVersion", "geothermal")])
     scen <- panelDataScenario(gdxFile = gdx, aggregate = TRUE,
                               gdxRegionMappingFile = gdxRegionMapping,
                               outputRegionMappingFile = "country",
@@ -293,6 +319,34 @@ iterativePFM <- function(gdx = "fulldata.gdx",
                               histCache = if (file.exists(couplingConfig))
                                 file.path(gd, "hist-harmonisation-cache.rds") else NULL,
                               ssp = weightScenario, institutions = institutions)
+    # D9: one SSP per run. The runtime file carries GAMS's own cm_GDPpopScen; the scenario panel
+    # and the weights were built for weightScenario (pfm-coupling.yml). A mismatch would mix two
+    # worlds in one call, so it stops.
+    if (!is.null(rtSsp) && !identical(rtSsp, weightScenario)) {
+      stop("SSP mismatch: GAMS runs ", rtSsp, " but the coupling was configured for ", weightScenario,
+           " (pfm-coupling.yml weightScenario). Re-run preparePFM.R.")
+    }
+    formulation <- .pfmCouplingFormulation(gd, formulation)
+    say("formulation: ", formulation)
+    if (identical(formulation, "v6-anchor")) {
+      # ADR 0050: no lambda in the v6 coupling - no ECM fit, no temporal-validation.rds, no panel.
+      if (identical(bindMode, 3L)) {
+        stop("bind mode 3 (mild progression) uses lambda as its mechanism and is retired from the ",
+             "v6 coupling (ADR 0050). Use bind mode 1 or 2, or the v5 formulation.")
+      }
+      if (file.exists(file.path(gd, "phi-override.yml"))) {
+        stop("phi-override.yml is a v5 instrument; under the v6 formulation the ordering tests are the ",
+             "phiOrdering option (0005 D15), which keeps the strength dynamics. Remove the file.")
+      }
+      # GAMS must read the path: with cm_pfmPhiPath = 0 mode 1 and the rule-C rebuild would run on
+      # the t0 share alone, a constant phi under a v6 label (0005 Phase 3 pitfalls).
+      if (!is.null(rtPhiPath) && isTRUE(rtPhiPath == 0)) {
+        stop("this is a v6 Run-Group (phi-anchor.rds) but GAMS runs with cm_pfmPhiPath = 0, so it would ",
+             "use the 2025 share for every period. Set cm_pfmPhiPath = 1 on the scenario row.")
+      }
+      lambda <- c(Bulk = 0, Diffuse = 0)
+      v6opts <- .pfmV6Options(v6Static, v6Runtime)
+    } else {
     pfile <- paste0("panel_", mf$panel_hash, ".rds")
     pcand <- c(file.path(modelDir, "panels", pfile), file.path(gd, "panels", pfile),
                file.path(gd, pfile), file.path(modelDir, pfile))
@@ -306,6 +360,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       lambda <- vapply(c("Bulk", "Diffuse"),
                        function(s) tv$bySector[[s]]$ecm$metrics$adjustmentSpeed,
                        numeric(1))
+    }
     }
     # --- what cm_pfmGapClosure may and may NOT switch off -------------------------
     # One symbol called lambda does THREE jobs in this function, and they are not the
@@ -335,7 +390,9 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     lambdaGap <- if (isTRUE(gapClosure)) lambda else {
       stats::setNames(rep(0, length(lambda)), names(lambda))
     }
-    say("gap closure: ", if (isTRUE(gapClosure))
+    if (identical(formulation, "v6-anchor")) {
+      say("v6: no lambda (ADR 0050); options ", paste(names(v6opts), unlist(v6opts), sep = " = ", collapse = ", "))
+    } else say("gap closure: ", if (isTRUE(gapClosure))
           paste0("ON - frontier rates ",
                  paste(sprintf("%s %.4f", names(lambda), lambda), collapse = " | "))
         else "OFF - the political gap PERSISTS (lambda 0 for modes 1 and 2; mode 3 keeps its momentum rate)")
@@ -354,7 +411,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     # assumed political capability, the exact defect the band rule removes. A coupled
     # run must not silently disagree with the offline artifacts, so this is an ERROR,
     # not a warning.
-    asg <- stats::setNames(lapply(c("Bulk", "Diffuse"), function(sec) {
+    asg <- if (identical(formulation, "v6-anchor")) NULL else stats::setNames(lapply(c("Bulk", "Diffuse"), function(sec) {
       f <- file.path(gd, paste0("donor-assignment-band-", sec, ".rds"))
       if (!file.exists(f)) {
         stop("iterativePFM: missing band assignment '", f, "'. Run ",
@@ -391,6 +448,29 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 
     # 2. Recompute the feasible paths and the ambition gaps along THIS iteration's
     #    energy system - the Policy -> Politics feedback.
+    v6 <- NULL
+    if (identical(formulation, "v6-anchor")) {
+      art <- readRDS(file.path(gd, "phi-anchor.rds"))
+      selName <- vapply(sel, function(x) x$name %||% NA_character_, character(1))
+      if (!all(art$spec %in% selName)) {
+        stop("the anchor artifact was built for ", paste(unique(art$spec), collapse = ", "),
+             ", not the exported spec ", paste(unique(selName), collapse = ", "), ". Re-run pfm-anchor and export.")
+      }
+      res <- .pfmAnchorResolution(art, mapping)
+      anc <- pfmAnchorFor(art, res)
+      # The anchor's region weights are final energy at its t0 for its SSP; recomputed for this run
+      # when either differs (u and q are history and do not change).
+      reweight <- !identical(as.character(art$ssp), as.character(weightScenario)) ||
+        !isTRUE(all.equal(as.numeric(weightYear), as.numeric(art$t0)))
+      v6 <- pfmV6Shares(anc, scen, theta = theta, options = v6opts,
+                        weights = if (reweight && !is.null(wts)) wts else NULL)
+      say("v6 anchor: ", res, ", anchor year ", art$anchorYear, ", t0 ", art$t0, ", SSP ", weightScenario,
+          if (reweight) " (weights recomputed for this run)" else " (anchor weights)")
+      kk <- v6$strength[v6$strength$year %in% c(2035, 2050, 2070, 2100), ]
+      say("strength k: ", paste(sprintf("%s %d %.3f", kk$sector, kk$year, kk$k), collapse = " | "))
+      feas <- data.frame(region = v6$shares$region, year = v6$shares$year, phi = v6$shares$phi,
+                         sector = v6$shares$sector, tier = NA_real_, stringsAsFactors = FALSE)
+    } else
     feas <- do.call(rbind, lapply(c("Bulk", "Diffuse"), function(sec) {
       cfg <- norm(Filter(function(x)
         identical(x$model_type, paste0("PolicyStringency: ", sec)), sel)[[1]])
@@ -457,12 +537,31 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     #     Applied here, before steps 3-5 derive the economy-wide share, the per-market shares
     #     and the mode-2 bound from feas$phi, so every symbol GAMS loads sees the same values.
     #     No file = no change (every deployed Run-Group). See .pfmApplyPhiOverride().
-    feas <- .pfmApplyPhiOverride(feas, gd, say)
+    if (!identical(formulation, "v6-anchor")) feas <- .pfmApplyPhiOverride(feas, gd, say)
+
+    # 2c. v6: damping only on oscillation (0005 D5), from the previous calls' paths.
+    histFile <- file.path(dirname(outputFile), "pfm-phi-history.rds")
+    prev <- if (file.exists(histFile)) readRDS(histFile) else list()
+    v6alpha <- 1
+    if (identical(formulation, "v6-anchor")) {
+      checkpoints <- .pfmV6Checkpoints(v6opts$holdYear)
+      p1 <- if (length(prev) >= 1) prev[[length(prev)]]$phiPath else NULL
+      p2 <- if (length(prev) >= 2) prev[[length(prev) - 1L]]$phiPath else NULL
+      dmp <- .pfmV6Damp(feas[, c("sector", "region", "year", "phi")], p1, p2, checkpoints)
+      if (isTRUE(dmp$oscillating)) {
+        say("v6: the share path oscillates - damped with alpha ", dmp$alpha, " (0005 D5)")
+        feas$phi <- dmp$shares$phi
+      }
+      v6alpha <- dmp$alpha
+      t0v6 <- art$t0
+    }
 
     # 3. One share per region: the minimum over all of the region's rows - the worse
     #    sector, the maximin discipline used throughout, and the lowest year should a
     #    share ever vary by year.
-    byReg <- split(feas$phi, as.character(feas$region))
+    # v6: the one-dimensional symbols carry the t0 value (0005 D14); the path goes separately.
+    feas1 <- if (identical(formulation, "v6-anchor")) feas[feas$year == t0v6, , drop = FALSE] else feas
+    byReg <- split(feas1$phi, as.character(feas1$region))
     phi <- vapply(byReg, function(v) {
       v <- v[is.finite(v)]
       if (!length(v)) 1 else min(v)
@@ -489,8 +588,8 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     #     (cm_pfmSectorMarkup), and symbols that are present but ignored cost nothing.
     phiSector <- stats::setNames(lapply(names(.pfmSectorMarkets()), function(sec) {
       v <- phi
-      if ("sector" %in% names(feas)) {
-        s <- feas[as.character(feas$sector) == sec, , drop = FALSE]
+      if ("sector" %in% names(feas1)) {
+        s <- feas1[as.character(feas1$sector) == sec, , drop = FALSE]
         if (nrow(s)) {
           w <- vapply(split(s$phi, as.character(s$region)), function(x) {
             x <- x[is.finite(x)]
@@ -521,8 +620,25 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     #    The delta covers the per-market shares as well as the floor (0005 E8, D5): with
     #    the floor alone, a market share could still be moving when GAMS declared the
     #    run converged.
-    histFile <- file.path(dirname(outputFile), "pfm-phi-history.rds")
-    prev <- if (file.exists(histFile)) readRDS(histFile) else list()
+    if (identical(formulation, "v6-anchor")) {
+      # v6 (0005 D5): the largest change over regions, sectors (hence markets) and the floor, at the
+      # checkpoint years; the all-period delta is logged beside it.
+      withFloor <- function(d) rbind(d, data.frame(sector = "min", stats::aggregate(phi ~ region + year, data = d, FUN = min)))
+      curPath <- withFloor(feas[, c("sector", "region", "year", "phi")])
+      lastPath <- if (length(prev) && !is.null(prev[[length(prev)]]$phiPath)) withFloor(prev[[length(prev)]]$phiPath) else NULL
+      delta <- .pfmPhiPathDelta(curPath, lastPath, checkpoints, t0v6)
+      deltaAll <- .pfmPhiPathDelta(curPath, lastPath, NULL, t0v6)
+      prev[[length(prev) + 1L]] <- list(iteration = length(prev) + 1L, time = Sys.time(),
+                                        formulation = formulation, phi = phi, phiSector = phiSector,
+                                        phiPath = feas[, c("sector", "region", "year", "phi")],
+                                        strength = v6$strength[, intersect(c("sector", "year", "k", "d", "kRaw", "outOfSupportShare", "clipShare"), names(v6$strength))],
+                                        options = v6opts, checkpoints = checkpoints,
+                                        delta = delta, deltaAll = deltaAll, alpha = v6alpha)
+      saveRDS(prev, histFile)
+      say(sprintf("phi-path delta vs previous call: %s at the checkpoints %s; %s over all years (tolerance in GAMS)",
+                  if (is.finite(delta)) sprintf("%.5f", delta) else "first call", paste(checkpoints, collapse = "/"),
+                  if (is.finite(deltaAll)) sprintf("%.5f", deltaAll) else "-"))
+    } else {
     delta <- if (length(prev)) .pfmPhiDelta(phi, phiSector, prev[[length(prev)]]) else Inf
     prev[[length(prev) + 1L]] <- list(iteration = length(prev) + 1L,
                                       time = Sys.time(), phi = phi, phiSector = phiSector,
@@ -530,6 +646,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     saveRDS(prev, histFile)
     say(sprintf("phi delta vs previous call: %s (tolerance is enforced in GAMS)",
                 if (is.finite(delta)) sprintf("%.5f", delta) else "first call"))
+    }
 
     # 5. PFM -> REMIND. The symbol names AND the index structure must match the
     #    declarations in 45_carbonprice/functionalForm/declarations.gms exactly:
@@ -558,6 +675,28 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     # Exported unconditionally: it costs one extra symbol, and a mode-2 run that
     # silently found no bound would cap prices at zero.
     syms <- list(out, dOut, iOut)
+    # v6 (0005 D14, ADR 0054): the share PATH, ttot first. Years before t0 carry the t0 value, so
+    # no ttot GAMS might read loads as zero. The market path is never below the floor, as the 1-d
+    # market shares: the markup is max(market - floor, 0) on the GAMS side.
+    if (identical(formulation, "v6-anchor")) {
+      # Every period GAMS has (ttot, from 1900): a missing record would load as a ZERO share.
+      ttotYears <- tryCatch(suppressWarnings(as.integer(as.character(unlist(gdx::readGDX(gdx, "ttot"))))),
+                            error = function(e) integer(0))
+      ttotYears <- ttotYears[is.finite(ttotYears)]
+      fill <- function(d) .pfmCompletePath(d[, c("region", "year", "phi")], ttotYears, t0v6)
+      flPath <- fill(stats::aggregate(phi ~ region + year, data = feas, FUN = min))
+      syms[[length(syms) + 1L]] <- .pfmCouplingSym2d("p45_pfmPhiPath", flPath, "phi")
+      mktPath <- stats::setNames(lapply(names(.pfmSectorMarkets()), function(sec) {
+        d <- fill(feas[feas$sector == sec, c("region", "year", "phi")])
+        f <- flPath$phi[match(paste(d$region, d$year), paste(flPath$region, flPath$year))]
+        d$phi <- pmax(d$phi, f, na.rm = TRUE)
+        d
+      }), names(.pfmSectorMarkets()))
+      syms[[length(syms) + 1L]] <- .pfmCouplingSymMkt2d("p45_pfmPhiMktPath", mktPath, "phi")
+      say(sprintf("phi path exported: %d regions x %d periods (2050 floor: median %.3f, min %.3f)",
+                  length(unique(flPath$region)), length(unique(flPath$year)),
+                  stats::median(flPath$phi[flPath$year == 2050]), min(flPath$phi[flPath$year == 2050])))
+    }
     # priceOptimal is the COST-OPTIMAL path the political layer discounts. It must be
     # a path the cap cannot touch.
     #
@@ -1140,3 +1279,15 @@ iterativePFM <- function(gdx = "fulldata.gdx",
   }
   if (all(is.na(parts))) Inf else max(parts, na.rm = TRUE)
 }
+
+# The v6 options in a YAML file (pfm-coupling.yml or the runtime file), flat keys phi*.
+#' @keywords internal
+.pfmV6OptionsFromYaml <- function(x) {
+  if (is.null(x)) return(NULL)
+  map <- c(phiHoldYear = "holdYear", phiHold = "hold", phiSpread = "spread", phiOrdering = "ordering",
+           phiOrderingSeed = "orderingSeed", phiKappa = "kappa", phiStrength = "strength")
+  hit <- intersect(names(map), names(x))
+  if (!length(hit)) return(NULL)
+  stats::setNames(lapply(hit, function(k) x[[k]]), unname(map[hit]))
+}
+

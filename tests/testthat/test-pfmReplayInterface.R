@@ -29,7 +29,7 @@ test_that("every symbol the replay loads is declared in the module", {
   decl <- file.path(remindDir(), "modules", "45_carbonprice", "functionalForm",
                     "declarations.gms")
   d <- pfm:::.pfmReplayDeclarations(decl)
-  expect_length(d, 18L)
+  expect_length(d, 22L)   # 18 + the v6 share path and its per-market companion, with their aux
   expect_true(all(nzchar(d)))
   # The economy-wide closure rate and its aux, added 2026-09-11. Before then the module
   # declared the parameter but presolve never loaded it, so it sat at 0 for every coupled
@@ -41,6 +41,9 @@ test_that("every symbol the replay loads is declared in the module", {
   expect_true(any(grepl("^p45_pfmLambdaMkt\\(all_regi,all_emiMkt\\)", d)))
   expect_true(any(grepl("^p45_pfmPriceBoundMkt\\(ttot,all_regi,all_emiMkt\\)", d)))
   expect_true(any(grepl("^p45_pfmMPPriceMkt\\(ttot,all_regi,all_emiMkt\\)", d)))
+  # the v6 share path (0005 D14), ttot first
+  expect_true(any(grepl("^p45_pfmPhiPath\\(ttot,all_regi\\)", d)))
+  expect_true(any(grepl("^p45_pfmPhiMktPath\\(ttot,all_regi,all_emiMkt\\)", d)))
 })
 
 test_that("a renamed or missing declaration is an error, not a silent pass", {

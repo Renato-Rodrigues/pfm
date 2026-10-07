@@ -156,3 +156,32 @@ test_that("mappings: the resolved H12 must be REMIND's own regions", {
   expect_false(m$ok)
   expect_match(m$detail, "/config")
 })
+
+test_that("the share-path switch must match the group's formulation (0005 Phase 3)", {
+  rd <- withr::local_tempdir()
+  dir.create(file.path(rd, "config"))
+  pfmCsv <- file.path(rd, "config", "scenario_config_PFM.csv")
+  writeConf(pfmCsv, data.frame(title = c("A", "B", "C", "D"), start = "G1", cm_taxCO2_regiDiff = 11,
+                               copyConfigFrom = c(NA, "A", NA, NA), cm_pfmPhiPath = c(1, NA, NA, 1),
+                               pfmGroup = c("g6", "g6", "g6", "g5"), path_gdx_ref = NA))
+  r <- pfm:::.pfmCoupledRows(pfmCsv, "G1", rd)
+  expect_identical(r$phiPath, c("1", "1", "0", "1"))     # B inherits from A, C takes the main.gms default
+  ri <- withr::local_tempdir()
+  for (g in c("g5", "g6")) {
+    gd <- file.path(ri, g); dir.create(file.path(gd, "panels"), recursive = TRUE)
+    for (f in c("frontier.rds", "temporal-validation.rds", "donor-assignment-band-Bulk.rds",
+                "donor-assignment-band-Diffuse.rds", "selected-models-pfm.yml")) writeLines("x", file.path(gd, f))
+    jsonlite::write_json(list(panel_hash = "h"), file.path(gd, "manifest.json"), auto_unbox = TRUE)
+    writeLines("x", file.path(gd, "panels", "panel_h.rds"))
+  }
+  writeLines("x", file.path(ri, "g6", "phi-anchor.rds"))
+  root <- withr::local_tempdir(); writeLines("group: v6", file.path(root, "config.yml"))
+  res <- suppressMessages(pfmPreflight(config = file.path(root, "config.yml"), startGroup = "G1",
+                                       scenarioConfig = pfmCsv, remindDirs = rd, remindInputs = ri,
+                                       checks = "groups", stopOnFail = FALSE, verbose = FALSE))
+  sw <- res[grepl("cm_pfmPhiPath", res$target), ]
+  expect_false(sw$ok[sw$target == "g6 cm_pfmPhiPath"])
+  expect_match(sw$detail[sw$target == "g6 cm_pfmPhiPath"], "must be 1 on: C")
+  expect_false(sw$ok[sw$target == "g5 cm_pfmPhiPath"])
+  expect_match(sw$detail[sw$target == "g5 cm_pfmPhiPath"], "must be 0 on: D")
+})

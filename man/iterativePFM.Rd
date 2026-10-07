@@ -26,6 +26,7 @@ iterativePFM(
   runtimeConfig = getOption("pfm.couplingRuntimeConfig", "pfm-coupling-runtime.yml"),
   tierYear = getOption("pfm.couplingTierYear", NULL),
   institutions = getOption("pfm.couplingInstitutions", "storyline"),
+  formulation = getOption("pfm.couplingFormulation", "auto"),
   verbose = TRUE
 )
 }
@@ -107,6 +108,18 @@ would freeze the mild-progression price at its seed. See the note beside
 in the scenario panel: \code{"storyline"} (default), \code{"convergence"} or
 \code{"hold"} (\code{\link{pfmInstitutionProjection}}). Inside a REMIND run it comes
 from \code{pfm-coupling.yml} (\code{cfg$pfmInstitutions}).}
+
+\item{formulation}{\code{"auto"} (default), \code{"v6-anchor"} or \code{"v5-tier"}. \code{"auto"}
+couples a Run-Group whose export carries \code{phi-anchor.rds} by the v6 formulation (design
+note 0005, ADR 0049 / 0050 / 0054): the shares \eqn{\varphi_{r,s}(t)} from the anchor and the
+strength factor on this solution's scenario panel, no ECM, no \eqn{\lambda}, the time-indexed
+symbols \code{p45_pfmPhiPath} / \code{p45_pfmPhiMktPath}, and convergence on the share path.
+Any other group couples by the \code{v5} formulation, unchanged. Inside a REMIND run it can be
+set in \code{pfm-coupling.yml} (\code{formulation}). The v6 options
+(\code{\link{pfmV6CouplingDefaults}}) are read from \code{pfm-coupling.yml} and the runtime
+file as \code{phiHoldYear}, \code{phiHold}, \code{phiSpread}, \code{phiOrdering},
+\code{phiOrderingSeed}, \code{phiKappa}, \code{phiStrength}. A runtime \code{ssp} (GAMS
+\code{cm_GDPpopScen}) must equal \code{weightScenario}, or the call stops (D9).}
 
 \item{verbose}{Logical.}
 }

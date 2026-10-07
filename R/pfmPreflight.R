@@ -107,6 +107,18 @@ pfmPreflight <- function(config = "config.yml", startGroup = NULL, scenarioConfi
       add("groups", g, !length(miss),
           if (length(miss)) paste("missing:", paste(miss, collapse = ", ")) else
             paste0(sum(rows$pfmGroup == g), " row(s)"))
+      # The share path switch must match the group's formulation (0005 Phase 3): a v6 group (it
+      # ships phi-anchor.rds) needs cm_pfmPhiPath = 1, or mode 1 and the rule-C rebuild run on the
+      # t0 share alone; a v5 group must not set it, or GAMS waits for a path that never comes.
+      if (!length(miss) && "phiPath" %in% names(rows)) {
+        v6 <- file.exists(file.path(remindInputs, g, "phi-anchor.rds"))
+        rg <- rows[rows$pfmGroup == g, , drop = FALSE]
+        bad <- if (v6) rg$title[rg$phiPath != "1"] else rg$title[rg$phiPath == "1"]
+        add("groups", paste0(g, " cm_pfmPhiPath"), !length(bad),
+            if (length(bad)) paste0(if (v6) "v6 group, cm_pfmPhiPath must be 1 on: " else "v5 group, cm_pfmPhiPath must be 0 on: ",
+                                    paste(bad, collapse = ", ")) else
+              paste0(if (v6) "v6 (share path)" else "v5 (one share)", " on all ", nrow(rg), " row(s)"))
+      }
     }
   }
   if ("mappings" %in% checks) {
@@ -242,9 +254,11 @@ pfmPreflight <- function(config = "config.yml", startGroup = NULL, scenarioConfi
                            stringsAsFactors = FALSE))
   ref <- fill(sc, "path_gdx_ref")[keep]
   grp <- fill(sc, "pfmGroup")[keep]
+  pp <- fill(sc, "cm_pfmPhiPath")[keep]
+  pp[is.na(pp)] <- "0"   # main.gms default
   data.frame(title = sc$title[keep], pfmGroup = ifelse(is.na(grp), "(default)", grp),
              ssp = ssp(sc)[keep], ref = ref, refSsp = pool$ssp[match(ref, pool$title)],
-             stringsAsFactors = FALSE)
+             phiPath = trimws(pp), stringsAsFactors = FALSE)
 }
 
 # A $setglobal default from REMIND's main.gms.
