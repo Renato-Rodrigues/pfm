@@ -11,6 +11,7 @@ submitPFM(
   config = "config.yml",
   dry = TRUE,
   preflight = TRUE,
+  slurmConfig = NULL,
   batchDir = NULL,
   verbose = TRUE
 )
@@ -31,6 +32,13 @@ Default \code{config/scenario_config_PFM.csv}.}
 
 \item{preflight}{Logical. Run \code{\link{pfmPreflight}}. \code{FALSE} only for a
 deliberate exception; the manifest records it.}
+
+\item{slurmConfig}{The SLURM setup for rows of the start group that set none:
+\code{"priority"} (REMIND's choice 5, 12 tasks), \code{"standby"} (choice 1, 12 tasks), a
+choice number \code{"1"}-\code{"16"} of REMIND's \code{choose_slurmConfig}, or a full sbatch
+string. Required when any row of the group has an empty \code{slurmConfig}: \code{start.R}
+would otherwise ask on a terminal this function captures, and wait unseen. Rows that set
+their own keep it.}
 
 \item{batchDir}{Where batch manifests go. Default \code{output/remind-runs/batches} under
 the project root.}

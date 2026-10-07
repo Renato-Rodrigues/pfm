@@ -125,20 +125,25 @@ test_that("submitPFM: dry run checks and plans; a submission writes the batch ma
       list(out = "0 errors", status = 0L)
     }
   )
-  r <- suppressMessages(submitPFM("G1", remindDir = rd, config = file.path(root, "config.yml"), verbose = FALSE))
+  # a row without slurmConfig needs one from the call: start.R would otherwise prompt unseen
+  expect_error(suppressMessages(submitPFM("G1", remindDir = rd, config = file.path(root, "config.yml"), verbose = FALSE)),
+               "set no slurmConfig")
+  r <- suppressMessages(submitPFM("G1", remindDir = rd, config = file.path(root, "config.yml"),
+                                  slurmConfig = "priority", verbose = FALSE))
   expect_false(r$submitted)
   expect_identical(r$rows$title, "A")
   expect_true(any(vapply(calls, function(a) "--test" %in% a, logical(1))))
   expect_false(dir.exists(file.path(root, "output")))
   r <- suppressMessages(submitPFM("G1", remindDir = rd, config = file.path(root, "config.yml"),
-                                  dry = FALSE, verbose = FALSE))
+                                  dry = FALSE, slurmConfig = "priority", verbose = FALSE))
   expect_true(r$submitted)
   man <- jsonlite::read_json(r$manifest)
   expect_identical(man$startGroup, "G1")
   expect_identical(man$preflight, "passed")
   expect_true(file.exists(sub("[.]json$", ".log", r$manifest)))
-  expect_true(any(vapply(calls, function(a) identical(a[length(a)], "startgroup=G1") && !"--test" %in% a,
-                         logical(1))))
+  expect_identical(man$slurmConfig, "5")
+  expect_true(any(vapply(calls, function(a) "startgroup=G1" %in% a && !"--test" %in% a &&
+                                            paste0("slurmConfig=", shQuote("5")) %in% a, logical(1))))
 })
 
 test_that("mappings: the resolved H12 must be REMIND's own regions", {

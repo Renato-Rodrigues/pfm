@@ -27,6 +27,12 @@
 #'   \code{TRUE}: a submission is always an explicit \code{dry = FALSE}.
 #' @param preflight Logical. Run \code{\link{pfmPreflight}}. \code{FALSE} only for a
 #'   deliberate exception; the manifest records it.
+#' @param slurmConfig The SLURM setup for rows of the start group that set none:
+#'   \code{"priority"} (REMIND's choice 5, 12 tasks), \code{"standby"} (choice 1, 12 tasks), a
+#'   choice number \code{"1"}-\code{"16"} of REMIND's \code{choose_slurmConfig}, or a full sbatch
+#'   string. Required when any row of the group has an empty \code{slurmConfig}: \code{start.R}
+#'   would otherwise ask on a terminal this function captures, and wait unseen. Rows that set
+#'   their own keep it.
 #' @param batchDir Where batch manifests go. Default \code{output/remind-runs/batches} under
 #'   the project root.
 #' @param verbose Logical.
@@ -36,7 +42,7 @@
 #' @export
 #' @author Renato Rodrigues
 submitPFM <- function(startGroup, remindDir = NULL, scenarioConfig = "config/scenario_config_PFM.csv",
-                      config = "config.yml", dry = TRUE, preflight = TRUE, batchDir = NULL,
+                      config = "config.yml", dry = TRUE, preflight = TRUE, slurmConfig = NULL, batchDir = NULL,
                       verbose = TRUE) {
   say <- function(...) if (isTRUE(verbose)) message("[submit] ", ...)
   if (missing(startGroup) || !nzchar(startGroup)) stop("submitPFM: 'startGroup' is required.", call. = FALSE)
@@ -49,6 +55,8 @@ submitPFM <- function(startGroup, remindDir = NULL, scenarioConfig = "config/sce
   batchDir <- batchDir %||% file.path(root, "output", "remind-runs", "batches")
   say("start group ", startGroup, " from ", remindDir, " (", basename(scenAbs), ")",
       if (isTRUE(dry)) " - DRY RUN" else "")
+  slurmArg <- .pfmSlurmArg(slurmConfig, .pfmRowsWithoutSlurm(scenAbs, startGroup))
+  if (length(slurmArg)) say("slurmConfig for rows without one: ", attr(slurmArg, "value"))
 
   # 1. preflight
   pf <- NULL
@@ -73,7 +81,7 @@ submitPFM <- function(startGroup, remindDir = NULL, scenarioConfig = "config/sce
   # 3. REMIND's own test of the start group
   rel <- .pfmRelPath(scenAbs, remindDir)
   t <- .pfmRun(file.path(R.home("bin"), "Rscript"),
-               c("start.R", "--test", shQuote(rel), paste0("startgroup=", startGroup)), wd = remindDir)
+               c("start.R", "--test", shQuote(rel), paste0("startgroup=", startGroup), slurmArg), wd = remindDir)
   nErr <- suppressWarnings(as.integer(sub(".*?([0-9]+) errors?.*", "\\1",
                                           grep("[0-9]+ errors?", t$out, value = TRUE, perl = TRUE))))
   if (t$status != 0 || (length(nErr) && any(nErr > 0, na.rm = TRUE))) {
@@ -107,12 +115,13 @@ submitPFM <- function(startGroup, remindDir = NULL, scenarioConfig = "config/sce
     commits = commits,
     installed = if (!is.null(pf)) pf[pf$check == "installed", c("target", "detail")] else "preflight skipped",
     preflight = if (is.null(pf)) "skipped" else "passed",
+    slurmConfig = if (length(slurmArg)) attr(slurmArg, "value") else "set by every row",
     rows = rows
   )
   mf <- file.path(batchDir, paste0(id, ".json"))
   jsonlite::write_json(man, mf, pretty = TRUE, auto_unbox = TRUE)
   say("batch manifest: ", mf)
-  s <- .pfmRun(file.path(R.home("bin"), "Rscript"), c("start.R", shQuote(rel), paste0("startgroup=", startGroup)),
+  s <- .pfmRun(file.path(R.home("bin"), "Rscript"), c("start.R", shQuote(rel), paste0("startgroup=", startGroup), slurmArg),
                wd = remindDir)
   writeLines(s$out, sub("[.]json$", ".log", mf))
   if (s$status != 0) {
@@ -128,6 +137,35 @@ submitPFM <- function(startGroup, remindDir = NULL, scenarioConfig = "config/sce
   on.exit(setwd(owd), add = TRUE)
   out <- suppressWarnings(system2(cmd, args, stdout = TRUE, stderr = TRUE))
   list(out = out, status = attr(out, "status") %||% 0L)
+}
+
+# Titles of the start group's rows (coupled or not) whose slurmConfig is empty.
+.pfmRowsWithoutSlurm <- function(scenarioConfig, startGroup) {
+  sc <- utils::read.csv2(scenarioConfig, check.names = FALSE, stringsAsFactors = FALSE,
+                         comment.char = "#", na.strings = "")
+  start <- as.character(sc$start %||% rep(NA_character_, nrow(sc)))
+  inGroup <- if (identical(startGroup, "*")) !is.na(start) & start != "0" else
+    grepl(paste0("(^|,)", startGroup, "($|,)"), start, perl = TRUE)
+  slurm <- if ("slurmConfig" %in% names(sc)) trimws(as.character(sc$slurmConfig)) else rep(NA_character_, nrow(sc))
+  as.character(sc$title[inGroup & (is.na(slurm) | !nzchar(slurm))])
+}
+
+# The start.R argument for `slurmConfig`, or character(0) when every row sets its own. A missing
+# choice with rows that need one is an error: start.R would prompt on a captured terminal.
+.pfmSlurmArg <- function(slurmConfig, missingRows) {
+  if (!length(missingRows)) return(character(0))
+  if (is.null(slurmConfig) || !nzchar(slurmConfig)) {
+    stop("submitPFM: ", length(missingRows), " row(s) of the start group set no slurmConfig (",
+         paste(utils::head(missingRows, 4), collapse = ", "), if (length(missingRows) > 4) ", ...", ").\n",
+         "  Pass slurmConfig = \"priority\" or \"standby\" (12 tasks), a REMIND choice \"1\"-\"16\", ",
+         "or a full sbatch string - start.R would otherwise ask on a terminal it cannot show.", call. = FALSE)
+  }
+  v <- switch(slurmConfig, priority = "5", standby = "1", slurmConfig)
+  if (!grepl("^([1-9]|1[0-6])$", v) && !grepl("^--", v)) {
+    stop("submitPFM: slurmConfig '", slurmConfig, "' is not \"priority\", \"standby\", a choice 1-16 ",
+         "or an sbatch string starting with '--'.", call. = FALSE)
+  }
+  structure(paste0("slurmConfig=", shQuote(v)), value = v)
 }
 
 # `path` relative to `base` when it lies under it, else unchanged.
