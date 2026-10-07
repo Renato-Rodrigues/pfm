@@ -214,3 +214,28 @@ test_that("the share-path switch must match the group's formulation (0005 Phase 
   expect_false(sw$ok[sw$target == "g5 cm_pfmPhiPath"])
   expect_match(sw$detail[sw$target == "g5 cm_pfmPhiPath"], "must be 0 on: D")
 })
+
+test_that("the run renv: a pinned lockfile must list pfm and mrpfm (REMIND 3.7.1, 2026-10-07)", {
+  rd <- withr::local_tempdir()
+  dir.create(file.path(rd, "config")); dir.create(file.path(rd, "renv"))
+  cfg <- function(line) writeLines(c("cfg <- list()", line), file.path(rd, "config", "default.cfg"))
+  cfg("cfg$UseThisRenvLock <- NULL   # snapshot the checkout's renv")
+  expect_null(pfm:::.pfmRunRenvLock(rd)$path)
+  jsonlite::write_json(list(Packages = list(gdx2 = list(Package = "gdx2"), remind2 = list(Package = "remind2"))),
+                       file.path(rd, "renv", "release.lock"), auto_unbox = TRUE)
+  cfg('cfg$UseThisRenvLock <- "renv/release.lock"')
+  l <- pfm:::.pfmRunRenvLock(rd)
+  expect_identical(l$path, "renv/release.lock")
+  expect_false(all(c("pfm", "mrpfm") %in% l$packages))
+  jsonlite::write_json(list(Packages = list(pfm = list(Package = "pfm"), mrpfm = list(Package = "mrpfm"))),
+                       file.path(rd, "renv", "ours.lock"), auto_unbox = TRUE)
+  cfg("cfg$UseThisRenvLock <- 'renv/ours.lock'")
+  expect_true(all(c("pfm", "mrpfm") %in% pfm:::.pfmRunRenvLock(rd)$packages))
+  # the fork, if it is next to the package: NULL since 2026-10-07; REMIND's own release lockfile lacks pfm
+  fork <- normalizePath(file.path(rprojroot::find_root("DESCRIPTION"), "..", "remind_pfm"), mustWork = FALSE)
+  skip_if_not(dir.exists(fork))
+  expect_null(pfm:::.pfmRunRenvLock(fork)$path)
+  rel <- file.path(fork, "renv", "archive", "3.7.1_renv.lock")
+  skip_if_not(file.exists(rel))
+  expect_false("pfm" %in% names(jsonlite::read_json(rel)$Packages))
+})

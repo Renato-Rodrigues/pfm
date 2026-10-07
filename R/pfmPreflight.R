@@ -91,6 +91,20 @@ pfmPreflight <- function(config = "config.yml", startGroup = NULL, scenarioConfi
         add("installed", paste0(pkg, " @ ", basename(rd)), ok, detail)
       }
     }
+    # A coupled run loads pfm from ITS OWN renv, built in the run folder from cfg$UseThisRenvLock when
+    # that is set (REMIND 3.7.1 pins it to renv/archive/3.7.1_renv.lock), else from a snapshot of the
+    # checkout's renv. A pinned lockfile without pfm gives "there is no package called 'pfm'" at the
+    # first coupling call, after hours of queueing (2026-10-07) - and every check above passes.
+    for (rd in remindDirs) {
+      lock <- .pfmRunRenvLock(rd)
+      ok <- is.null(lock$path) || all(c("pfm", "mrpfm") %in% lock$packages)
+      add("installed", paste0("run renv @ ", basename(rd)), ok,
+          if (is.null(lock$path)) "runs snapshot the checkout's renv (cfg$UseThisRenvLock = NULL)" else if (ok)
+            paste0("pinned lockfile ", lock$path, " lists pfm and mrpfm") else
+            paste0("cfg$UseThisRenvLock = '", lock$path, "' pins the run renv to a lockfile without ",
+                   paste(setdiff(c("pfm", "mrpfm"), lock$packages), collapse = " and "),
+                   ": a coupled run fails at its first PFM call. Set it to NULL in config/default.cfg"))
+    }
   }
   rows <- NULL
   if (any(c("groups", "ssp") %in% checks)) {
@@ -262,6 +276,22 @@ pfmPreflight <- function(config = "config.yml", startGroup = NULL, scenarioConfi
 }
 
 # A $setglobal default from REMIND's main.gms.
+# The lockfile a REMIND checkout's runs restore their renv from (cfg$UseThisRenvLock in
+# config/default.cfg): list(path = NULL) when runs snapshot the checkout's renv, else the path and the
+# packages it lists (character(0) when the file cannot be read).
+.pfmRunRenvLock <- function(remindDir) {
+  f <- file.path(remindDir, "config", "default.cfg")
+  if (!file.exists(f)) return(list(path = NULL, packages = character(0)))
+  l <- grep("^\\s*cfg\\$UseThisRenvLock\\s*<-", readLines(f, warn = FALSE), value = TRUE)
+  if (!length(l)) return(list(path = NULL, packages = character(0)))
+  v <- trimws(sub("#.*$", "", sub("^\\s*cfg\\$UseThisRenvLock\\s*<-", "", l[length(l)])))
+  if (identical(v, "NULL") || !nzchar(v)) return(list(path = NULL, packages = character(0)))
+  path <- gsub("^[\"']|[\"']$", "", v)
+  lf <- if (grepl("^(/|[A-Za-z]:)", path)) path else file.path(remindDir, path)
+  pk <- tryCatch(names(jsonlite::read_json(lf)$Packages), error = function(e) character(0))
+  list(path = path, packages = pk %||% character(0))
+}
+
 .pfmRemindDefault <- function(remindDir, switch) {
   f <- if (!is.null(remindDir)) file.path(remindDir, "main.gms") else ""
   if (!file.exists(f)) return(NULL)
