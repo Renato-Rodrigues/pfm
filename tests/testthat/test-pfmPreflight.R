@@ -239,3 +239,15 @@ test_that("the run renv: a pinned lockfile must list pfm and mrpfm (REMIND 3.7.1
   skip_if_not(file.exists(rel))
   expect_false("pfm" %in% names(jsonlite::read_json(rel)$Packages))
 })
+
+test_that("the run renv snapshot needs pfm and mrpfm with a recorded source (renv: 'unknown source')", {
+  rd <- withr::local_tempdir()
+  lib <- file.path(rd, "renv", "library", "linux-rocky-9", "R-4.3", "x86_64-pc-linux-gnu")
+  dir.create(file.path(lib, "pfm"), recursive = TRUE); dir.create(file.path(lib, "mrpfm"))
+  writeLines(c("Package: pfm", "Version: 0.8.0", "RemoteType: github", "RemoteUsername: Renato-Rodrigues",
+               "RemoteRepo: pfm", "RemoteSha: abc123"), file.path(lib, "pfm", "DESCRIPTION"))
+  writeLines(c("Package: mrpfm", "Version: 0.4.0"), file.path(lib, "mrpfm", "DESCRIPTION"))   # R CMD INSTALL, unstamped
+  expect_identical(pfm:::.pfmInstalledRemote(rd, "pfm"), list(type = "github", sha = "abc123"))
+  expect_identical(pfm:::.pfmInstalledRemote(rd, "mrpfm"), list(type = NA_character_, sha = NA_character_))
+  expect_identical(pfm:::.pfmInstalledRemote(rd, "nothere")$sha, NA_character_)
+})

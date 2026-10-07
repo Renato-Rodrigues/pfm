@@ -97,13 +97,29 @@ pfmPreflight <- function(config = "config.yml", startGroup = NULL, scenarioConfi
     # first coupling call, after hours of queueing (2026-10-07) - and every check above passes.
     for (rd in remindDirs) {
       lock <- .pfmRunRenvLock(rd)
-      ok <- is.null(lock$path) || all(c("pfm", "mrpfm") %in% lock$packages)
-      add("installed", paste0("run renv @ ", basename(rd)), ok,
-          if (is.null(lock$path)) "runs snapshot the checkout's renv (cfg$UseThisRenvLock = NULL)" else if (ok)
-            paste0("pinned lockfile ", lock$path, " lists pfm and mrpfm") else
-            paste0("cfg$UseThisRenvLock = '", lock$path, "' pins the run renv to a lockfile without ",
-                   paste(setdiff(c("pfm", "mrpfm"), lock$packages), collapse = " and "),
-                   ": a coupled run fails at its first PFM call. Set it to NULL in config/default.cfg"))
+      if (!is.null(lock$path)) {
+        ok <- all(c("pfm", "mrpfm") %in% lock$packages)
+        add("installed", paste0("run renv @ ", basename(rd)), ok,
+            if (ok) paste0("pinned lockfile ", lock$path, " lists pfm and mrpfm") else
+              paste0("cfg$UseThisRenvLock = '", lock$path, "' pins the run renv to a lockfile without ",
+                     paste(setdiff(c("pfm", "mrpfm"), lock$packages), collapse = " and "),
+                     ": a coupled run fails at its first PFM call. Set it to NULL in config/default.cfg"))
+        next
+      }
+      # Runs snapshot the checkout's renv, and renv refuses a package "installed from an unknown source":
+      # pfm and mrpfm must carry the Remote* fields tools/setup.sh --install writes, at the checked-out commit.
+      for (pkg in c("pfm", "mrpfm")) {
+        src <- .pfmInstalledRemote(rd, pkg)
+        head <- tryCatch(system2("git", c("-C", shQuote(file.path(root, "models", pkg)), "rev-parse", "HEAD"),
+                                 stdout = TRUE, stderr = FALSE)[1], error = function(e) NA_character_)
+        ok <- !is.na(src$sha) && identical(src$sha, head)
+        add("installed", paste0("run renv @ ", basename(rd), " (", pkg, ")"), ok,
+            if (ok) paste0("snapshots the checkout's renv; ", pkg, " recorded as ", src$type, " at ", substr(src$sha, 1, 7)) else
+              if (is.na(src$sha)) paste0(pkg, " in ", basename(rd), "'s renv has no recorded source: the run's renv snapshot ",
+                                         "aborts ('installed from an unknown source'). Re-run tools/setup.sh --cluster --install") else
+                paste0(pkg, " is recorded at ", substr(src$sha, 1, 7), ", models/", pkg, " is at ", substr(head %||% "?", 1, 7),
+                       ": re-run tools/setup.sh --cluster --install"))
+      }
     }
   }
   rows <- NULL
@@ -290,6 +306,16 @@ pfmPreflight <- function(config = "config.yml", startGroup = NULL, scenarioConfi
   lf <- if (grepl("^(/|[A-Za-z]:)", path)) path else file.path(remindDir, path)
   pk <- tryCatch(names(jsonlite::read_json(lf)$Packages), error = function(e) character(0))
   list(path = path, packages = pk %||% character(0))
+}
+
+# The source renv would record for a package installed in a REMIND checkout's renv library: the
+# RemoteType / RemoteSha fields of its installed DESCRIPTION (NA when absent, i.e. "unknown source").
+.pfmInstalledRemote <- function(remindDir, pkg) {
+  cand <- Sys.glob(file.path(remindDir, "renv", "library", c("*", "*/*", "*/*/*"), pkg, "DESCRIPTION"))
+  if (!length(cand)) return(list(type = NA_character_, sha = NA_character_))
+  d <- tryCatch(read.dcf(cand[1]), error = function(e) NULL)
+  get <- function(f) if (!is.null(d) && f %in% colnames(d)) unname(d[1, f]) else NA_character_
+  list(type = get("RemoteType"), sha = get("RemoteSha"))
 }
 
 .pfmRemindDefault <- function(remindDir, switch) {
