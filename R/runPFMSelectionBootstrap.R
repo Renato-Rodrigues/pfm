@@ -20,6 +20,10 @@
     "regionMappingFixedEffects", "useMundlak", "includeLaggedPS", "logisticTimeTrend",
     "gdpGovInteraction", "interactRegionFE", "indexMax"))]
   fitFields$apTransform <- as.character(cfg$apTransform %||% "linear")
+  # the curve's shape (2026-10-07), only when not the default, so every existing key stays valid
+  if (!is.null(cfg$apSatScale) && !isTRUE(all.equal(as.numeric(cfg$apSatScale), 1))) {
+    fitFields$apSatScale <- as.numeric(cfg$apSatScale)
+  }
   substr(digest::digest(list("psm", fitFields, sector, panelHash, seed), algo = "sha256"), 1, 16)
 }
 

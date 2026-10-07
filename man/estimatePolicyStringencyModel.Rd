@@ -35,6 +35,7 @@ estimatePolicyStringencyModel(
   form = "static",
   yearFixedEffects = FALSE,
   apTransform = "linear",
+  apSatScale = 1,
   trendMidpoint = formals(preparePanelData)$trendMidpoint,
   trendSteepness = formals(preparePanelData)$trendSteepness
 )
@@ -99,6 +100,10 @@ of the actor-power slopes (and hence of the AP x IQ interactions) outside
 the historical share range; it is swept as an axis by
 \code{\link{pfmSpecs}}. Part of the fit-cache key, so linear and saturating
 fits never collide.}
+
+\item{apSatScale}{Positive number, the half-saturation point of the saturating
+actor-power transform as a multiple of the training median (\code{1}, the default, is
+the deployed form). See \code{\link{preparePanelData}}.}
 
 \item{trendMidpoint, trendSteepness}{Numeric. Shape of the logistic time trend,
 forwarded to \code{\link{preparePanelData}} and defaulting to its values.

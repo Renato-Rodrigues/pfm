@@ -110,7 +110,7 @@ pfmRun <- function(group = NULL,
     # Run-Group v1 came to be complete-looking and unciteable.
     diagnostics = c("pfm-agreement", "pfm-iv", "pfm-influence", "pfm-inference",
                     "pfm-replay"),
-    downstream  = c("pfm-donor", "pfm-projection", "pfm-coupling-bound",
+    downstream  = c("pfm-donor", "pfm-anchor", "pfm-projection", "pfm-coupling-bound",
                     "pfm-sanity-pool", "pfm-selection-bootstrap", "pfm-regfront"),
     remind      = "pfm-remind-inputs",
     custom      = character(0))

@@ -433,6 +433,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
           useMundlak = isTRUE(cfg$useMundlak),
           gdpGovInteraction = isTRUE(cfg$gdpGovInteraction),
           apTransform = cfg$apTransform %||% "linear",
+          apSatScale = as.numeric(cfg$apSatScale %||% 1),
           modelDir = modelDir, updateIndex = FALSE, verbose = FALSE)
         saveRDS(ecm, fitCache)
         say(sprintf("%s ECM fitted and cached in %.0fs [key %s] - later iterations reuse it",

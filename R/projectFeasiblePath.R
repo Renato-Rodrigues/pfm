@@ -125,6 +125,7 @@ projectFeasiblePath <- function(spec, sector, histData, scenarioData,
     useMundlak = isTRUE(spec$useMundlak),
     gdpGovInteraction = isTRUE(spec$gdpGovInteraction),
     apTransform = spec$apTransform %||% "linear",
+    apSatScale = as.numeric(spec$apSatScale %||% 1),
     trendMidpoint = spec$trendMidpoint %||% formals(preparePanelData)$trendMidpoint,
     trendSteepness = spec$trendSteepness %||% formals(preparePanelData)$trendSteepness,
     modelDir = modelDir, updateIndex = FALSE, verbose = FALSE

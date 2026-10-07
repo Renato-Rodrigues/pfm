@@ -91,7 +91,7 @@ startRun <- function(group,
                   # whitelist - so startRun silently DROPPED them and `stage = "diagnostics"`
                   # produced no inference.rds. Fixed 2026-09-15; keep the three lists in step.
                   "pfm-agreement", "pfm-iv", "pfm-influence", "pfm-inference", "pfm-replay",
-                  "pfm-donor", "pfm-projection", "pfm-coupling-bound",
+                  "pfm-donor", "pfm-anchor", "pfm-projection", "pfm-coupling-bound",
                   "pfm-sanity-pool", "pfm-selection-bootstrap", "pfm-regfront", "pfm-remind-inputs",
                   # aliases — expanded to ordered step lists inside runModelGroup
                   "pfm-downstream", "pfm-all")

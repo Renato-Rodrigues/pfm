@@ -75,6 +75,12 @@
 #'   attribute as the \code{sat} element, so apply-mode callers reproduce the
 #'   transform by passing the stored \code{driverScaling} and need not set this
 #'   argument.
+#' @param apSatScale Positive number. The half-saturation point of the saturating
+#'   transform as a multiple of the training median: \code{xBar = apSatScale * median}.
+#'   \code{1} (default) is the deployed form. A sensitivity on the curve's shape (design
+#'   note 0005 §7a decision 6): below 1 the curve flattens earlier, above 1 it stays closer
+#'   to linear over the observed range. Fit mode only, like \code{apTransform}: the scaled
+#'   \code{xBar} is what \code{"driverScaling"} stores.
 #'
 #' @return data.frame with columns: region, year, timeTrend, regionFE (unless
 #'   \code{useMundlak = TRUE}), ecp, plus one column per driver (safe R-named),
@@ -101,6 +107,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
                              trendFreezeYear = NULL,
                              outcomeVar = "Effective Carbon Price",
                              apTransform = "linear",
+                             apSatScale = 1,
                              excludeCountries = getOption("pfm.excludeCountries",
                                                           "EST")) {
   # If data is already a data.frame, assume it is already prepared and return it.
@@ -491,6 +498,9 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
   # defined, so it is left linear and flagged with sat = NA.
   apTransform <- match.arg(apTransform, c("linear", "saturating", "saturating-innovator",
                                            "saturating-incumbent"))
+  if (!is.numeric(apSatScale) || length(apSatScale) != 1 || !is.finite(apSatScale) || apSatScale <= 0) {
+    stop("preparePanelData: 'apSatScale' must be one positive number.", call. = FALSE)
+  }
   apVars <- intersect(make.names(unique(c(actorPowerDrivers, actorPowerIndex))), scaleVars)
   satOf <- function(col) {
     if (!is.null(driverScaling) && !is.null(driverScaling[[col]])) {
@@ -507,7 +517,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
     }
     md <- stats::median(v, na.rm = TRUE)
     if (!is.finite(md) || md <= 0) return(NA_real_)
-    md
+    md * apSatScale
   }
   satPars <- stats::setNames(vapply(apVars, satOf, numeric(1)), apVars)
   for (col in apVars) {

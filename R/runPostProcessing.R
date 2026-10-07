@@ -787,17 +787,17 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                 # very order the alias was written in.
                 "pfm-sweep", "pfm-frontier", "pfm-temporal", "pfm-sector-speeds",
                 "pfm-agreement", "pfm-iv", "pfm-influence", "pfm-inference", "pfm-replay",
-                "pfm-donor", "pfm-projection", "pfm-regfront", "pfm-coupling-bound",
+                "pfm-donor", "pfm-anchor", "pfm-projection", "pfm-regfront", "pfm-coupling-bound",
                 "pfm-sanity-pool", "pfm-selection-bootstrap", "pfm-remind-inputs")
   # Aliases expand to an ORDERED step list, so the whole downstream build is one
   # argument instead of a bash script that re-implements ordering, resume and
   # artifact checks outside the package. Everything downstream of the sweep needs
   # the donor table before the bound, and the bound before anything consumes it.
   stepAliases <- list(
-    "pfm-downstream" = c("pfm-donor", "pfm-projection", "pfm-coupling-bound",
+    "pfm-downstream" = c("pfm-donor", "pfm-anchor", "pfm-projection", "pfm-coupling-bound",
                          "pfm-sanity-pool", "pfm-selection-bootstrap"),
     "pfm-all" = c("pfm-sweep", "pfm-frontier", "pfm-temporal", "pfm-sector-speeds",
-                  "pfm-donor", "pfm-projection", "pfm-coupling-bound",
+                  "pfm-donor", "pfm-anchor", "pfm-projection", "pfm-coupling-bound",
                   "pfm-sanity-pool", "pfm-selection-bootstrap"))
   steps <- .pfmLegacySteps(steps)
   for (a in names(stepAliases)) {
@@ -973,6 +973,17 @@ runModelGroup <- function(group, steps = c("sweep", "robustness", "temporal", "s
                                               c("group", "resultsDir", "modelDir",
                                                 "cachefolder", "verbose"))])
     do.call(runPFMDonorAssumptions, dnArgs)
+  }
+  # The v6 anchor artifact (0005 C6/F6): q, u per resolution, the lean frontier design. After the
+  # donor step, whose band assignment it reads; before the REMIND export, which ships it.
+  if (doStep("pfm-anchor")) {
+    say("step: pfm-anchor")
+    dots <- list(...)
+    anArgs <- c(list(group = group, resultsDir = resultsDir, modelDir = modelDir,
+                     cachefolder = cachefolder, verbose = verbose),
+                dots[names(dots) %in% setdiff(names(formals(runPFMAnchor)),
+                                              c("group", "resultsDir", "modelDir", "cachefolder", "verbose"))])
+    do.call(runPFMAnchor, anArgs)
   }
   if (doStep("pfm-projection")) {
     say("step: pfm-projection")

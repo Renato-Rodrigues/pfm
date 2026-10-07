@@ -78,6 +78,16 @@ runPFMExportREMINDInputs <- function(group,
          call. = FALSE)
   }
   dir.create(file.path(outDir, "panels"), recursive = TRUE, showWarnings = FALSE)
+  # The v6 anchor artifact (pfm-anchor, 0005 C6/F6): shipped when the group has one. A group whose
+  # manifest records a completed pfm-anchor step must have it (pfmPreflight checks the export).
+  optional <- "phi-anchor.rds"
+  optional <- optional[file.exists(file.path(groupDir, optional))]
+  if (!length(optional) && identical(jsonlite::read_json(file.path(groupDir, "manifest.json"))$steps[["pfm-anchor"]]$status, "completed")) {
+    stop("runPFMExportREMINDInputs: the manifest records pfm-anchor but phi-anchor.rds is missing; ",
+         "re-run pfmRun(group = \"", group, "\", steps = \"pfm-anchor\").", call. = FALSE)
+  }
+  need <- c(need, optional)
+  unlink(file.path(outDir, "phi-anchor.rds"))   # never leave a previous export's anchor behind
   ok <- all(file.copy(file.path(groupDir, need), file.path(outDir, need), overwrite = TRUE))
   ok <- ok && file.copy(panelSrc, file.path(outDir, "panels", panel), overwrite = TRUE)
   if (!ok) stop("runPFMExportREMINDInputs: one or more files failed to copy to '",

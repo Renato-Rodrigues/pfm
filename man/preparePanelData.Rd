@@ -21,6 +21,7 @@ preparePanelData(
   trendFreezeYear = NULL,
   outcomeVar = "Effective Carbon Price",
   apTransform = "linear",
+  apSatScale = 1,
   excludeCountries = getOption("pfm.excludeCountries", "EST")
 )
 }
@@ -98,6 +99,13 @@ leave the other group linear (design note 0005 D7: the sweep selects among the f
 attribute as the \code{sat} element, so apply-mode callers reproduce the
 transform by passing the stored \code{driverScaling} and need not set this
 argument.}
+
+\item{apSatScale}{Positive number. The half-saturation point of the saturating
+transform as a multiple of the training median: \code{xBar = apSatScale * median}.
+\code{1} (default) is the deployed form. A sensitivity on the curve's shape (design
+note 0005 §7a decision 6): below 1 the curve flattens earlier, above 1 it stays closer
+to linear over the observed range. Fit mode only, like \code{apTransform}: the scaled
+\code{xBar} is what \code{"driverScaling"} stores.}
 
 \item{excludeCountries}{ISO3 codes dropped from the panel before estimation.
 Defaults to \code{getOption("pfm.excludeCountries", "EST")}. Estonia's upstream

@@ -62,6 +62,7 @@ projectPFMSpecScenario <- function(cfg, sector, histData, scenarioData,
     gdpGovInteraction = isTRUE(cfg$gdpGovInteraction),
     includeLaggedPS = isTRUE(cfg$includeLaggedPS),
     apTransform = cfg$apTransform %||% "linear",
+    apSatScale = as.numeric(cfg$apSatScale %||% 1),
     modelDir = modelDir, updateIndex = FALSE, verbose = FALSE
   )
   lastHistYear <- suppressWarnings(max(fit$data$year, na.rm = TRUE))

@@ -270,6 +270,10 @@ pfmPreflight <- function(config = "config.yml", startGroup = NULL, scenarioConfi
     if (is.null(h) || !any(file.exists(file.path(gd, c(p, file.path("panels", p)))))) {
       miss <- c(miss, paste0("the panel ", p))
     }
+    # a group whose manifest records a completed pfm-anchor step must ship the artifact (0005 F2)
+    anchored <- tryCatch(identical(jsonlite::read_json(mf)$steps[["pfm-anchor"]]$status, "completed"),
+                         error = function(e) FALSE)
+    if (anchored && !file.exists(file.path(gd, "phi-anchor.rds"))) miss <- c(miss, "phi-anchor.rds")
   }
   miss
 }
