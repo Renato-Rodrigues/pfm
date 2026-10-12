@@ -9,6 +9,8 @@ test_that("the v6 options have the headline defaults, merge in order and validat
   o <- pfm:::.pfmV6Options(list(holdYear = 2060, kappa = 0.01), list(kappa = "0.02", ordering = "uniform"))
   expect_identical(o$holdYear, 2060); expect_identical(o$kappa, 0.02); expect_identical(o$ordering, "uniform")
   expect_error(pfm:::.pfmV6Options(list(kappa = 1)), "kappa")
+  expect_error(pfm:::.pfmV6Options(list(kappa = -1)), "kappa")
+  expect_identical(pfm:::.pfmV6Options(list(kappa = "-0.005"))$kappa, -0.005)
   expect_error(pfm:::.pfmV6Options(list(hold = "level")))
   expect_error(pfm:::.pfmV6Options(list(strength = "regional", ordering = "permuted")), "not combined")
   y <- pfm:::.pfmV6OptionsFromYaml(list(phiHoldYear = 2060, phiOrdering = "reversed", theta = 0.5, other = 1))
@@ -105,6 +107,11 @@ test_that("on the real v6 anchor, pfmV6Shares reproduces Phase 1 and its options
   kap <- pfmV6Shares(anc, scen, theta = 0.5, options = list(kappa = 0.02))
   r <- kap$strength$k / base$strength$k
   expect_equal(r[kap$strength$year == 2050], rep(0.98^25, 2), tolerance = 1e-9)
+  # a negative kappa (backsliding) grows it, and the share stays clipped at 0
+  bk <- pfmV6Shares(anc, scen, theta = 0.5, options = list(kappa = -0.005))
+  r <- bk$strength$k / base$strength$k
+  expect_equal(r[bk$strength$year == 2050], rep(1.005^25, 2), tolerance = 1e-9)
+  expect_true(all(bk$shares$phi >= 0))
   # a uniform ordering gives one share per sector and year
   uni <- pfmV6Shares(anc, scen, theta = 0.5, options = list(ordering = "uniform"))
   expect_true(all(tapply(uni$shares$phi, paste(uni$shares$sector, uni$shares$year), function(x) diff(range(x))) < 1e-12))

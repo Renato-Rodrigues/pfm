@@ -22,7 +22,10 @@
 #'   \item{spread}{\code{"k"} (headline, \eqn{d = k}) or \code{"model"} (D11, diagnostic).}
 #'   \item{ordering}{\code{"model"}, \code{"uniform"}, \code{"reversed"} or \code{"permuted"} (D15).}
 #'   \item{orderingSeed}{seed of the permutation.}
-#'   \item{kappa}{declared closure on the strength, \eqn{k(t)(1-\kappa)^{t-t_0}} (D13); 0 = none.}
+#'   \item{kappa}{declared closure on the strength, \eqn{k(t)(1-\kappa)^{t-t_0}} (D13); 0 = none. A
+#'     negative value is the backsliding arm: the strength grows above its path (with \code{hold = "ratio"},
+#'     above today's). The share is clipped at 0, so in a region with \eqn{\theta u = 0.5}, growth beyond
+#'     \eqn{k = 2} changes nothing.}
 #'   \item{strength}{\code{"common"} (headline) or \code{"regional"}, \eqn{k_{r,s} = g_{r,s}(t)/g_{r,s}(t_0)} (D16).}
 #' }
 #' @return A named list of the defaults.
@@ -50,7 +53,7 @@ pfmV6CouplingDefaults <- function() {
   o$ordering <- match.arg(as.character(o$ordering), c("model", "uniform", "reversed", "permuted"))
   o$strength <- match.arg(as.character(o$strength), c("common", "regional"))
   if (!is.finite(o$holdYear)) stop("v6 coupling: holdYear must be a year", call. = FALSE)
-  if (!is.finite(o$kappa) || o$kappa < 0 || o$kappa >= 1) stop("v6 coupling: kappa must lie in [0, 1)", call. = FALSE)
+  if (!is.finite(o$kappa) || o$kappa <= -1 || o$kappa >= 1) stop("v6 coupling: kappa must lie in (-1, 1)", call. = FALSE)
   if (o$strength == "regional" && o$ordering != "model") {
     stop("v6 coupling: the regional strength arm (D16) is not combined with an ordering test (D15)", call. = FALSE)
   }
@@ -114,7 +117,7 @@ pfmV6Shares <- function(anchor, scenarioData, theta, options = pfmV6CouplingDefa
     anchor$regionWeights <- .pfmRegionWeights(weights, anchor$mapping)
   }
   st <- computeStrengthPath(anchor, scenarioData, holdYear = o$holdYear, theta = theta, hold = o$hold)
-  fade <- function(y) if (o$kappa > 0) (1 - o$kappa)^pmax(y - anchor$t0, 0) else 1
+  fade <- function(y) if (o$kappa != 0) (1 - o$kappa)^pmax(y - anchor$t0, 0) else 1
   st$strength$k <- st$strength$k * fade(st$strength$year)
   st$strength$d <- st$strength$d * fade(st$strength$year)
   if (o$strength == "common") {
