@@ -8,7 +8,7 @@
 #' and pre-computed interaction columns (each actorPowerIndex × each inst. quality driver).
 #'
 #' @param data magpie object
-#' @param sector character, "Bulk" or "Diffuse"
+#' @param sector character, "Power & industry" or "Buildings & transport"
 #' @param actorPowerDrivers character vector or NULL
 #' @param actorPowerIndex character or NULL
 #' @param instQualityDrivers character vector
@@ -77,7 +77,7 @@
 #'   argument.
 #' @param apSatScale Positive number. The half-saturation point of the saturating
 #'   transform as a multiple of the training median: \code{xBar = apSatScale * median}.
-#'   \code{1} (default) is the deployed form. A sensitivity on the curve's shape (design
+#'   \code{1} (default) is the selected form. A sensitivity on the curve's shape (design
 #'   note 0005 §7a decision 6): below 1 the curve flattens earlier, above 1 it stays closer
 #'   to linear over the observed range. Fit mode only, like \code{apTransform}: the scaled
 #'   \code{xBar} is what \code{"driverScaling"} stores.
@@ -224,14 +224,14 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
       # year, so the whole fit happened on the convex toe (0.09 -> 0.35, sd 0.078)
       # and the saturation was asserted rather than estimated. Two measured
       # consequences of the old choice (analysis/trendParameterisationGrid.R):
-      #   * the projection lever beta*(x_2100 - x_2022) was 6.69 in Bulk, enough on
+      #   * the projection lever beta*(x_2100 - x_2022) was 6.69 in power & industry, enough on
       #     its own to move the 2100 ceiling between 4.1 and 10.0 depending purely
       #     on whether the trend was frozen. Under (2010, 0.20) the lever is 0.29
       #     and the frozen/unfrozen ceilings are 4.11 vs 4.82 — the freeze stops
       #     being load-bearing.
-      #   * the old setting fit WORSE: frontier logLik -1379 (Bulk) / -647
-      #     (Diffuse) against -1319 / -559 here, at identical parameter count.
-      # beta*sd is near-invariant across parameterizations (0.80 -> 0.89 Bulk), so
+      #   * the old setting fit WORSE: frontier logLik -1379 (Power & industry) / -647
+      #     (Buildings & transport) against -1319 / -559 here, at identical parameter count.
+      # beta*sd is near-invariant across parameterizations (0.80 -> 0.89 power & industry), so
       # this changes what the trend does OUT of sample, not its in-sample role.
       # Do not push the midpoint earlier still: (2005, 0.25) fits better again but
       # drives frontier gamma to exactly 1.0000, the boundary degeneracy.
@@ -472,7 +472,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
 
   # --- Saturating actor-power transform (ADR 0040), applied BEFORE scaling -----
   # The actor-power drivers are energy-system shares whose HISTORICAL range is a
-  # small part of the range any transition scenario visits (Bulk innovator power
+  # small part of the range any transition scenario visits (Power & industry innovator power
   # spans 0.03-0.43 in training, 95th pct 0.23, and REMIND takes it to 0.58-0.68).
   # A model linear in the share extrapolates its slope - including the negative
   # interaction slopes - far outside the identified region, which is the diagnosed

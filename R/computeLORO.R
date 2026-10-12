@@ -27,7 +27,7 @@
 #' and counted; OOS-stringency is defined only over held-out adopter region-years.
 #'
 #' @param data A \code{magpie} object: the historical panel (54-region resolution).
-#' @param sector Character. \code{"Bulk"} or \code{"Diffuse"}.
+#' @param sector Character. \code{"Power & industry"} or \code{"Buildings & transport"}.
 #' @param stage Character. \code{"adoption"} or \code{"stringency"}.
 #' @param actorPowerDrivers,actorPowerIndex,instQualityDrivers,controlDrivers
 #'   Spec driver vectors, as passed to the estimate functions.

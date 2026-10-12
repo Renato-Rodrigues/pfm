@@ -18,7 +18,7 @@ pfmSpecs(
 
 \item{apTransforms}{The actor-power forms each SPLIT actor-power spec is fitted in
 (\code{\link{preparePanelData}}'s \code{apTransform}): \code{"linear"} keeps the spec as
-it is, the others append a twin with the suffix \code{" satAP"} (both groups saturating),
+it is, the others append a variant with the suffix \code{" satAP"} (both groups saturating),
 \code{" satInn"} (innovator only) or \code{" satInc"} (incumbent only). Default
 \code{c("linear", "saturating")}, the grid of every Run-Group up to v5.}
 
@@ -37,9 +37,9 @@ meaning:
 \item \strong{FD/hazard transforms dropped} — the PFM currently estimates in
 levels only (no adoption stage exists, and the FD-on-logit-scale variant is
 future work), so \code{panelTransform != "levels"} specs are removed.
-\item \strong{Saturating-price twins dropped} — the \code{priceLink} axis
+\item \strong{Saturating-price variants dropped} — the \code{priceLink} axis
 (ADR 0028) is the price model's bounded-form competition; the PFM is
-\emph{always} the bounded satP form, so the \code{"| satP"} twins would be
+\emph{always} the bounded satP form, so the \code{"| satP"} variants would be
 duplicates.
 \item \strong{Ridge specs dropped} — not supported by the PFM estimator.
 \item \code{includeLaggedECP} (the price-lag dynamics rung) maps to

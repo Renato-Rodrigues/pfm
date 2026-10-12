@@ -33,7 +33,7 @@
 #'
 #' @param spec Normalised specification (named list) as stored in
 #'   \code{selected-models-pfm.yml}; must be \code{panelTransform = "levels"}.
-#' @param sector Character. \code{"Bulk"} or \code{"Diffuse"}.
+#' @param sector Character. \code{"Power & industry"} or \code{"Buildings & transport"}.
 #' @param histData Historical panel (magpie) carrying the Policy Stringency outcome.
 #' @param scenarioData Scenario panel (magpie) for one IAM pathway.
 #' @param lambda Numeric or \code{NULL}. Adjustment speed on the logit scale.

@@ -54,12 +54,12 @@
 #'   data.frames with \code{region, year, value}. Same units; the bound is
 #'   returned in those units.
 #' @param lambda Numeric scalar, or named by sector (e.g.
-#'   \code{c(Bulk = 0.103, Diffuse = 0.078)}) — the validated adjustment speed(s).
+#'   \code{c(Power & industry = 0.103, buildings & transport = 0.078)}) — the validated adjustment speed(s).
 #'   Carry the honesty labels of \code{\link{runPFMSectorSpeeds}} with any value
 #'   used here: only the electricity rate beats persistence out of sample.
 #' @param sectorRule How to reconcile sectors onto one price:
 #'   \code{"min"} (default, worse sector / slowest speed), \code{"mean"},
-#'   \code{"Bulk"}, \code{"Diffuse"}, or \code{"none"} if \code{feasibility} is
+#'   \code{"Power & industry"}, \code{"Buildings & transport"}, or \code{"none"} if \code{feasibility} is
 #'   already single-sector.
 #' @param seedYear Integer or \code{NULL}. Year the price recursion starts from
 #'   (\code{NULL} = the earliest year present). The seed price is the reference

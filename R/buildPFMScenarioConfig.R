@@ -169,7 +169,7 @@ buildPFMScenarioConfig <- function(matrix, remindDir, out = NULL, write = TRUE, 
         tag <- r$start[[resName]] %||% (if (coupled) paste0("V", sub("^v", "", version), "W", r$wave, resName) else unlist(res$baseStart))
         block[[length(block) + 1]] <- list(key = key, title = title, section = r$section %||% paste0("wave", r$wave),
                                            values = vals, start = unlist(tag), coupled = coupled,
-                                           description = paste0(if (!is.null(r$wave)) paste0("[", version, " wave ", r$wave, "] ") else "",
+                                           description = paste0(if (!is.null(r$wave)) paste0("[", version, " batch ", r$wave, "] ") else "",
                                                                 r$description %||% ""),
                                            parentKey = r$parent)
       }

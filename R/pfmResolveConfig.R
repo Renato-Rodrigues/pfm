@@ -120,7 +120,7 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
     gdxFile <- NULL
   }
   # The REFERENCE scenario, for the sweep's responsiveness gate (scenarioBlind, ADR 0039).
-  # Not passed until 2026-10-05, so that gate never ran in a pfmRun sweep and v6 deployed a
+  # Not passed until 2026-10-05, so that gate never ran in a pfmRun sweep and v6 selected a
   # spec whose two projections differ by 0.004 index points (PITFALLS 28).
   refEntry <- if (!is.null(gdxFile)) scenarioReferenceEntry(scenReg$scenarios) else NULL
   referenceGdxFile <- refEntry$gdx

@@ -3,7 +3,7 @@
 # theta is DECLARED and swept, never estimated (MODEL.md 5.3). The anchor solves
 # 1 - theta * median(u) = median(E) and exists so a swept value can be re-derived rather
 # than trusted. It has already moved twice - once when the frontier was refitted on the
-# deployed satAP spec, once when ADR 0042 made Diffuse rather than Bulk the sector setting
+# Selected satAP spec, once when ADR 0042 made buildings & transport rather than power & industry the sector setting
 # the economy-wide floor - which is exactly why it is computed and stored, not hardcoded.
 
 mkAgg <- function(E, sector = NULL, year = 2025) {
@@ -30,7 +30,7 @@ test_that("theta is driven by WHERE the median sits in the gap range, not its wi
   tight <- computeEfficiencyAnchor(mkAgg(c(A = 0.65, B = 0.6, C = 0.55)))
   expect_equal(sym$medianU, tight$medianU)
   # ... while one extreme outlier compresses everyone else's u and RAISES theta, with
-  # median E untouched. This is the mechanism behind Bulk's out-of-range anchor on v1
+  # median E untouched. This is the mechanism behind power & industry's out-of-range anchor on v1
   # (RUS sits at a relative gap of 0.83) and the reason resolution matters: the same
   # countries aggregated into 21 regions give a different min/max, hence a different u.
   skewed <- computeEfficiencyAnchor(mkAgg(c(A = 0.8, B = 0.6, C = 0.05)))
@@ -39,7 +39,7 @@ test_that("theta is driven by WHERE the median sits in the gap range, not its wi
 })
 
 test_that("a compressed gap distribution reports theta OUT of range rather than clipping", {
-  # Bulk does this on v1 (theta = 1.19). The rule cannot reproduce median efficiency at any
+  # Power & industry does this on v1 (theta = 1.19). The rule cannot reproduce median efficiency at any
   # admissible theta - a result to report, not a ceiling to raise.
   # Median gap sits near the MINIMUM while one unit carries a huge gap: median u is then
   # small relative to 1 - median E, and no admissible theta closes the difference.

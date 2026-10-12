@@ -1,8 +1,8 @@
 # nolint start
-#' Feasibility-frontier Run-Group step for the deployed PFM spec
+#' Feasibility-frontier Run-Group step for the selected PFM spec
 #'
 #' @description
-#' Re-estimates the Run-Group's deployed Policy Stringency spec under the
+#' Re-estimates the Run-Group's selected Policy Stringency spec under the
 #' stochastic-frontier rung (\code{\link{estimatePolicyStringencyModel}} with
 #' \code{estimator = "frontier"}) per sector and writes
 #' \code{<group>/frontier.rds}: the frontier coefficient table, the
@@ -82,7 +82,7 @@ runPFMFrontier <- function(group,
              modelDir = NULL, verbose = FALSE),
         # See .pfmSpecArgs(). Hand-listing these dropped apTransform, so the frontier
         # — the ceiling, the efficiency ratio, every gap and tier downstream of it —
-        # was estimated on linear actor power while the deployed spec is satAP.
+        # was estimated on linear actor power while the selected specification is satAP.
         .pfmSpecArgs(cfg))),
       error = function(e) {
         say("  ", sec, " frontier fit failed: ", conditionMessage(e))
@@ -104,7 +104,7 @@ runPFMFrontier <- function(group,
       say("  ", sec, " diagnostics failed: ", conditionMessage(e)); NULL
     })
     # Persist the standard-error trust signal WITH the standard errors. FRONTIER 4.1's
-    # own covariance matrix was 14.8x too large for v4 Bulk while `converged`, the
+    # own covariance matrix was 14.8x too large for v4 power & industry while `converged`, the
     # log-likelihood and the estimates were all correct (TODO 14f), so a consumer that
     # reads coefTable has no way to tell a checked table from an unchecked one unless
     # the artifact says. Artifacts written before 2026-08-26 lack this field, and for

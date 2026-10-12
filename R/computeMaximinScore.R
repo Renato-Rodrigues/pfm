@@ -42,7 +42,7 @@ computeTheoryTier <- function(sigActorPower, sigInstQual, sigInteractions) {
 #' @param df Data.frame with one row per (model, sector) and columns:
 #'   \describe{
 #'     \item{model}{Character. Specification identifier (shared across sectors).}
-#'     \item{sector}{Character. e.g. \code{"Bulk"} / \code{"Diffuse"}.}
+#'     \item{sector}{Character. e.g. \code{"Power & industry"} / \code{"Buildings & transport"}.}
 #'     \item{sigActorPower, sigInstQual, sigInteractions}{Integer significant-term
 #'       counts per theory group (as in the model-selection report tables).}
 #'     \item{deltaR2Theory}{Numeric. \eqn{\Delta R^2}(theory) for that sector fit.}
@@ -96,7 +96,7 @@ computeTheoryTier <- function(sigActorPower, sigInstQual, sigInteractions) {
 #'   \code{"tierMean"} (default — unchanged price-model semantics): worse-sector
 #'   Theory Tier first, mean \eqn{\Delta R^2}(theory) second. \code{"worseDeltaR2"}
 #'   (PFM Tournament v2): rank directly by the \strong{worse sector's}
-#'   \eqn{\Delta R^2}(theory) — \code{min(Bulk, Diffuse)} — the more faithful
+#'   \eqn{\Delta R^2}(theory) — \code{min(Power & industry, buildings & transport)} — the more faithful
 #'   operationalisation of the maximin principle; tier then acts only through
 #'   \code{tierGate}, and the near-tie band + within-band preferences operate on
 #'   the worse-sector metric.
@@ -178,7 +178,7 @@ computeMaximinScore <- function(df, vifGate = 10, deltaR2Max = 1, pseudoR2Range 
 
   # Base order (ADR 0039): "tierMean" = gate pass, worse-sector tier, mean
   # deltaR2(theory), name (the historical price-model semantics); "worseDeltaR2" =
-  # gate pass, worse-sector deltaR2(theory) — min(Bulk, Diffuse) — then name
+  # gate pass, worse-sector deltaR2(theory) — min(Power & industry, buildings & transport) — then name
   # (Tournament v2: tier acts only through tierGate).
   worseKey <- ifelse(is.finite(out$minDeltaR2), out$minDeltaR2, -Inf)
   if (identical(rankBy, "worseDeltaR2")) {

@@ -4,7 +4,7 @@
 # desynchronises them from the artifact. It has already drifted once (0.74 dropped
 # from MODEL.md while still being swept). Pin it.
 
-test_that("the default theta grid is even, spans [0, 1) and brackets v3's Bulk anchor", {
+test_that("the default theta grid is even, spans [0, 1) and brackets v3's power & industry anchor", {
   th <- eval(formals(runPFMCouplingBound)$thetas)
 
   expect_identical(th, c(0, 0.25, 0.50, 0.75, 0.95, 0.99))
@@ -15,7 +15,7 @@ test_that("the default theta grid is even, spans [0, 1) and brackets v3's Bulk a
   # The declared central value (MODEL.md 5.3); anchorTheta snaps to it.
   expect_true(0.50 %in% th)
 
-  # TODO 14b(b): v3's region-resolution Bulk anchor is 0.951. The grid must BRACKET
+  # TODO 14b(b): v3's region-resolution power & industry anchor is 0.951. The grid must BRACKET
   # it, not merely approach it -- the anchor fixes a scale by analogy, so the honest
   # object is a swept neighbourhood rather than a point.
   expect_true(any(th < 0.951) && any(th > 0.951))

@@ -12,7 +12,7 @@
 #'     \code{\link{computeAnchorGap}};
 #'   \item per resolution (EU21 and H12 by default), the regional ranking \eqn{u_{r,s}}, the
 #'     regional weights and the provenance shares;
-#'   \item per sector, a \emph{lean} frontier design: the spec, the deployed frontier
+#'   \item per sector, a \emph{lean} frontier design: the spec, the selected frontier
 #'     coefficients, the frozen driver scaling (saturation parameters included), the guard ranges
 #'     and the trend curve - what \eqn{\eta_{c,s}(t)} needs on a scenario panel, and nothing of the
 #'     fitted model's data;

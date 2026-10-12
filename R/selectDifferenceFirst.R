@@ -20,7 +20,7 @@
 #'   re-estimate of each falsification-passing candidate is screened by the
 #'   Projection Sanity gate; when NULL, the top falsification-passing candidate is
 #'   selected (maximin + falsification only).
-#' @param sectors Character vector. Default \code{c("Bulk", "Diffuse")}.
+#' @param sectors Character vector. Default \code{c("Power & industry", "Buildings & transport")}.
 #' @param family Character. Stringency GLM family.
 #' @param modelDir Character or NULL.
 #' @param nearTieEps Numeric. BIC parsimony tie-break tolerance (ADR 0012).

@@ -1,9 +1,9 @@
 # nolint start
-#' Pseudo-out-of-sample validation of the deployed Policy Stringency spec
+#' Pseudo-out-of-sample validation of the selected Policy Stringency spec
 #'
 #' @description
 #' THE decisive test of the PFM's projection claim (R10, 2026-07-06;
-#' docs/psm-nature-readiness-assessment.md Tier 1): the deployed spec (from the
+#' docs/psm-nature-readiness-assessment.md Tier 1): the selected specification (from the
 #' Run-Group's \code{selected-models-pfm.yml}) is re-fit on the historical panel
 #' truncated at \code{trainEnd}, then projected onto the observed drivers of the
 #' held-out years (trend frozen at \code{trainEnd}, frozen driver scaling, the
@@ -111,7 +111,7 @@ runPFMTemporalValidation <- function(group,
         list(data = trainPanel, sector = sec, estimator = "satP", indexMax = indexMax,
              modelDir = NULL, verbose = FALSE),
         # See .pfmSpecArgs(): hand-listing dropped apTransform, so the out-of-time
-        # validation scored a different specification from the deployed one.
+        # validation scored a different specification from the selected one.
         .pfmSpecArgs(cfg))),
       error = function(e) {
         say("  ", sec, " train-window fit failed: ", conditionMessage(e))

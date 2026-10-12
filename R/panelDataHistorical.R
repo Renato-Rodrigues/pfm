@@ -17,14 +17,14 @@
 #'   \code{\link{iamCalculatedDrivers}}. Default: the active panel definition.
 #' @param coeff list of coefficients for actor power index calculation
 #' @param includePolicyStringency logical; if TRUE, adds the CAPMF-based Policy
-#'   Stringency Model outcomes ("Policy Stringency|Bulk", "Policy Stringency|Diffuse"
+#'   Stringency Model outcomes ("Policy Stringency|Power & industry", "Policy Stringency|Buildings & transport"
 #'   and, when available, "Policy Stringency|Composite"; ADR 0036). Default FALSE so
 #'   the carbon-price panel (and its end-year rule) is unchanged unless the PFM
 #'   explicitly asks for it. Years the CAPMF source does not reach are NA-filled;
 #'   preparePanelData later drops rows with a missing outcome.
-#' @param psSectorResolution character; `"two"` (Bulk/Diffuse, default) or `"four"`
+#' @param psSectorResolution character; `"two"` (Power & industry / buildings & transport, default) or `"four"`
 #'   (Electricity/Industry/Buildings/Transport) CAPMF sector outcomes.
-#' @param psWeighting how CAPMF sectors are aggregated into Bulk/Diffuse: `"equal"`
+#' @param psWeighting how CAPMF sectors are aggregated into power & industry / buildings & transport: `"equal"`
 #'   (default), `"ghg"` (EDGAR sectoral emissions), `"gdp"` (OECD value added by
 #'   activity), `"fe"` (final-energy activity proxy), or explicit weights (a named
 #'   numeric vector or a per-cell magpie), forwarded to

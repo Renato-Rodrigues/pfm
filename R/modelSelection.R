@@ -2,7 +2,7 @@
 #' @description Performs structured model selection incrementally or combinatorially.
 #'
 #' @param data A \code{magpie} object produced by \code{panelDataHistorical}.
-#' @param sector Character. \code{"Bulk"} or \code{"Diffuse"}.
+#' @param sector Character. \code{"Power & industry"} or \code{"Buildings & transport"}.
 #' @param stage Character. \code{"adoption"} or \code{"stringency"}.
 #' @param family Character. GLM family for stringency.
 #' @param testMode Character. \code{"incremental"} or \code{"combinations"}.

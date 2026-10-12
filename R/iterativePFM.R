@@ -37,7 +37,7 @@
 #' @param outputFile Name of the gdx to write. Must match the
 #'   \code{Execute_Loadpoint} name in
 #'   \code{45_carbonprice/functionalForm/presolve.gms}.
-#' @param group,resultsDir,modelDir The PFM Run-Group supplying the deployed
+#' @param group,resultsDir,modelDir The PFM Run-Group supplying the selected
 #'   specification, frontier and speeds. Inside a REMIND run they come from
 #'   \code{couplingConfig} (\code{pfm-coupling.yml}, written into the run folder by
 #'   REMIND's \code{scripts/start/preparePFM.R}); REMIND's own \code{.Rprofile} is not
@@ -60,7 +60,7 @@
 #'   over-represent small emitters and should only be used deliberately.
 #' @param weightYear,weightScenario Year and SSP used to project the final-energy
 #'   weights (see \code{\link{pfmCouplingWeights}}). Default 2025 / \code{"SSP2"}, the
-#'   values the deployed runs use (\code{cfg$pfm$weightYear} in REMIND's
+#'   values the selected runs use (\code{cfg$pfm$weightYear} in REMIND's
 #'   \code{default.cfg}, written into \code{pfm-coupling.yml}). Inside a REMIND run
 #'   the SSP is the run's own \code{cm_GDPpopScen}; offline,
 #'   \strong{\code{weightScenario} must match the SSP the coupled run uses},
@@ -93,7 +93,7 @@
 #' @param theta,nTiers,lambda Coupling knobs, passed through to
 #'   \code{\link{aggregateFeasibilityToRegions}}. \code{theta} is a declared
 #'   scenario parameter, not an estimate — sweep it. \code{nTiers} is used only with
-#'   \code{phiRule = "tiered"}; the deployed rule is \code{"continuous"}.
+#'   \code{phiRule = "tiered"}; the selected rule is \code{"continuous"}.
 #' @param mapping Country-to-REMIND-region mapping (file name or data.frame).
 #' @param formulation \code{"auto"} (default), \code{"v6-anchor"} or \code{"v5-tier"}. \code{"auto"}
 #'   couples a Run-Group whose export carries \code{phi-anchor.rds} by the v6 formulation (design
@@ -193,7 +193,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       v6Runtime <- .pfmV6OptionsFromYaml(rt)
       if (!is.null(rt$ssp)) rtSsp <- as.character(rt$ssp)
       if (!is.null(rt$phiPath)) rtPhiPath <- suppressWarnings(as.numeric(rt$phiPath))
-      # cm_pfmGapClosure. 0 = the political gap PERSISTS, the deployed setting since
+      # cm_pfmGapClosure. 0 = the political gap PERSISTS, the selected setting since
       # 2026-09-11 and exportFeasibilityRegiDiff()'s documented default; 1 = it closes at
       # the frontier's estimated ECM speeds. Recorded here and applied below as
       # `gapClosure`, because WHICH lambda it may touch is not obvious - see the note at
@@ -338,7 +338,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
         stop("phi-override.yml is a v5 instrument; under the v6 formulation the ordering tests are the ",
              "phiOrdering option (0005 D15), which keeps the strength dynamics. Remove the file.")
       }
-      # GAMS must read the path: with cm_pfmPhiPath = 0 mode 1 and the rule-C rebuild would run on
+      # GAMS must read the path: with cm_pfmPhiPath = 0 mode 1 and the hold-the-budget rebuild would run on
       # the t0 share alone, a constant phi under a v6 label (0005 Phase 3 pitfalls).
       if (!is.null(rtPhiPath) && isTRUE(rtPhiPath == 0)) {
         stop("this is a v6 Run-Group (phi-anchor.rds) but GAMS runs with cm_pfmPhiPath = 0, so it would ",
@@ -536,7 +536,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     # 2b. Optional test override of the shares (GP-23, GP-24): phi-override.yml in the Run-Group.
     #     Applied here, before steps 3-5 derive the economy-wide share, the per-market shares
     #     and the mode-2 bound from feas$phi, so every symbol GAMS loads sees the same values.
-    #     No file = no change (every deployed Run-Group). See .pfmApplyPhiOverride().
+    #     No file = no change (every selected Run-Group). See .pfmApplyPhiOverride().
     if (!identical(formulation, "v6-anchor")) feas <- .pfmApplyPhiOverride(feas, gd, say)
 
     # 2c. v6: damping only on oscillation (0005 D5), from the previous calls' paths.
@@ -578,9 +578,9 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     #     NOT binding, and min() of two noisy estimates is biased low - in the direction
     #     that INFLATES the paper's headline.
     #
-    #     SYMMETRIC since 2026-08-17. The first version carried Bulk only, which capped
-    #     the demand side at the Bulk price wherever BULK was the worse sector (14 of 48
-    #     countries on the deployed frontier) - reintroducing the same information loss
+    #     SYMMETRIC since 2026-08-17. The first version carried power & industry only, which capped
+    #     the demand side at the power & industry price wherever BULK was the worse sector (14 of 48
+    #     countries on the selected frontier) - reintroducing the same information loss
     #     on the other sector. Every sector now carries its own share, and floor +
     #     markup reproduces that sector's own price exactly.
     #
@@ -791,7 +791,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 
       # One path per sector, for the per-market markups (ADR 0042). Same seed and the
       # same recursion; only the sector selected differs. lambda is that sector's own
-      # MOMENTUM RATE where one was supplied per sector - Bulk moves faster (v4: 0.1105
+      # MOMENTUM RATE where one was supplied per sector - power & industry moves faster (v4: 0.1105
       # vs 0.0730/yr) - and using the pooled mean would understate exactly the headroom
       # the markup is meant to express.
       #
@@ -897,15 +897,15 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     #       "lambda_m > lambda_floor = 0", not "this sector can bear more than the worse
     #       one". With the rates consistent the binding sector's markup is exactly zero,
     #       which is the invariant ADR 0042 states.
-    #   (c) the -Min twins were not a clean counterfactual. Turning cm_pfmSectorMarkup
+    #   (c) the -Min variants were not a clean counterfactual. Turning cm_pfmSectorMarkup
     #       off also moved lambda from 0.1105/0.0730 to 0, so SCENARIOS.md 4.5's "the
     #       markup buys back a fifth of the carbon cost" is measuring both at once.
     #
     # It does NOT settle whether the gap should close at all. lambda > 0 closes 78% of
     # it by 2050, which is why mode R's spread is 1.12x; exportFeasibilityRegiDiff()
     # documents lambda = 0, "the gap PERSISTS", as the reason option 11 exists. Now that
-    # the floor is exported the two branches are one call apart: pass lambda = c(Bulk =
-    # 0, Diffuse = 0) and BOTH the floor and the markets run at zero. That is a modelling
+    # the floor is exported the two branches are one call apart: pass lambda = c(Power & industry =
+    # 0, buildings & transport = 0) and BOTH the floor and the markets run at zero. That is a modelling
     # decision, not a plumbing one - TODO.md item 1e.
     #
     # Written over the same regions as phi, like every other 1-d coupling symbol, so
@@ -998,7 +998,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 #' Median 2050 markup of the ETS path over the economy-wide floor, for the log.
 #'
 #' Purely diagnostic: it is the one number that says at a glance whether the sector
-#' split is doing anything this iteration. A markup of zero everywhere means Bulk is
+#' split is doing anything this iteration. A markup of zero everywhere means power & industry is
 #' never the easier sector, which would make ADR 0042 inert and is worth seeing.
 #'
 #' @param floorDF,etsDF Long data.frames with \code{region, year} and the value column.
@@ -1097,11 +1097,11 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 
 #' The PFM sector to REMIND emission-market map (ADR 0042)
 #'
-#' The single place this mapping is written down. Bulk is the ETS sector (electricity +
-#' industry); Diffuse covers effort sharing and everything not otherwise assigned.
+#' The single place this mapping is written down. Power & industry is the ETS sector (electricity +
+#' industry); buildings & transport covers effort sharing and everything not otherwise assigned.
 #' \code{"other"} follows \code{"ES"} deliberately - it is REMIND's own convention
 #' (\code{47_regipol/regiCarbonPrice/postsolve.gms:409} does \code{other = ES}) and it
-#' matches the mapping ADR 0042 states, "ETS ~ Bulk, ES + other ~ Diffuse".
+#' matches the mapping ADR 0042 states, "ETS ~ power & industry, ES + other ~ buildings & transport".
 #'
 #' @keywords internal
 #' @rdname pfmCouplingGdx

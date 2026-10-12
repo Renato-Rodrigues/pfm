@@ -1,8 +1,8 @@
 # nolint start
-#' Inference artifact for the deployed spec (pfm-inference)
+#' Inference artifact for the selected specification (pfm-inference)
 #'
 #' @description
-#' Refits the deployed specification per sector and persists the two inference quantities the
+#' Refits the selected specification per sector and persists the two inference quantities the
 #' paper quotes but no Run-Group step ever wrote:
 #'
 #' \itemize{
@@ -83,7 +83,7 @@ runPFMInference <- function(group,
     if (length(hit) == 0) next
     cfg <- norm(hit[[1]])
     out$spec <- out$spec %||% cfg$name
-    say("deployed satP refit (", sec, ") ...")
+    say("selected satP refit (", sec, ") ...")
     fit <- tryCatch(
       do.call(estimatePolicyStringencyModel, c(
         list(data = panel, sector = sec, estimator = "satP", indexMax = indexMax,

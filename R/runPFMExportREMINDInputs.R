@@ -61,7 +61,7 @@ runPFMExportREMINDInputs <- function(group,
   hash <- mf$panel_hash %||% ""
   if (!nzchar(hash)) {
     stop("runPFMExportREMINDInputs: manifest.json has no panel_hash, so the panel the ",
-         "deployed spec was fitted on cannot be identified.", call. = FALSE)
+         "selected specification was fitted on cannot be identified.", call. = FALSE)
   }
   panel <- paste0("panel_", hash, ".rds")
   panelCand <- .pfmPanelCandidates(groupDir, hash, modelDir = modelDir)

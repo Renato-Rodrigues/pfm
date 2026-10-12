@@ -11,8 +11,8 @@
 #' @param data A \code{magpie} object or a \code{data.frame}. If a \code{data.frame}
 #'   is provided, it is assumed to be already prepared and the internal
 #'   call to \code{preparePanelData} is skipped.
-#' @param sector Character. The sector to estimate: \code{"Bulk"} or
-#'   \code{"Diffuse"}. Default: \code{"Bulk"}.
+#' @param sector Character. The sector to estimate: \code{"Power & industry"} or
+#'   \code{"Buildings & transport"}. Default: \code{"Power & industry"}.
 #' @param family Character. GLM family to use: \code{"Gamma"} or
 #'   \code{"gaussian"}. Both use a log link.
 #'   \describe{

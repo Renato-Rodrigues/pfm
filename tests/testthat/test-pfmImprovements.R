@@ -181,14 +181,14 @@ test_that("exhaustive grid gains capture-channel and EU-diffusion specs, names a
   specs <- pfm:::channelSpecs("exhaustive")
   nms <- vapply(specs, `[[`, character(1), "name")
   # every levels spec is twinned with a saturating-price variant downstream (ADR
-  # 0028), so the appended blocks appear twice: base + "| satP" twin. pfmSpecs
-  # drops the twins for the PFM sweep.
+  # 0028), so the appended blocks appear twice: base + "| satP" variant. pfmSpecs
+  # drops the variants for the PFM sweep.
   isTwin <- grepl("\\| satP", nms)
   expect_equal(sum(grepl(" cap:", nms) & !isTwin), 36)   # 2 AP x 3 combos x 2 ctl x 3 FE
   expect_equal(sum(grepl(" dif:EU ", nms) & !isTwin), 12) # 2 AP x 2 ctl x 3 FE
   capSpec <- specs[[which(grepl(" cap:", nms))[1]]]
   expect_true("Control of Corruption (WGI)" %in% unlist(capSpec$instQualityDrivers))
-  # Numbering stability: existing spec names (incl. the deployed X-0257) unchanged.
+  # Numbering stability: existing spec names (incl. the selected X-0257) unchanged.
   expect_true("X-0257 WGIge|noRoL|VerAcc compAP lev ctl:ctlNone fe:H12" %in% nms)
   # Context-dummies block (ADR 0038): the full channel x AP x control x FE cross with
   # EU + transition appended to every curated control set, levels only.
@@ -269,7 +269,7 @@ test_that("Transition Economy derives a static post-communist dummy (ADR 0038)",
 
 # ── R10: pseudo-out-of-sample validation step ────────────────────────────────────
 
-test_that("runPFMTemporalValidation scores the deployed spec against held-out years", {
+test_that("runPFMTemporalValidation scores the selected specification against held-out years", {
   resultsDir <- withr::local_tempdir()
   modelDir <- withr::local_tempdir()
   pfmTestSweep("psm-tv", resultsDir, modelDir)

@@ -44,7 +44,7 @@
 #'   \item \eqn{\ell_i} \strong{below} every covered country's — a genuine
 #'     extrapolation beyond the low end of support. Assigned the
 #'     \code{bandPercentile} quantile of covered \eqn{E}. Justified because \eqn{E}
-#'     genuinely falls with capability (cor(E, GovEff) = +0.52 Bulk / +0.65 Diffuse,
+#'     genuinely falls with capability (cor(E, GovEff) = +0.52 power & industry / +0.65 buildings & transport,
 #'     p < 0.001) — and this is \emph{on top of} the ceiling effect, so it does not
 #'     double-count \eqn{S^{*}}.
 #'   \item \eqn{\ell_i} \strong{inside or above} the covered range — unmatched for
@@ -95,9 +95,9 @@
 #'   institutions could support. Inheriting a high-willingness \eqn{E} imports the
 #'   one attribute the drivers cannot see. \code{c(USA = "median")} is the honest
 #'   assignment: typical realized ambition, not the ambition its capacity permits.
-#' @param sector \code{"Bulk"} or \code{"Diffuse"} — recorded on the output.
+#' @param sector \code{"Power & industry"} or \code{"Buildings & transport"} — recorded on the output.
 #' @param drivers Optional subset of the base drivers (coefficient names) that enter the
-#'   distance. \code{NULL} (default) uses all of them. A sensitivity: the deployed rule
+#'   distance. \code{NULL} (default) uses all of them. A sensitivity: the selected rule
 #'   matches on the full specification.
 #' @param weighting \code{"beta"} (default): each driver weighted by its \eqn{|\beta|} share;
 #'   \code{"equal"}: every driver alike.

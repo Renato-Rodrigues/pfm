@@ -13,7 +13,7 @@ NULL
 #' @param created_at Character. ISO 8601 UTC timestamp.
 #' @param label Character. Optional human-readable label.
 #' @param pfm_version Character. Package version at save time.
-#' @param sector Character. \code{"Bulk"} or \code{"Diffuse"}.
+#' @param sector Character. \code{"Power & industry"} or \code{"Buildings & transport"}.
 #' @param stage Character. \code{"adoption"} or \code{"stringency"}.
 #' @param formula Formula. The model formula.
 #' @param family Character. Estimation family: \code{"logistf"}, \code{"Gamma"}, or \code{"gaussian"}.

@@ -48,7 +48,7 @@
 #'   is assumed to be an already-assembled panel (the internal
 #'   \code{preparePanelData} pass-through), with the outcome still on its natural
 #'   0-\code{indexMax} scale unless \code{prepared = TRUE}.
-#' @param sector Character. \code{"Bulk"} or \code{"Diffuse"}.
+#' @param sector Character. \code{"Power & industry"} or \code{"Buildings & transport"}.
 #' @param estimator Character. \code{"satP"} (default), \code{"fractional"},
 #'   \code{"beta"} or \code{"levels"} — see Description.
 #' @param indexMax Numeric. The structural ceiling of the index. Default \code{10}
@@ -89,7 +89,7 @@
 #'   fits never collide.
 #' @param apSatScale Positive number, the half-saturation point of the saturating
 #'   actor-power transform as a multiple of the training median (\code{1}, the default, is
-#'   the deployed form). See \code{\link{preparePanelData}}.
+#'   the selected form). See \code{\link{preparePanelData}}.
 #' @param form Character. \code{"static"} (default) or \code{"ecm"} — the
 #'   error-correction dynamics form (satP engine only; see Description). Appended
 #'   last for backward compatibility.
@@ -509,7 +509,7 @@ estimatePolicyStringencyModel <- function(
     # variance from the one-sided slack term (gamma ~ 0 => no frontier structure).
     #
     # NOT stats::vcov(fit): FRONTIER 4.1's own covariance matrix is not reliable.
-    # It returned standard errors 14.8x too large for Run-Group v4 Bulk while the
+    # It returned standard errors 14.8x too large for Run-Group v4 power & industry while the
     # log-likelihood, the estimates and `converged` were all correct (TODO 14f).
     # .pfmFrontierVcov() recomputes the information matrix from the likelihood
     # that was actually maximised and reports which matrix it handed back.

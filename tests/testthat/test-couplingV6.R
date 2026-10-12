@@ -107,7 +107,7 @@ test_that("on the real v6 anchor, pfmV6Shares reproduces Phase 1 and its options
   kap <- pfmV6Shares(anc, scen, theta = 0.5, options = list(kappa = 0.02))
   r <- kap$strength$k / base$strength$k
   expect_equal(r[kap$strength$year == 2050], rep(0.98^25, 2), tolerance = 1e-9)
-  # a negative kappa (backsliding) grows it, and the share stays clipped at 0
+  # a negative kappa (growing limit) grows it, and the share stays clipped at 0
   bk <- pfmV6Shares(anc, scen, theta = 0.5, options = list(kappa = -0.005))
   r <- bk$strength$k / base$strength$k
   expect_equal(r[bk$strength$year == 2050], rep(1.005^25, 2), tolerance = 1e-9)
@@ -115,13 +115,13 @@ test_that("on the real v6 anchor, pfmV6Shares reproduces Phase 1 and its options
   # a uniform ordering gives one share per sector and year
   uni <- pfmV6Shares(anc, scen, theta = 0.5, options = list(ordering = "uniform"))
   expect_true(all(tapply(uni$shares$phi, paste(uni$shares$sector, uni$shares$year), function(x) diff(range(x))) < 1e-12))
-  # the regional arm: phi(t0) as the common arm, each region on its own strength afterwards
+  # the regional sensitivity run: phi(t0) as the common sensitivity run, each region on its own strength afterwards
   reg <- pfmV6Shares(anc, scen, theta = 0.5, options = list(strength = "regional"))
   m <- merge(reg$shares[reg$shares$year == 2025, c("sector", "region", "phi")],
              base$shares[base$shares$year == 2025, c("sector", "region", "phi")], by = c("sector", "region"))
   expect_equal(m$phi.x, m$phi.y)
   expect_true(all(reg$shares$phi >= 0 & reg$shares$phi <= 1))
-  # hold 2060: k flat after 2060
+  # Drivers stop in 2060: k flat after 2060
   h60 <- pfmV6Shares(anc, scen, theta = 0.5, options = list(holdYear = 2060))$strength
   b <- h60[h60$sector == "Bulk", ]
   expect_equal(b$k[b$year == 2100], b$k[b$year == 2060])

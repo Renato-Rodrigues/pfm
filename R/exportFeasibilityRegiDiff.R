@@ -34,7 +34,7 @@
 #'   adjustment speed to let the gap close at that rate instead.
 #' @param sectorRule How to reconcile sectors onto one price per region:
 #'   \code{"min"} (default, the worse sector — the maximin discipline used
-#'   throughout), \code{"mean"}, \code{"Bulk"}, \code{"Diffuse"} or \code{"none"}.
+#'   throughout), \code{"mean"}, \code{"Power & industry"}, \code{"Buildings & transport"} or \code{"none"}.
 #' @param regions Optional character vector of \emph{all} REMIND regions. Any
 #'   region absent from \code{feasibility} is written explicitly with
 #'   \code{phi = 1} (uncoupled) rather than left out, so the file is total and a

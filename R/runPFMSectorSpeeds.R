@@ -2,11 +2,11 @@
 #' Four-sector ratcheting speeds (electricity / industry / buildings / transport)
 #'
 #' @description
-#' The sector-disaggregated extension of the validated Bulk/Diffuse speed result
+#' The sector-disaggregated extension of the validated power & industry / buildings & transport speed result
 #' (2026-07-08). CAPMF natively separates electricity, industry, buildings and
 #' transport, and the OECD's own sectoral analysis shows they advance at
 #' different rates; this step estimates a validated error-correction adjustment
-#' speed for each of the four, applying the Run-Group's deployed shared
+#' speed for each of the four, applying the Run-Group's selected shared
 #' specification to each sector outcome. For every sector it refits on the
 #' training window, forecasts the held-out years recursively (the same protocol
 #' as \code{\link{runPFMTemporalValidation}}'s ECM form) and reports the speed,
@@ -46,7 +46,7 @@ runPFMSectorSpeeds <- function(group,
       if (!is.null(s[[f]])) s[[f]] <- unlist(s[[f]])
     s
   }
-  # The deployed spec is a SHARED specification (same RHS both sectors); take any
+  # The selected specification is a SHARED specification (same RHS both sectors); take any
   # entry as the driver template applied to all four sector outcomes.
   cfg <- norm(sel[[1]])
 
@@ -78,9 +78,9 @@ runPFMSectorSpeeds <- function(group,
   }
 
   # The Actor-Power indices are sector-specific but computed only at the Bulk/
-  # Diffuse grouping (their energy-mix weighting is defined there). A four-sector
+  # Buildings & transport grouping (their energy-mix weighting is defined there). A four-sector
   # outcome must borrow its parent group's actor power: electricity/industry ->
-  # Bulk, buildings/transport -> Diffuse. Alias so preparePanelData(sector=<four>)
+  # Power & industry, buildings/transport -> buildings & transport. Alias so preparePanelData(sector=<four>)
   # resolves "<AP index>|<four-sector>". This is the intended design: it asks
   # whether the SAME political forces predict DIFFERENT ratcheting speeds across
   # the four sectors.

@@ -11,7 +11,7 @@
 #' parallel execution paths.
 #'
 #' @param cfg A normalised spec (named list) from the sweep config.
-#' @param sector Character. \code{"Bulk"} or \code{"Diffuse"}.
+#' @param sector Character. \code{"Power & industry"} or \code{"Buildings & transport"}.
 #' @param stage Character. \code{"Adoption"} or \code{"Stringency"}.
 #' @param panelData Prepared historical panel (magpie).
 #' @param family Character. Stringency GLM family. Default \code{"gaussian"}.
@@ -128,7 +128,7 @@ fitOneSpec <- function(cfg, sector, stage, panelData, family = "gaussian",
 #' once afterwards (ADR 0019). Returns the assembled metrics and coefficient tables.
 #'
 #' @param specs List of normalised specs.
-#' @param sectors Character vector (e.g. \code{c("Bulk","Diffuse")}).
+#' @param sectors Character vector (e.g. \code{c("Power & industry","Buildings & transport")}).
 #' @param stages Character vector (e.g. \code{c("Adoption","Stringency")}).
 #' @param panelData Prepared historical panel (magpie).
 #' @param family Character. Stringency GLM family. Default \code{"gaussian"}.
@@ -153,8 +153,8 @@ runFitGrid <- function(specs, sectors, stages, panelData, family = "gaussian",
 
   jobs <- list()
   for (i in seq_along(specs)) {
-    # Saturating-price twins are stringency-only (ADR 0028): priceLink does not affect the
-    # adoption fit, so skip the Adoption jobs for a twin (avoids duplicate adoption rows).
+    # Saturating-price variants are stringency-only (ADR 0028): priceLink does not affect the
+    # adoption fit, so skip the Adoption jobs for a variant (avoids duplicate adoption rows).
     stringencyOnly <- isTRUE(specs[[i]]$stringencyOnly)
     for (stg in stages) {
       if (stringencyOnly && identical(stg, "Adoption")) next

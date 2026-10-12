@@ -55,11 +55,11 @@ pfmStepArtifacts <- function(steps = NULL) {
 
 # The psm -> pfm rename (2026-10-02, design note 0005 D21). Every Run-Group written before it -
 # v5 and earlier - carries the legacy names, so readers accept both; writers use the new ones.
-#   - the deployed-spec file: selected-models-psm.yml -> selected-models-pfm.yml
+#   - the selected-spec file: selected-models-psm.yml -> selected-models-pfm.yml
 #   - step names: psm-<step> -> pfm-<step> (in calls, scripts and manifest.json)
 .pfmSelectedModelsNames <- c("selected-models-pfm.yml", "selected-models-psm.yml")
 
-# A Run-Group's deployed-spec file: the new name if present, else the legacy one, else the new
+# A Run-Group's selected-spec file: the new name if present, else the legacy one, else the new
 # name (so a "missing" message names the file a new run would write).
 #' @keywords internal
 .pfmSelectedModels <- function(dir) {

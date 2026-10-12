@@ -53,7 +53,7 @@ computeAME <- function(fit,
 
   # logistf objects do NOT carry a $model frame (unlike glm), so fall back to the prepared
   # data.frame stored on the fit result ($data) — otherwise AMEs silently return NULL for every
-  # Firth adoption fit (the deployed adoption specs, hence an empty AME section). 2026-06-26.
+  # Firth adoption fit (the selected adoption specs, hence an empty AME section). 2026-06-26.
   data_src <- if (!is.null(m$model)) m$model
               else if (is.list(fit) && !is.null(fit$data)) fit$data
               else NULL

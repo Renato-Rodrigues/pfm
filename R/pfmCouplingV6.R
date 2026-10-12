@@ -23,7 +23,7 @@
 #'   \item{ordering}{\code{"model"}, \code{"uniform"}, \code{"reversed"} or \code{"permuted"} (D15).}
 #'   \item{orderingSeed}{seed of the permutation.}
 #'   \item{kappa}{declared closure on the strength, \eqn{k(t)(1-\kappa)^{t-t_0}} (D13); 0 = none. A
-#'     negative value is the backsliding arm: the strength grows above its path (with \code{hold = "ratio"},
+#'     negative value is the growing limit sensitivity run: the strength grows above its path (with \code{hold = "ratio"},
 #'     above today's). The share is clipped at 0, so in a region with \eqn{\theta u = 0.5}, growth beyond
 #'     \eqn{k = 2} changes nothing.}
 #'   \item{strength}{\code{"common"} (headline) or \code{"regional"}, \eqn{k_{r,s} = g_{r,s}(t)/g_{r,s}(t_0)} (D16).}
@@ -55,7 +55,7 @@ pfmV6CouplingDefaults <- function() {
   if (!is.finite(o$holdYear)) stop("v6 coupling: holdYear must be a year", call. = FALSE)
   if (!is.finite(o$kappa) || o$kappa <= -1 || o$kappa >= 1) stop("v6 coupling: kappa must lie in (-1, 1)", call. = FALSE)
   if (o$strength == "regional" && o$ordering != "model") {
-    stop("v6 coupling: the regional strength arm (D16) is not combined with an ordering test (D15)", call. = FALSE)
+    stop("v6 coupling: the regional strength sensitivity run (D16) is not combined with an ordering test (D15)", call. = FALSE)
   }
   o
 }
@@ -96,7 +96,7 @@ pfmV6CouplingDefaults <- function() {
 #' @description
 #' The whole v6 coupling step except the REMIND interface: \code{\link{computeStrengthPath}} on the
 #' scenario panel, the declared options (\code{\link{pfmV6CouplingDefaults}}), and
-#' \code{\link{computeSharePath}} (or the regional-strength arm). Region weights are recomputed when
+#' \code{\link{computeSharePath}} (or the regional-strength sensitivity run). Region weights are recomputed when
 #' \code{weights} is given (the run's SSP or weight year differs from the anchor's).
 #'
 #' @param anchor An anchor, as \code{\link{pfmAnchorFor}} or \code{\link{computeAnchorGap}} returns it.
@@ -107,7 +107,7 @@ pfmV6CouplingDefaults <- function() {
 #' @param weights Optional country weights replacing the anchor's (named numeric).
 #' @return A list: \code{shares} (sector, region, year, u, phiRaw, phi, clipped; sector rows only),
 #'   \code{floor} (region, year, phi: the minimum over sectors), \code{strength} (per sector and year,
-#'   with \code{k} after the closure arm), \code{options}.
+#'   with \code{k} after the closure sensitivity run), \code{options}.
 #' @export
 #' @author Renato Rodrigues
 pfmV6Shares <- function(anchor, scenarioData, theta, options = pfmV6CouplingDefaults(), weights = NULL) {

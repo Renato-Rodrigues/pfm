@@ -16,7 +16,7 @@
 #' @section Stages:
 #' \describe{
 #'   \item{\code{sweep}}{Estimate and select: the model selection sweep, frontier,
-#'     temporal validation and sector speeds. Produces the deployed spec.}
+#'     temporal validation and sector speeds. Produces the selected specification.}
 #'   \item{\code{diagnostics}}{Inference and validation of that spec: estimator
 #'     agreement and wild-cluster p-values, the shift-share IV, leave-one-country-out
 #'     influence, and the historical-replay gate. Needed before any number from the
@@ -262,7 +262,7 @@ pfmRun <- function(group = NULL,
     if (length(existing)) {
       group <- askChoice(
         "Which Run-Group?", c(existing, "<new>"),
-        labels = c("(most recent)", rep("(has a deployed spec)", length(existing) - 1L),
+        labels = c("(most recent)", rep("(has a selected specification)", length(existing) - 1L),
                    "start a fresh group"),
         default = 1L, allowFree = TRUE)
       if (identical(group, "<new>")) group <- askText("New Run-Group name")
@@ -324,7 +324,7 @@ pfmRun <- function(group = NULL,
   needsSpec <- c(stageSteps$diagnostics, stageSteps$downstream)
   if (!hasSpec && any(steps %in% needsSpec)) {
     msg <- paste0("Run-Group '", group, "' has no selected-models-pfm.yml, so the ",
-                  "diagnostics and downstream steps have no deployed spec to work from.")
+                  "diagnostics and downstream steps have no selected specification to work from.")
     if (!any(steps %in% stageSteps$sweep)) {
       if (interactiveRun) {
         message("\nNOTE: ", msg)
@@ -585,7 +585,7 @@ pfmRun <- function(group = NULL,
       args$gdxRegionMappingFile <- rc$gdxRegionMapping
     }
     # ... and the REFERENCE scenario, which the responsiveness gate (scenarioBlind) needs.
-    # Without it that gate never ran: v6 deployed a scenario-blind spec (PITFALLS 28).
+    # Without it that gate never ran: v6 selected a scenario-blind spec (PITFALLS 28).
     if (!is.null(rc$gdxFile) && !is.null(rc$referenceGdxFile) &&
           is.null(args$referenceGdxFile)) {
       args$referenceGdxFile <- rc$referenceGdxFile

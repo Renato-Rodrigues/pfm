@@ -1,5 +1,5 @@
 # Regression tests for TODO 14f: frontier::sfa() returned a covariance matrix that
-# was 14.8x too large for Run-Group v4 Bulk while the estimates, the log-likelihood
+# was 14.8x too large for Run-Group v4 power & industry while the estimates, the log-likelihood
 # and `converged` were all correct. Nothing in the fit object flagged it.
 #
 # The bug pattern these pin, in order:
@@ -82,7 +82,7 @@ test_that("the Hessian is negative definite and step-size stable at the MLE", {
   expect_true(all(eigen(h4, symmetric = TRUE, only.values = TRUE)$values < 0))
   # Differencing the analytic score is stable across 100x in step size. This is why
   # the score is differenced rather than the log-likelihood: doing the latter with
-  # numDeriv's defaults was 0.9% off on the v4 Diffuse fit and NaN at r = 2.
+  # numDeriv's defaults was 0.9% off on the v4 buildings & transport fit and NaN at r = 2.
   expect_equal(h4, h6, tolerance = 1e-4)
 })
 
@@ -103,7 +103,7 @@ test_that("a healthy fit is reported ok and agrees with frontier's own vcov", {
 
 # --- the bug pattern itself ------------------------------------------------
 # A stub whose coef/logLik are correct and whose vcov is inflated 15x, i.e. exactly
-# what v4 Bulk looked like from outside.
+# what v4 power & industry looked like from outside.
 coef.pfmStubFit <- function(object, ...) object$cf
 logLik.pfmStubFit <- function(object, ...) object$ll
 vcov.pfmStubFit <- function(object, ...) object$vc

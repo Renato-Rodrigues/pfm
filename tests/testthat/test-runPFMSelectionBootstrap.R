@@ -3,7 +3,7 @@
 # tierGate = "Blue" like pfmTestSweep; the Green-gate default emptying the
 # fixture pool is asserted explicitly at the end.
 
-test_that("PFM selection bootstrap runs, caches, extends, and tracks the deployed spec", {
+test_that("PFM selection bootstrap runs, caches, extends, and tracks the selected specification", {
   resultsDir <- withr::local_tempdir()
   modelDir <- withr::local_tempdir()
   sw <- pfmTestSweep("psm-boot", resultsDir, modelDir)
@@ -64,10 +64,10 @@ test_that("PFM selection bootstrap runs, caches, extends, and tracks the deploye
   expect_true(all(resG$perResample$deployedRank[resG$perResample$deployedGatePass] >= 1))
 })
 
-test_that("the bootstrap cache keeps actor-power transform twins apart (PITFALLS 29)", {
-  # v6 (2026-10-05): the linear / satAP / satInn / satInc twins of one spec differ ONLY in
-  # apTransform. The key ignored it, so the twins shared one cache file, the first twin's rows
-  # served all four under its own name, and the deployed X-1791 satAP showed 0% wins.
+test_that("the bootstrap cache keeps actor-power transform variants apart (PITFALLS 29)", {
+  # v6 (2026-10-05): the linear / satAP / satInn / satInc variants of one spec differ ONLY in
+  # apTransform. The key ignored it, so the variants shared one cache file, the first variant's rows
+  # served all four under its own name, and the selected X-1791 satAP showed 0% wins.
   base <- list(actorPowerDrivers = c("Innovator Power", "Incumbent Power", "Incumbent Power pc"),
                actorPowerIndex = c("Innovator Power", "Incumbent Power", "Incumbent Power pc"),
                instQualityDrivers = "Government Effectiveness (WGI)", controlDrivers = "GDP per Capita (Q-centred)",

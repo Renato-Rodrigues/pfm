@@ -21,7 +21,7 @@
   cfg
 }
 
-# The frontier's design for one sector: the levels satP fit of the deployed spec supplies the
+# The frontier's design for one sector: the levels satP fit of the selected specification supplies the
 # estimation rows, the frozen driver scaling (saturation parameters included), the trend curve
 # and the guard ranges, exactly as the frontier saw them; the DEPLOYED frontier coefficients
 # (frontier.rds) supply eta. This is how projectFeasiblePath() builds its ceiling, without the ECM.
@@ -127,7 +127,7 @@
 # The shares phi_{r,s}(t) from the ranking u and the strength path (D11, D12, D15).
 # ordering: "model" (u as read), "uniform" (every region at the weighted mean), "reversed"
 # (1 - u), "permuted" (u shuffled across regions, seeded). spread: "k" (d = k, the headline) or
-# "model" (d = D/D(t0), the diagnostic arm).
+# "model" (d = D/D(t0), the diagnostic sensitivity run).
 #' @keywords internal
 .pfmSharesFrom <- function(u, wReg, strength, theta, spread = c("k", "model"),
                            ordering = c("model", "uniform", "reversed", "permuted"), seed = 1L) {
@@ -164,7 +164,7 @@
 #' §1, D1, D2):
 #' \itemize{
 #'   \item covered countries: \eqn{q_c = \eta_{c,t_a} - y_{c,t_a}}, with \eqn{y} the observed index on
-#'     the squeezed logit scale and \eqn{\eta} the deployed frontier's linear predictor;
+#'     the squeezed logit scale and \eqn{\eta} the selected frontier's linear predictor;
 #'   \item uncovered countries: \eqn{y = \mathrm{logit}(E_c S^*_{c,t_a}/S_{max})} with the band-rule
 #'     \eqn{E_c} of the group's donor assignment (basis donor, lowBand or median; the USA override
 #'     included);
@@ -175,7 +175,7 @@
 #' @param mapping Region mapping of the delivery resolution (EU21 or H12).
 #' @param weights Named country weights; \code{NULL} uses \code{pfmCouplingWeights(t0, ssp)}.
 #' @param ssp SSP of the weights. Default \code{"SSP2"}.
-#' @param sectors Sectors. Default Bulk and Diffuse.
+#' @param sectors Sectors. Default power & industry and buildings & transport.
 #' @param anchorYear Anchor year; \code{NULL} = the last year of the group's training panel.
 #' @param t0 First model period, where \eqn{k} is normalised. Default 2025.
 #' @param anchorRule \code{"anchor-year"} (the v6 formulation) or \code{"t0-ceiling"}: the
@@ -186,7 +186,7 @@
 #' @param histData Historical panel; \code{NULL} loads the group's training panel from the Fit Cache.
 #' @param assignment Optional named list (by sector) of band-rule assignments
 #'   (\code{\link{computeDonorAssignment}} output) used instead of the group's
-#'   \code{donor-assignment-band-<sector>.rds}: the assignment-rule arms and their sensitivities.
+#'   \code{donor-assignment-band-<sector>.rds}: the assignment-rule sensitivity runs and their sensitivities.
 #' @param verbose Logical.
 #' @return A list: \code{country} (sector, region, basis, etaAnchor, yAnchor, q, ceilingAnchor,
 #'   indexAnchor), \code{region} (sector, region, g, u, weight, provenance shares), \code{anchorYear},
@@ -323,7 +323,7 @@ computeAnchorGap <- function(group, resultsDir = getOption("pfm.resultsDir", "ou
 #' @param holdYear Year after which \eqn{k} and \eqn{d} are held (D6). Default 2100 (central);
 #'   2060 is the sensitivity.
 #' @param theta Severity for the clip diagnostics. Default 0.5.
-#' @param hold \code{"logit"} (the v6 rule) or \code{"ratio"}: the E-hold bound of D2/C5, in which
+#' @param hold \code{"logit"} (the v6 rule) or \code{"ratio"}: the constant-limit bound of D2/C5, in which
 #'   each country keeps its anchor efficiency ratio, \eqn{S_c(t) = E_c S^*_c(t)}.
 #' @param returnCountries Logical: also return the country paths. Default \code{FALSE}.
 #' @return A list: \code{strength} (sector, year, G, D, kRaw, dRaw, k, d, nRegions,
@@ -393,7 +393,7 @@ computeStrengthPath <- function(anchor, scenarioData, holdYear = 2100, theta = 0
 #' \bar u_s)]\big)}, with \eqn{\bar u_s} the weighted mean position. The headline spread is
 #' \eqn{d = k} (D11), which reduces to \eqn{1 - \theta k_s(t) u_{r,s}}. Orderings other than the
 #' model's are the ordering tests of D15 / C1. The region's floor is \eqn{\min_s \varphi_{r,s}};
-#' market delivery (ETS from Bulk, ES and other from Diffuse) stays in REMIND.
+#' market delivery (ETS from power & industry, ES and other from buildings & transport) stays in REMIND.
 #'
 #' @param anchor Output of \code{\link{computeAnchorGap}}.
 #' @param strength Output of \code{\link{computeStrengthPath}}.

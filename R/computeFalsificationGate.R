@@ -25,7 +25,7 @@
 #'   \code{controlDrivers}, \code{regionMappingFixedEffects}, ...).
 #' @param data A \code{magpie} object: the historical panel.
 #' @param stage Character. \code{"Adoption"} or \code{"Stringency"} (case-insensitive).
-#' @param sectors Character vector. Default \code{c("Bulk", "Diffuse")}.
+#' @param sectors Character vector. Default \code{c("Power & industry", "Buildings & transport")}.
 #' @param family Character. Stringency GLM family (default \code{"gaussian"}).
 #' @param modelDir Character or NULL. Passed to the estimate functions (default NULL).
 #' @param pThreshold Numeric. Significance threshold (default 0.05).

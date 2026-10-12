@@ -3,7 +3,7 @@
 #' @description
 #' \code{frontier::sfa()} wraps Coelli's FRONTIER 4.1 Fortran and reports standard
 #' errors from that routine's own covariance matrix. On 2026-08-26 that matrix was
-#' found to be \strong{corrupt} for Run-Group \code{v4} Bulk: it gave a median
+#' found to be \strong{corrupt} for Run-Group \code{v4} power & industry: it gave a median
 #' standard error of 0.924 and 0 of 15 significant coefficients, where the true
 #' median standard error at the very same maximum is 0.062 and 12 of 15 are
 #' significant — a factor of \strong{14.8}. The point estimates were never affected.
@@ -35,7 +35,7 @@
 #' The Hessian is obtained by differencing the \strong{analytic score}, not the
 #' log-likelihood. That is one order more accurate and it matters here: differencing
 #' the log-likelihood with \code{numDeriv::hessian()} at its default
-#' \code{r = 4} gave median standard errors 0.9\% off on the Diffuse fit and its
+#' \code{r = 4} gave median standard errors 0.9\% off on the buildings & transport fit and its
 #' \code{r = 2} produced \code{NaN}, while differencing the score is stable to six
 #' figures across step sizes spanning two orders of magnitude. The score is verified
 #' against a numeric gradient in \code{test-frontierVcov.R} (agreement 5e-8).

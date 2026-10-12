@@ -11,7 +11,7 @@
 #' @param coeff List of coefficients for actor power index calculation.
 #'   See \code{panelDataHistorical} for the default structure.
 #' @param sectors Character vector of sectors to estimate.
-#'   Default: \code{c("Bulk", "Diffuse")}.
+#'   Default: \code{c("Power & industry", "Buildings & transport")}.
 #' @param family Character. GLM family for the stringency model:
 #'   \code{"Gamma"} or \code{"gaussian"}. Default: \code{"Gamma"}.
 #' @param actorPowerDrivers Character vector of individual Actor Power driver

@@ -1,9 +1,9 @@
 # nolint start
-#' Persist the deployed PFM scenario projections as Run-Group artifacts
+#' Persist the selected PFM scenario projections as Run-Group artifacts
 #'
 #' @description
 #' The PFM counterpart of \code{\link{runProjection}} (ADR 0035 + ADR 0036): fans
-#' the deployed Policy Stringency spec (from the Run-Group's
+#' the selected Policy Stringency spec (from the Run-Group's
 #' \code{selected-models-pfm.yml}) out over the Policy Scenario Registry. For each
 #' scenario it builds the scenario panel from that scenario's gdx (with the gdx's
 #' own region mapping), projects both sectors via
@@ -66,7 +66,7 @@ runPFMProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "ou
     if (is.list(obj) && !is.null(obj$data)) obj$data else obj
   }
 
-  # ── Shared inputs: historical panel (with the PFM outcomes) + the deployed spec ──
+  # ── Shared inputs: historical panel (with the PFM outcomes) + the selected specification ──
   panel <- panelData
   if (is.null(panel)) {
     panel <- loadCachedPanel("panelDataHistorical.rds")
@@ -249,7 +249,7 @@ runPFMProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "ou
   }
   combined <- do.call(rbind, results)
 
-  # Coverage must equal the number of countries the deployed spec was ESTIMATED on.
+  # Coverage must equal the number of countries the selected specification was ESTIMATED on.
   # If it is smaller, the projection ran against a different (usually silently
   # degraded) historical panel than the fit — the psm-country-v4 failure mode, where
   # a projection built from an incomplete madrat source folder reported 33 countries
@@ -268,7 +268,7 @@ runPFMProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "ou
       modelDir = modelDir, updateIndex = FALSE, verbose = FALSE
     )$data$region))), error = function(e) NA_integer_)
   if (is.finite(nFit) && nCov < nFit) {
-    stop("runPFMProjection: the projection covers ", nCov, " countries but the deployed ",
+    stop("runPFMProjection: the projection covers ", nCov, " countries but the selected ",
          "spec was estimated on ", nFit, ". The projection is using a different historical ",
          "panel than the fit — check manifest.json:panel_hash against ",
          file.path(dirname(groupDir), "panels"), ", and look for a '[panel] rebuilding' ",
@@ -286,10 +286,10 @@ runPFMProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "ou
   invisible(results)
 }
 
-#' Estimator-agreement Run-Group step for the deployed PFM spec
+#' Estimator-agreement Run-Group step for the selected PFM spec
 #'
 #' @description
-#' Post-selection exhibit (ADR 0036): re-estimates the Run-Group's deployed Policy
+#' Post-selection exhibit (ADR 0036): re-estimates the Run-Group's selected Policy
 #' Stringency spec under every member of the PFM Estimator Suite per sector
 #' (\code{\link{computeEstimatorAgreement}} — satP engine, fractional-logit
 #' headline, beta-regression cross-check, levels benchmark) and writes
@@ -300,7 +300,7 @@ runPFMProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "ou
 #' @inheritParams runPFMProjection
 #' @param estimators Character vector of suite members to fit.
 #' @return Invisibly, a list with one \code{\link{computeEstimatorAgreement}}
-#'   result per sector plus the deployed spec name, or \code{NULL} when skipped.
+#'   result per sector plus the selected specification name, or \code{NULL} when skipped.
 #' @seealso \code{\link{computeEstimatorAgreement}}, ADR 0036
 #' @export
 #' @author Renato Rodrigues
@@ -365,7 +365,7 @@ runPFMEstimatorAgreement <- function(group, resultsDir = getOption("pfm.resultsD
         # Every spec field the estimator accepts, derived from its formals. Do NOT
         # go back to hand-listing these: apTransform was missing from the old list,
         # so this exhibit was fitted on linear actor power while carrying the
-        # deployed spec's satAP name. See .pfmSpecArgs().
+        # Selected specification's satAP name. See .pfmSpecArgs().
         .pfmSpecArgs(cfg))),
       error = function(e) {
         say("  ", sec, " failed: ", conditionMessage(e))

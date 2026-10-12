@@ -23,7 +23,7 @@
 #'   definition's years (\code{\link{pfmPanelDef}}).
 #' @param outputRegionMappingFile Character. Region mapping for data aggregation.
 #'   Default \code{"regionmapping_54.csv"} (the model-selection report convention).
-#' @param sectors Character vector. Default \code{c("Bulk", "Diffuse")}.
+#' @param sectors Character vector. Default \code{c("Power & industry", "Buildings & transport")}.
 #' @param configDir Character or NULL. Directory for the sweep YAML and the selected-models
 #'   YAML. When NULL, \code{tempdir()}. \code{runSweep}
 #'   sets this to the Run-Group directory so the selected spec lands beside the other
@@ -175,7 +175,7 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
     for (f in c("includeLagged", "includeLaggedECP", "nickellCorrection",
                 "interactRegionFE", "logisticTimeTrend",
                 "useMundlak", "gdpGovInteraction", "ridgeInteractions",
-                "stringencyOnly")) {           # ADR 0028: saturating twin marker
+                "stringencyOnly")) {           # ADR 0028: saturating variant marker
       cfg[[f]] <- isTRUE(cfg[[f]])
     }
     cfg$panelTransform <- if (is.null(cfg$panelTransform)) "levels" else cfg$panelTransform
@@ -523,7 +523,7 @@ runChannelsWorkflow <- function(mode = c("guided", "exhaustive"), # nolint: cycl
   base <- data.frame(
     model = cfg$name, sector = sector, stage = stage,
     panelTransform = cfg$panelTransform,
-    priceLink = cfg$priceLink %||% "log1p",   # ADR 0028: "log1p" or "saturating" (satP twin)
+    priceLink = cfg$priceLink %||% "log1p",   # ADR 0028: "log1p" or "saturating" (satP variant)
     sigActorPower = 0L, sigInstQual = 0L, sigInteractions = 0L,
     sigControl = 0L, nControl = length(cfg$controlDrivers),
     deltaR2Theory = NA_real_, theoryFrac = NA_real_,

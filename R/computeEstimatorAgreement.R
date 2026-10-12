@@ -15,7 +15,7 @@
 #'   \code{\link{estimatePolicyStringencyModel}} per estimator. Passing a
 #'   data.frame guarantees all estimators see identical rows and avoids repeated
 #'   panel preparation.
-#' @param sector Character. \code{"Bulk"} or \code{"Diffuse"}.
+#' @param sector Character. \code{"Power & industry"} or \code{"Buildings & transport"}.
 #' @param estimators Character vector; suite members to fit. Defaults to the full
 #'   suite. An unavailable member (e.g. \code{"beta"} without the optional
 #'   \code{betareg} package) or a failing fit is skipped and recorded in

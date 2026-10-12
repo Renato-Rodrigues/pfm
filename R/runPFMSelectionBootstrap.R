@@ -8,11 +8,11 @@
 # and stays: it only enters the hash, and changing it would orphan every cached resample.
 #
 # `apTransform` is part of the key (2026-10-06, PITFALLS 29). Without it the linear, satAP,
-# satInn and satInc twins of one spec shared a single cache file: whichever twin was cached
-# first supplied every twin's resample rows, under its own name, so the other three vanished
-# from the bootstrap. v6's deployed X-1791 satAP showed 0% wins and 0% gate passes for that
+# satInn and satInc variants of one spec shared a single cache file: whichever variant was cached
+# first supplied every variant's resample rows, under its own name, so the other three vanished
+# from the bootstrap. v6's selected X-1791 satAP showed 0% wins and 0% gate passes for that
 # reason alone. Adding the field orphans every earlier cached resample, deliberately: any of
-# them may hold a twin's rows.
+# them may hold a variant's rows.
 #' @keywords internal
 .pfmBootCacheKey <- function(cfg, sector, panelHash, seed) {
   fitFields <- cfg[intersect(names(cfg), c(
@@ -33,7 +33,7 @@
 #' The PFM counterpart of \code{\link{runSelectionBootstrap}} (ADR 0025/0034), run
 #' under the Tournament v2 selection semantics (ADR 0039). For each resample the
 #' panel's outcome-supported regions (countries carrying the CAPMF index at the
-#' deployed resolution — the coverage set, not the full 249-country map) are drawn
+#' selected resolution — the coverage set, not the full 249-country map) are drawn
 #' with replacement, the gate-passing candidate pool is refit on the resampled design
 #' (via the \code{prepared = TRUE} entry of
 #' \code{\link{estimatePolicyStringencyModel}} — duplicated region rows add weight
@@ -71,7 +71,7 @@
 #'   fallback).
 #' @param nResamples Integer. Number of bootstrap resamples. Default \code{200}.
 #' @param topK Integer. Size of the candidate pool (top gate-passing maximin specs;
-#'   the deployed spec is always included). Default \code{40}.
+#'   the selected specification is always included). Default \code{40}.
 #' @param seed Integer. RNG seed for the region draws. Default \code{1}.
 #' @param nearTieEps,feParsimonyWeight,dropIdleControls,softVifGate,trendDominanceGate,deltaR2Max,inferenceTGate,rankBy,tierGate
 #'   Maximin knobs forwarded to \code{\link{computeMaximinScore}}; defaults mirror
@@ -135,7 +135,7 @@ runPFMSelectionBootstrap <- function(group,
   }
   specByName <- stats::setNames(specs, vapply(specs, `[[`, character(1), "name"))
 
-  # ── Candidate pool: top gate-passers + always the deployed spec ──────────────
+  # ── Candidate pool: top gate-passers + always the selected specification ──────────────
   deployed <- sweep$selected[[stg]] %||% NA_character_
   pool <- utils::head(mm$model[mm$gatePass %in% TRUE], topK)
   if (!is.na(deployed) && !(deployed %in% pool)) pool <- c(pool, deployed)
@@ -273,7 +273,7 @@ runPFMSelectionBootstrap <- function(group,
     cached <- if (!is.null(cfRead) && file.exists(cfRead)) tryCatch(readRDS(cfRead), error = function(e) NULL) else NULL
     if (!(is.data.frame(cached) && all(validCols %in% names(cached)))) cached <- NULL  # stale schema -> drop
     # Rows written for a DIFFERENT spec under the same key are another model's resamples:
-    # drop them rather than relabel them (the twin collision of PITFALLS 29, and any future one).
+    # drop them rather than relabel them (the variant collision of PITFALLS 29, and any future one).
     if (!is.null(cached) && !all(cached$model == mdl)) {
       say("cache file for '", mdl, "' (", sec, ") holds rows of ",
           paste(unique(setdiff(cached$model, mdl)), collapse = ", "), " - ignored, refitting")

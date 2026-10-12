@@ -357,10 +357,10 @@ diagnoseModelResults <- function( # nolint: cyclocomp_linter.
       length(modelDiagnoses[[wfn]][["Diffuse_stringency"]]$extremeZTerms) > 0
     })
     paste0(
-      "* **Bulk Stringency:** All variants select models with pseudo-R\u00b2 \u2248 ",
+      "* **Power & industry Stringency:** All variants select models with pseudo-R\u00b2 \u2248 ",
       paste(round(r2Bs, 3), collapse = " / "),
       ". Individual AP drivers contribute no additional explanatory power beyond the composite API.\n",
-      "* **Diffuse Stringency:** ",
+      "* **Buildings & transport Stringency:** ",
       paste(sapply(seq_along(wfNames), function(i) { # nolint: undesirable_function_linter.
         paste0(
           wfNames[i], " achieves R\u00b2 = ", round(r2Ds[i], 3),
@@ -369,8 +369,8 @@ diagnoseModelResults <- function( # nolint: cyclocomp_linter.
       }), collapse = "; "),
       ". Neither variant is trustworthy for projection without structural redesign.\n",
       "> **Overall:** Stringency modelling remains the weakest component. ",
-      "Bulk Stringency can serve as a conservative baseline; ",
-      "Diffuse Stringency requires fundamental reformulation before deployment."
+      "Power & industry Stringency can serve as a conservative baseline; ",
+      "Buildings & transport Stringency requires fundamental reformulation before deployment."
     )
   } else {
     ""

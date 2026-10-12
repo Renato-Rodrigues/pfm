@@ -41,7 +41,7 @@ test_that("SPJ returns NULL (graceful) when a half is not estimable", {
 
 test_that("channelSpecs exhaustive includes the four lag alternatives", {
   ex <- channelSpecs("exhaustive")
-  # exclude the saturating stringency-only twins (ADR 0028) — each base lag spec
+  # exclude the saturating stringency-only variants (ADR 0028) — each base lag spec
   # is twinned, so the raw includeLaggedECP count is 8
   lag <- Filter(function(s) isTRUE(s$includeLaggedECP) && !isTRUE(s$stringencyOnly), ex)
   expect_equal(length(lag), 4)

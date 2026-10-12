@@ -21,7 +21,7 @@ is echoed in the log and stored in \code{pfm-phi-history.rds}.
 \item{ordering}{\code{"model"}, \code{"uniform"}, \code{"reversed"} or \code{"permuted"} (D15).}
 \item{orderingSeed}{seed of the permutation.}
 \item{kappa}{declared closure on the strength, \eqn{k(t)(1-\kappa)^{t-t_0}} (D13); 0 = none. A
-negative value is the backsliding arm: the strength grows above its path (with \code{hold = "ratio"},
+negative value is the growing limit sensitivity run: the strength grows above its path (with \code{hold = "ratio"},
 above today's). The share is clipped at 0, so in a region with \eqn{\theta u = 0.5}, growth beyond
 \eqn{k = 2} changes nothing.}
 \item{strength}{\code{"common"} (headline) or \code{"regional"}, \eqn{k_{r,s} = g_{r,s}(t)/g_{r,s}(t_0)} (D16).}

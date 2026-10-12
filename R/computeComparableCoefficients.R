@@ -48,7 +48,7 @@
 #'
 #' @examples
 #' \dontrun{
-#' fit <- estimatePolicyStringencyModel(panel, "Bulk", estimator = "frontier")
+#' fit <- estimatePolicyStringencyModel(panel, "Power & industry", estimator = "frontier")
 #' computeComparableCoefficients(fit)
 #' }
 #' @seealso \code{\link{preparePanelData}}, \code{\link{computeAME}}

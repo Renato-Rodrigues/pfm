@@ -59,7 +59,7 @@
   # constant there, so a 4-SD extrapolation moves the linear predictor by 4 SD
   # worth of slope. Under x/(x + xBar) the marginal effect decays as 1/(x+xBar)^2,
   # so the whole remaining physical domain contributes a bounded, small amount -
-  # measured, the projections sit 0.33-0.48 SD (Bulk) / 0.77-1.66 SD (Diffuse)
+  # measured, the projections sit 0.33-0.48 SD (Power & industry) / 0.77-1.66 SD (Buildings & transport)
   # past the training max and 100% inside the physical domain. Clamping them at
   # the empirical max instead would winsorize BOTH scenarios to the same edge and
   # zero the innovator scenario signal - the exact artifact this transform exists

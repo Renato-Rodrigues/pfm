@@ -1,4 +1,4 @@
-#' Estimator arguments implied by a deployed-spec entry
+#' Estimator arguments implied by a selected-spec entry
 #'
 #' @description
 #' Turns a \code{selected-models-pfm.yml} entry into the argument list
@@ -8,10 +8,10 @@
 #' It exists because the post-selection steps used to hand-list the fields they
 #' forwarded. \code{apTransform} was absent from all of them, so the estimator
 #' silently fell back to its \code{"linear"} default and the estimator-agreement,
-#' influence and IV exhibits described a specification that was **not** the deployed
-#' one — while being labelled with the deployed spec's name, which ends in
+#' influence and IV exhibits described a specification that was **not** the selected
+#' one — while being labelled with the selected specification's name, which ends in
 #' \code{satAP}. Found 2026-08-15 in Run-Group \code{v1}: the agreement fit's BIC
-#' matched the non-\code{satAP} sweep row exactly (3367.546 Bulk / 1666.977 Diffuse)
+#' matched the non-\code{satAP} sweep row exactly (3367.546 power & industry / 1666.977 buildings & transport)
 #' and its \code{driverScaling} carried no frozen \code{sat} element.
 #'
 #' Deriving the list from \code{formals()} rather than restating it means a spec

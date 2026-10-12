@@ -8,7 +8,7 @@
 #' @param outputRegionMappingFile Character. Region mapping file for data
 #'   aggregation. Default: \code{"regionmappingH12.csv"}.
 #' @param coeff List of coefficients for actor power index calculation.
-#' @param sectors Character vector. Default: \code{c("Bulk", "Diffuse")}.
+#' @param sectors Character vector. Default: \code{c("Power & industry", "Buildings & transport")}.
 #' @param stages Character vector. Default: \code{c("adoption", "stringency")}.
 #' @param family Character. GLM family for stringency models.
 #' @param actorPowerDrivers Character vector of individual Actor Power driver

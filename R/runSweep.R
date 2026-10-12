@@ -26,7 +26,7 @@
 #' @param y Integer vector of training years. Default \code{2000:2022}.
 #' @param outputRegionMappingFile Character. Region mapping. Default \code{"regionmapping_54.csv"}.
 #' @param movingAverage Integer. Passed to \code{panelDataHistorical}. Default \code{5}.
-#' @param sectors Character vector. Default \code{c("Bulk","Diffuse")}.
+#' @param sectors Character vector. Default \code{c("Power & industry","Buildings & transport")}.
 #' @param nCores Integer. Cores for the fit sweep (ADR 0019). Default \code{1}.
 #' @param forceRefit Logical. Ignore cached fits and re-estimate. Default \code{FALSE}.
 #' @param selectionMethod Character. \code{"levels-first"} (default) or \code{"difference-first"}.
@@ -120,7 +120,7 @@ runSweep <- function(group,
     family = family, selectionMethod = selectionMethod,
     # A fresh sweep (runSweep only runs when NOT resuming) must REGENERATE the auto-generated spec
     # config from the current channelSpecs() — otherwise code changes to the spec grid (e.g. the
-    # ADR 0028 saturating `| satP` twins) are silently ignored because the stale YAML is reused.
+    # ADR 0028 saturating `| satP` variants) are silently ignored because the stale YAML is reused.
     overwriteConfig = TRUE, writeSelectedConfig = TRUE,
     verbose = verbose, ...
   )

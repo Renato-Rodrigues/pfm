@@ -353,7 +353,7 @@ runTemporalSplit <- function(group, resultsDir = getOption("pfm.resultsDir", "ou
 
 #' Subnational-coverage sensitivity post-processing for a Run-Group (ADR 0016)
 #'
-#' Compares the deployed national-only effective carbon price with a full-coverage version that
+#' Compares the selected national-only effective carbon price with a full-coverage version that
 #' folds in subnational (\dQuote{within_country}) instruments, then re-estimates the deliverable
 #' on both panels. Writes \code{<group>/subnational.rds}. Cache-only assembly (national price
 #' from the Fit/madrat cache plus the \code{*Subnational} reader subtypes).
@@ -581,19 +581,19 @@ runDifferenceFirst <- function(group, resultsDir = getOption("pfm.resultsDir", "
   invisible(dif)
 }
 
-#' Persist the deployed scenario projection as a Run-Group artifact
+#' Persist the selected scenario projection as a Run-Group artifact
 #'
 #' @description
-#' Fans the one deployed model out over the Policy Scenario Registry (ADR 0035):
+#' Fans the one selected model out over the Policy Scenario Registry (ADR 0035):
 #' for each scenario it builds the scenario panel from that scenario's gdx (with
-#' the gdx's own region mapping), applies the deployed \emph{Adoption: <sector>}
+#' the gdx's own region mapping), applies the selected \emph{Adoption: <sector>}
 #' config from \code{selected-models.yml} via \code{\link{projectSpecScenario}},
 #' and writes one labelled artifact \code{<group>/projections/<id>.rds} (rows
 #' tagged with \code{scenario}/\code{scenarioName}). The \strong{gating} scenario
 #' is additionally written to the legacy \code{<group>/projection.rds} path so
 #' single-projection consumers (e.g. the paper's \code{make-figures.R}
 #' projected-adoption map) keep working unchanged. The historical panel and the
-#' deployed configs are scenario-independent and built once.
+#' selected configs are scenario-independent and built once.
 #'
 #' When \code{scenarios} is \code{NULL} the behaviour collapses to the legacy
 #' single-scenario path (a pre-built \code{scenarioData}, a cached scenario panel,
@@ -642,7 +642,7 @@ runProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "outpu
     obj <- tryCatch(readRDS(p), error = function(e) NULL)
     if (is.list(obj) && !is.null(obj$data)) obj$data else obj
   }
-  # ── Shared, scenario-independent inputs: the historical panel + the deployed adoption
+  # ── Shared, scenario-independent inputs: the historical panel + the selected adoption
   # configs from selected-models.yml. Built once and reused for every scenario (ADR 0035:
   # one shared fit, fan out at projection). ──
   panel <- panelData
@@ -697,7 +697,7 @@ runProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "outpu
              error = function(e) { say("  scenario panel build FAILED: ", conditionMessage(e)); NULL })
   }
 
-  # ── Project the deployed model onto each scenario; one labelled artifact each, plus the
+  # ── Project the selected model onto each scenario; one labelled artifact each, plus the
   # gating scenario to the legacy projection.rds path so single-projection consumers keep working. ──
   projDir <- file.path(groupDir, "projections")
   dir.create(projDir, showWarnings = FALSE, recursive = TRUE)
@@ -747,7 +747,7 @@ runProjection <- function(group, resultsDir = getOption("pfm.resultsDir", "outpu
 #' @param steps Character vector subset of \code{c("sweep","robustness","temporal",
 #'   "subnational","difference-first","projection","selection-bootstrap")}. Default is the
 #'   first four (the standard pipeline); \code{"difference-first"} (ADR 0014 alternative
-#'   selection) and \code{"projection"} (persist the deployed scenario projection as
+#'   selection) and \code{"projection"} (persist the selected scenario projection as
 #'   \code{projection.rds}, ADR 0009; requires \code{gdxFile}) are recognised but off by
 #'   default. The publication workflow (\code{--paper}) enables them.
 #' @param resultsDir,modelDir Configurable Results Root / Fit Cache (the ADR 0009 model store).

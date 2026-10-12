@@ -138,7 +138,7 @@ pfmPreflight <- function(config = "config.yml", startGroup = NULL, scenarioConfi
           if (length(miss)) paste("missing:", paste(miss, collapse = ", ")) else
             paste0(sum(rows$pfmGroup == g), " row(s)"))
       # The share path switch must match the group's formulation (0005 Phase 3): a v6 group (it
-      # ships phi-anchor.rds) needs cm_pfmPhiPath = 1, or mode 1 and the rule-C rebuild run on the
+      # ships phi-anchor.rds) needs cm_pfmPhiPath = 1, or mode 1 and the hold-the-budget rebuild run on the
       # t0 share alone; a v5 group must not set it, or GAMS waits for a path that never comes.
       if (!length(miss) && "phiPath" %in% names(rows)) {
         v6 <- file.exists(file.path(remindInputs, g, "phi-anchor.rds"))

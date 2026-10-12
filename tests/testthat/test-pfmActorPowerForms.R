@@ -11,7 +11,7 @@ apSpecs <- list(
   apSpec("C1", "Actor Power Index")
 )
 
-test_that("the default grid is the v5 grid: linear originals plus one satAP twin per split spec", {
+test_that("the default grid is the v5 grid: linear originals plus one satAP variant per split spec", {
   out <- suppressMessages(pfmSpecs(apSpecs, verbose = FALSE))
   nm <- vapply(out, `[[`, "", "name")
   expect_identical(nm, c("S1", "C1", "S1 satAP"))

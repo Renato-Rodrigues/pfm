@@ -2,7 +2,7 @@
 # The v6 coupling formulation (design note 0005 §1; Phase 1 acceptance properties).
 
 gapsFixture <- function() {
-  # three regions, two sectors, four years; R3 is the most constrained in Bulk
+  # three regions, two sectors, four years; R3 is the most constrained in power & industry
   expand <- expand.grid(region = c("R1", "R2", "R3"), year = c(2025, 2050, 2100, 2150),
                         sector = c("Bulk", "Diffuse"), stringsAsFactors = FALSE)
   base <- c(R1 = 0.10, R2 = 0.20, R3 = 0.40)

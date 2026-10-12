@@ -7,7 +7,7 @@
 #'
 #' @param data A `magpie` object with calculated drivers.
 #' @param coeff List with weights for Innovator and Incumbent index calculation.
-#' Default weights apply the predefined Bulk and Diffuse schema.
+#' Default weights apply the predefined power & industry and buildings & transport schema.
 #' @param energyPerCapita Optional `magpie` object holding total primary energy per
 #' capita, aligned to `data`. When supplied, per-capita variants of both indices are
 #' emitted **in addition to** the shares, named `"Innovator Power pc|<sector>"` and
@@ -48,7 +48,7 @@ actorPowerIndex <- function(
   elec <- data[, , "Electrification"]
   biofuel <- data[, , "Biofuel Displacement"]
 
-  # Pre-allocate output arrays for indices across Sectors ("Bulk", "Diffuse")
+  # Pre-allocate output arrays for indices across Sectors ("Power & industry", "Buildings & transport")
   outNames <- c(
     "Actor Power Index|Bulk", "Actor Power Index|Diffuse",
     "Innovator Power|Bulk", "Innovator Power|Diffuse",

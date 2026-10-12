@@ -22,8 +22,8 @@ possibly, year; phi is constant over years).}
 A test instrument, not a model feature. It exists so a coupled run can be given feasibility
 shares that carry NO estimated information, or one region's share held at another reading,
 while everything else - the energy-system feedback, the severity, the bind mode, the level-cap
-bound - is computed exactly as in the deployed run. It answers the paper's GP-24 (what does the
-estimated ordering add to either coupled result?) and GP-23 (does the held-budget result depend
+bound - is computed exactly as in the selected run. It answers the paper's GP-24 (what does the
+estimated ordering add to either coupled result?) and GP-23 (does the hold-the-budget result depend
 on China's 2035 reading?).
 }
 \details{
@@ -37,13 +37,13 @@ Modes (\verb{mode:} in the yml):
 \describe{
 \item{\code{uniform}}{Every region gets the same share in a sector. \verb{value:} is a number, or \code{mean}
 (default) for the unweighted mean of that call's regional shares in that sector - so the
-level stays where the deployed run puts it and only the ordering is removed.}
+level stays where the selected run puts it and only the ordering is removed.}
 \item{\code{permute}}{The call's shares are reassigned across regions by a fixed random
 permutation (\verb{seed:}, default 1) of the sorted region names. The same permutation is used
 for both sectors, so a region keeps the pairing of its two shares and the distribution of
 values is unchanged - only which region holds which value is broken.}
 \item{\code{set}}{Named regions get fixed shares per sector, e.g.
-\verb{regions: \{CHA: \{Bulk: 0.862, Diffuse: 0.556\}\}}; every other region is left alone.}
+\verb{regions: \{CHA: \{power & industry: 0.862, buildings & transport: 0.556\}\}}; every other region is left alone.}
 }
 }
 \keyword{internal}

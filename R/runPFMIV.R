@@ -5,10 +5,10 @@
 #' Fits the shift-share 2SLS rung (\code{\link{estimatePolicyStringencyModel}}
 #' \code{(estimator = "satP-iv")}: Incumbent Power instrumented by base-year
 #' fossil exposure x leave-one-out global VRE diffusion) for both sectors, in
-#' TWO trend variants — with the deployed spec's trend and with no trend — since
+#' TWO trend variants — with the selected specification's trend and with no trend — since
 #' the diffusion shift is itself trend-like and the first-stage strength must be
 #' shown for both (documented design caveat). IQ channels/controls/FE come from
-#' the deployed spec. Writes \code{<group>/iv.rds}: per sector x variant the
+#' the selected specification. Writes \code{<group>/iv.rds}: per sector x variant the
 #' non-FE coefficient table, the weak-instrument F and Wu-Hausman diagnostics.
 #'
 #' @inheritParams runPFMTemporalValidation
@@ -83,7 +83,7 @@ runPFMIV <- function(group,
                logisticTimeTrend = identical(variant, "trend") &&
                  isTRUE(cfg$logisticTimeTrend),
                modelDir = NULL, verbose = FALSE),
-          # Everything else comes from the deployed spec — including apTransform,
+          # Everything else comes from the selected specification — including apTransform,
           # whose omission fitted this rung on linear actor power. See .pfmSpecArgs().
           .pfmSpecArgs(cfg, exclude = c("actorPowerDrivers", "actorPowerIndex",
                                         "logisticTimeTrend")))),

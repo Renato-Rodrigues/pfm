@@ -14,7 +14,7 @@
 #' @param cfg Normalised spec (named list) from the sweep config; must be
 #'   \code{panelTransform = "levels"} (anything else returns NULL, mirroring
 #'   ADR 0005).
-#' @param sector Character. \code{"Bulk"} or \code{"Diffuse"}.
+#' @param sector Character. \code{"Power & industry"} or \code{"Buildings & transport"}.
 #' @param histData Historical panel (magpie) including the Policy Stringency
 #'   outcome.
 #' @param scenarioData Scenario panel (magpie).
@@ -519,7 +519,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
 
       # Ceiling-collapse gate (TODO item 11, 2026-08-22). The FRONTIER ceiling
       # S*(x_t) - not the level path the rest of this walk scores - falls by ~40%
-      # over the century in Bulk under the deployed spec, driven by an
+      # over the century in power & industry under the selected specification, driven by an
       # Incumbent-Power interaction that a decarbonization scenario runs
       # backwards. Since the coupling turns the relative gap into phi, a
       # shrinking ceiling tightens the constraint every period whether or not
@@ -549,7 +549,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
         # nearly the arithmetic residual (MODEL.md 3.4). ADR 0043 already directs
         # the project to screen this on any winner - X-0170 was called out there
         # for gamma = 1.0000 exactly - but nothing implemented it, and v3's
-        # deployed X-2367 came in at 0.99999999 in BOTH sectors unremarked.
+        # Selected X-2367 came in at 0.99999999 in BOTH sectors unremarked.
         #
         # REPORTED even when the gate is off, so turning it on is never the first
         # time anyone sees the number.
@@ -621,10 +621,10 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
       # Ratchet monotonicity audit (ADR 0040) - REPORT ONLY, never a gate. A
       # policy-stringency index is an accumulating stock: countries do not repeal
       # their portfolios. The model does not know this, and under the linear
-      # actor-power form the Bulk projection DECLINED over the century. This
+      # actor-power form the power & industry projection DECLINED over the century. This
       # measures how often the projected path falls, so the saturating form can be
       # judged on whether it removes the decline rather than on assertion. If a
-      # deployed spec still shows a material share here, the transform did not
+      # Selected specification still shows a material share here, the transform did not
       # work and the decline is being masked, not fixed.
       if (all(c("region", "year", "index") %in% colnames(proj))) {
         mono <- unlist(lapply(split(proj[order(proj$year), ], proj$region[order(proj$year)]),
@@ -794,7 +794,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
   y1 <- pick(years[2])
   # The median can be flat while individual countries still lose their ceiling:
   # measured on v1, the best admissible spec holds the median at 1.005 with 46%
-  # of countries still falling (the deployed one: 0.62 and 96%). The gate scores
+  # of countries still falling (the selected one: 0.62 and 96%). The gate scores
   # the median because that is what survives the region aggregation into phi, but
   # the residual is reported so a passing spec is never read as "no country falls".
   perC <- vapply(split(d, d$region), function(z) {

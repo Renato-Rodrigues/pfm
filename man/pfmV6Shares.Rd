@@ -27,7 +27,7 @@ the run's SSP).}
 \value{
 A list: \code{shares} (sector, region, year, u, phiRaw, phi, clipped; sector rows only),
 \code{floor} (region, year, phi: the minimum over sectors), \code{strength} (per sector and year,
-with \code{k} after the closure arm), \code{options}.
+with \code{k} after the closure sensitivity run), \code{options}.
 }
 \description{
 The whole v6 coupling step except the REMIND interface: \code{\link{computeStrengthPath}} on the

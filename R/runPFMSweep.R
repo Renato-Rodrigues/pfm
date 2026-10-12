@@ -13,7 +13,7 @@
 #' \code{sweep.rds}, \code{selected-models-pfm.yml}, and \code{manifest.json}.
 #'
 #' The PFM has \strong{one} stage (no adoption hurdle), its outcome axis headline
-#' is the sectoral Bulk/Diffuse mapping, and estimator adjudication never touches
+#' is the sectoral power & industry / buildings & transport mapping, and estimator adjudication never touches
 #' selection — the sweep runs on the satP engine only ("PFM Estimator Suite" in
 #' CONTEXT.md); the estimator-agreement exhibit is computed on the selected spec
 #' afterwards (\code{\link{computeEstimatorAgreement}}).
@@ -299,7 +299,7 @@ runPFMSweep <- function(group,
         "responsiveness gate needs both; it will be skipped.")
   }
   # The silent case: a gating panel but no reference. Every other scenario gate runs, so
-  # the walk looks complete - v6 was selected like this and deployed a spec whose gating
+  # the walk looks complete - v6 was selected like this and selected a spec whose gating
   # and reference projections differ by 0.004 index points (PITFALLS 28).
   if (!is.null(scenarioData) && is.null(referenceScenarioData)) {
     say("WARNING: no reference scenario panel - the responsiveness gate (scenarioBlind) ",
@@ -555,9 +555,9 @@ runPFMSweep <- function(group,
 #'   \item \strong{FD/hazard transforms dropped} — the PFM currently estimates in
 #'     levels only (no adoption stage exists, and the FD-on-logit-scale variant is
 #'     future work), so \code{panelTransform != "levels"} specs are removed.
-#'   \item \strong{Saturating-price twins dropped} — the \code{priceLink} axis
+#'   \item \strong{Saturating-price variants dropped} — the \code{priceLink} axis
 #'     (ADR 0028) is the price model's bounded-form competition; the PFM is
-#'     \emph{always} the bounded satP form, so the \code{"| satP"} twins would be
+#'     \emph{always} the bounded satP form, so the \code{"| satP"} variants would be
 #'     duplicates.
 #'   \item \strong{Ridge specs dropped} — not supported by the PFM estimator.
 #'   \item \code{includeLaggedECP} (the price-lag dynamics rung) maps to
@@ -568,7 +568,7 @@ runPFMSweep <- function(group,
 #' @param verbose Logical.
 #' @param apTransforms The actor-power forms each SPLIT actor-power spec is fitted in
 #'   (\code{\link{preparePanelData}}'s \code{apTransform}): \code{"linear"} keeps the spec as
-#'   it is, the others append a twin with the suffix \code{" satAP"} (both groups saturating),
+#'   it is, the others append a variant with the suffix \code{" satAP"} (both groups saturating),
 #'   \code{" satInn"} (innovator only) or \code{" satInc"} (incumbent only). Default
 #'   \code{c("linear", "saturating")}, the grid of every Run-Group up to v5.
 #' @param dropCompositeAP Logical. Drop the specs whose actor power is the composite Actor
@@ -612,16 +612,16 @@ pfmSpecs <- function(specs, verbose = TRUE, apTransforms = c("linear", "saturati
   })
   if (isTRUE(verbose) && length(specs) < n0) {
     message("[pfmSpecs] ", n0 - length(specs), " of ", n0,
-            " specs dropped (FD transforms, satP twins, ridge).")
+            " specs dropped (FD transforms, satP variants, ridge).")
   }
 
   # --- Saturating actor-power axis (ADR 0040) ---------------------------------
   # Appended as TWINS so the linear originals keep their X-numbers and remain
-  # comparable with earlier sweeps; the twin carries the " satAP" suffix. Only
-  # SPLIT actor-power specs get a twin: the saturating map x/(x + xBar) is defined
+  # comparable with earlier sweeps; the variant carries the " satAP" suffix. Only
+  # SPLIT actor-power specs get a variant: the saturating map x/(x + xBar) is defined
   # for shares, and the composite Actor Power Index is a difference (innovator
   # minus incumbent) that takes negative values (preparePanelData would skip it
-  # and the twin would be a duplicate of its linear parent). This is also why the
+  # and the variant would be a duplicate of its linear parent). This is also why the
   # axis roughly doubles only the split half of the grid rather than all of it.
   isSplitAP <- function(cfg) {
     api <- unlist(cfg$actorPowerIndex)
@@ -633,8 +633,8 @@ pfmSpecs <- function(specs, verbose = TRUE, apTransforms = c("linear", "saturati
     specs <- Filter(Negate(isComposite), specs)
     if (isTRUE(verbose)) message("[pfmSpecs] ", nComp, " composite Actor Power Index specs dropped.")
   }
-  # One twin per non-linear form (design note 0005 D7). The suffixes keep the names of the
-  # Run-Groups up to v5, where the only twin was " satAP" (both groups saturating).
+  # One variant per non-linear form (design note 0005 D7). The suffixes keep the names of the
+  # Run-Groups up to v5, where the only variant was " satAP" (both groups saturating).
   twinForm <- list(
     saturating = c(sfx = " satAP", txt = "[saturating actor power: x/(x+median), ADR 0040]"),
     "saturating-innovator" = c(sfx = " satInn", txt = "[saturating innovator power, linear incumbents: 0005 D7]"),
@@ -655,7 +655,7 @@ pfmSpecs <- function(specs, verbose = TRUE, apTransforms = c("linear", "saturati
   if (!"linear" %in% apTransforms) specs <- Filter(Negate(isSplitAP), specs)
   specs <- c(specs, twins)
   if (isTRUE(verbose)) {
-    message("[pfmSpecs] ", length(twins), " saturating actor-power twins appended",
+    message("[pfmSpecs] ", length(twins), " saturating actor-power variants appended",
             " (total ", length(specs), " specs).")
   }
   specs

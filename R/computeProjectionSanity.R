@@ -11,7 +11,7 @@
 #' \code{reason}.
 #'
 #' @param cfg List. A channel spec (fields as in \code{\link{channelSpecs}}).
-#' @param sector Character. \code{"Bulk"} or \code{"Diffuse"}.
+#' @param sector Character. \code{"Power & industry"} or \code{"Buildings & transport"}.
 #' @param histData \code{magpie}. Historical panel (for fitting via cache).
 #' @param scenarioData \code{magpie}. Scenario panel (e.g. \code{panelDataScenario}).
 #' @param family Character. Stringency family. Default \code{"Gamma"}.

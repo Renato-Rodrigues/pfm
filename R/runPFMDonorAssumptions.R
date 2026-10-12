@@ -38,8 +38,8 @@
 #' @param k Number of donors per recipient.
 #' @param qualityQuantiles Passed to \code{\link{computeDonorAssignment}}: the covered
 #'   nearest-neighbour distance quantiles bounding "close" and "far". The default
-#'   \code{c(0.5, 0.9)} is the deployed rule; \code{c(0.5, Inf)} matches every recipient to
-#'   its nearest donors (the "nearest donors always" arm, design note 0005 §7a decision 3).
+#'   \code{c(0.5, 0.9)} is the selected rule; \code{c(0.5, Inf)} matches every recipient to
+#'   its nearest donors (the "nearest donors always" sensitivity run, design note 0005 §7a decision 3).
 #' @param verbose Logical.
 #'
 #' @return Invisibly, the donor table (both sectors stacked).
@@ -96,7 +96,7 @@ runPFMDonorAssumptions <- function(group,
 
   tab <- do.call(rbind, lapply(sectors, function(sec) {
     hit <- Filter(function(x) identical(x$model_type, paste0("PolicyStringency: ", sec)), sel)
-    if (!length(hit)) { say("no deployed spec for ", sec, " — skipped."); return(NULL) }
+    if (!length(hit)) { say("no selected specification for ", sec, " — skipped."); return(NULL) }
     cf <- norm(hit[[1]])
     fit <- estimatePolicyStringencyModel(
       data = panel, sector = sec, estimator = "satP",
@@ -167,7 +167,7 @@ runPFMDonorAssumptions <- function(group,
     close = sum(tab$donorQuality == "close"),
     far = sum(tab$donorQuality == "far"),
     none = sum(tab$donorQuality == "none"),
-    qualityQuantiles = as.character(qualityQuantiles)))   # "Inf": the nearest-donors arm
+    qualityQuantiles = as.character(qualityQuantiles)))   # "Inf": the nearest-donors sensitivity run
   invisible(tab)
 }
 # nolint end

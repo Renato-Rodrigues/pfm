@@ -174,7 +174,7 @@ test_that("the guard reports out-of-SAMPLE separately so the wider range hides n
   expect_gte(mean(g$outOfSample, na.rm = TRUE), mean(g$outOfSupport, na.rm = TRUE))
 })
 
-test_that("pfmSpecs appends saturating twins for split-AP specs only", {
+test_that("pfmSpecs appends saturating variants for split-AP specs only", {
   specs <- list(
     list(name = "X-0001 splitAP", panelTransform = "levels",
          actorPowerDrivers = c("Innovator Power", "Incumbent Power"),
@@ -186,7 +186,7 @@ test_that("pfmSpecs appends saturating twins for split-AP specs only", {
          instQualityDrivers = "Rule of Law (VDem)")
   )
   out <- pfmSpecs(specs, verbose = FALSE)
-  expect_equal(length(out), 3L)                       # 2 originals + 1 split twin
+  expect_equal(length(out), 3L)                       # 2 originals + 1 split variant
   tw <- Filter(function(x) identical(x$apTransform, "saturating"), out)
   expect_equal(length(tw), 1L)
   expect_match(tw[[1]]$name, "satAP$")

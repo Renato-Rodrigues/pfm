@@ -37,7 +37,7 @@
 #'   (\code{aggregateFeasibilityToRegions()} rejects \eqn{\theta \ge 1}). The default is an
 #'   even grid: \strong{0.50} is the declared central value -- what the efficiency anchor
 #'   takes at the resolution the coupling assigns \eqn{\varphi} on -- and \strong{0.95/0.99}
-#'   bracket Run-Group \code{v3}'s Bulk region-resolution anchor of 0.951.
+#'   bracket Run-Group \code{v3}'s power & industry region-resolution anchor of 0.951.
 #'
 #'   \strong{Changed 2026-08-25:} the legacy country-resolution anchors 0.74 and 0.79 were
 #'   dropped in favour of 0.75. Runs written before that date sweep 0.74/0.79 and have no
@@ -69,8 +69,8 @@ runPFMCouplingBound <- function(group,
                                 # REGION resolution and the seed year, which is where phi is
                                 # assigned. See computeEfficiencyAnchor() and MODEL.md 5.3.
                                 #
-                                # 0.95/0.99 BRACKET v3's Bulk region-resolution anchor of
-                                # 0.951 (Diffuse's 0.330 sits between 0.25 and 0.50).
+                                # 0.95/0.99 BRACKET v3's power & industry region-resolution anchor of
+                                # 0.951 (Buildings & transport's 0.330 sits between 0.25 and 0.50).
                                 # Bracketing rather than landing on it is the point: the
                                 # anchor is an analogy that fixes a scale, not an estimate,
                                 # so a swept neighbourhood is the honest object.
@@ -168,7 +168,7 @@ runPFMCouplingBound <- function(group,
   sel <- yaml::read_yaml(.pfmSelectedModels(groupDir))
   cfg <- lapply(stats::setNames(nm = sectors), function(sec)
     norm(Filter(function(x) identical(x$model_type, paste0("PolicyStringency: ", sec)), sel)[[1]]))
-  say("deployed spec: ", cfg$Bulk$name)
+  say("selected specification: ", cfg$Bulk$name)
 
   panel <- panelData %||% .pfmHistPanel(groupDir, verbose = verbose)
   if (is.null(panel)) {

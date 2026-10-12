@@ -10,7 +10,7 @@
 #' @param fit List. Output of \code{fitAndDiagnose}, or a list with at minimum
 #'   \code{model}, \code{coeftest}, \code{vcov}, and \code{formula}.
 #' @param training_data data.frame. The df actually passed to glm/logistf.
-#' @param sector Character. \code{"Bulk"} or \code{"Diffuse"}.
+#' @param sector Character. \code{"Power & industry"} or \code{"Buildings & transport"}.
 #' @param stage Character. \code{"adoption"} or \code{"stringency"}.
 #' @param family Character. \code{"logistf"}, \code{"Gamma"}, or \code{"gaussian"}.
 #' @param useFirth Logical.

@@ -6,7 +6,7 @@
 \usage{
 modelSelection(
   data,
-  sector = "Bulk",
+  sector = "Power & industry",
   stage = "adoption",
   family = "Gamma",
   testMode = "incremental",
@@ -36,7 +36,7 @@ modelSelection(
 \arguments{
 \item{data}{A \code{magpie} object produced by \code{panelDataHistorical}.}
 
-\item{sector}{Character. \code{"Bulk"} or \code{"Diffuse"}.}
+\item{sector}{Character. \code{"Power & industry"} or \code{"Buildings & transport"}.}
 
 \item{stage}{Character. \code{"adoption"} or \code{"stringency"}.}
 

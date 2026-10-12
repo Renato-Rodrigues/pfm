@@ -111,10 +111,10 @@ test_that("the sweep grid carries all four actor-power forms and can be restrict
   # Nothing in the base grid is renamed or renumbered by the addition ...
   expect_true(all(baseNm %in% nm))
   # ... and the RAW specs keep their positions, i.e. the new block is appended, not
-  # interleaved. Compared on the raw specs only because the satP twins (ADR 0028) are
+  # interleaved. Compared on the raw specs only because the satP variants (ADR 0028) are
   # all appended after every raw spec, so the base grid is not a literal prefix of the
   # full one even though no X-number moves.
-  # Compared on the X-numbered raw specs: the satP twins (ADR 0028) are all appended
+  # Compared on the X-numbered raw specs: the satP variants (ADR 0028) are all appended
   # after every raw spec, and the LAG- specs carry no X-number, so neither belongs in
   # a positional check even though no X-number moves.
   xRaw <- function(x) grep("^X-", x[!grepl(" | satP", x, fixed = TRUE)], value = TRUE)

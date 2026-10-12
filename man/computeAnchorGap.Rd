@@ -11,7 +11,7 @@ computeAnchorGap(
   mapping = "regionmapping_21_EU11.csv",
   weights = NULL,
   ssp = "SSP2",
-  sectors = c("Bulk", "Diffuse"),
+  sectors = c("Power & industry", "Buildings & transport"),
   anchorYear = NULL,
   t0 = 2025,
   anchorRule = c("anchor-year", "t0-ceiling"),
@@ -30,7 +30,7 @@ computeAnchorGap(
 
 \item{ssp}{SSP of the weights. Default \code{"SSP2"}.}
 
-\item{sectors}{Sectors. Default Bulk and Diffuse.}
+\item{sectors}{Sectors. Default power & industry and buildings & transport.}
 
 \item{anchorYear}{Anchor year; \code{NULL} = the last year of the group's training panel.}
 
@@ -63,7 +63,7 @@ year), and fixes each country's logit-scale distance below its own ceiling (desi
 §1, D1, D2):
 \itemize{
 \item covered countries: \eqn{q_c = \eta_{c,t_a} - y_{c,t_a}}, with \eqn{y} the observed index on
-the squeezed logit scale and \eqn{\eta} the deployed frontier's linear predictor;
+the squeezed logit scale and \eqn{\eta} the selected frontier's linear predictor;
 \item uncovered countries: \eqn{y = \mathrm{logit}(E_c S^*_{c,t_a}/S_{max})} with the band-rule
 \eqn{E_c} of the group's donor assignment (basis donor, lowBand or median; the USA override
 included);

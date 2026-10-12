@@ -5,10 +5,10 @@ test_that("channelSpecs builds the expected suites", {
   # Base specs: 15 IQ x 2 AP x 8 controls x (3 FE levels + 1 hybridFD) = 960 (ADR 0011)
   # + 1 pureFD + 36 capture (R9) + 12 dif:EU (R7) + 4 lag + 720 context-dummies
   # block (ADR 0038: 15 IQ x 2 AP x 8 controls x 3 FE, levels only) = 1733 base;
-  # every LEVELS base spec gets a saturating stringency-only twin (ADR 0028):
-  # 720 + 36 + 12 + 4 + 720 = 1492 twins -> 3225 total.
+  # every LEVELS base spec gets a saturating stringency-only variant (ADR 0028):
+  # 720 + 36 + 12 + 4 + 720 = 1492 variants -> 3225 total.
   # + per-capita actor-power block (design-notes/0001, appended 2026-08-24):
-  # 3 forms x 15 IQ x 8 controls x 3 FE = 1080 raw + 1080 twins = 2160 -> 5385.
+  # 3 forms x 15 IQ x 8 controls x 3 FE = 1080 raw + 1080 variants = 2160 -> 5385.
   expect_length(ex, 5385)
   # The base grid is unchanged and the new forms are strictly additive - this is the
   # numbering-stability contract test-pfmImprovements.R also pins.
@@ -21,8 +21,8 @@ test_that("channelSpecs builds the expected suites", {
   # names unique within each suite
   expect_false(anyDuplicated(vapply(g, `[[`, character(1), "name")) > 0)
   expect_false(anyDuplicated(vapply(ex, `[[`, character(1), "name")) > 0)
-  # exhaustive transform split: 5144 levels (1492 base + 1492 satP twins
-  # + 1080 per-capita + 1080 their twins) + 240 hybridFD + 1 pureFD. The per-capita
+  # exhaustive transform split: 5144 levels (1492 base + 1492 satP variants
+  # + 1080 per-capita + 1080 their variants) + 240 hybridFD + 1 pureFD. The per-capita
   # block is levels-only, so hybridFD and pureFD are untouched by it.
   tr <- vapply(ex, `[[`, character(1), "panelTransform")
   expect_equal(as.integer(table(tr)[c("levels", "hybridFD", "pureFD")]), c(5144L, 240L, 1L))

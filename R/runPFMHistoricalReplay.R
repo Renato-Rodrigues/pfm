@@ -40,7 +40,7 @@
 #'   (\code{NULL} = the first year with a complete observation).
 #' @param y Years of the historical panel.
 #' @param outputRegionMappingFile Regional resolution of the panel. Must match the
-#'   resolution the deployed model was estimated at.
+#'   resolution the selected model was estimated at.
 #' @param indexMax Index ceiling. Default \code{10}.
 #' @param tolerance Numeric. Slack allowed on the gate, as a fraction of the ECM
 #'   RMSE. Default \code{0} (strict).

@@ -18,7 +18,7 @@
 #' Report-only; never changes selection.
 #'
 #' @param data A \code{magpie} object: the historical panel.
-#' @param sector,stage Character. Sector (\code{"Bulk"}/\code{"Diffuse"}) and stage
+#' @param sector,stage Character. Sector (\code{"Power & industry"}/\code{"Buildings & transport"}) and stage
 #'   (\code{"adoption"}/\code{"stringency"}).
 #' @param actorPowerDrivers,actorPowerIndex,instQualityDrivers,controlDrivers Spec drivers.
 #' @param regionMappingFixedEffects Character. Block FE mapping file.

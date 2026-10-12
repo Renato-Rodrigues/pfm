@@ -194,7 +194,7 @@ computeInfluenceDiagnostics <- function(fit, terms = NULL, alpha = 0.05,
 #' Influence-diagnostics Run-Group step (pfm-influence)
 #'
 #' @description
-#' Runs \code{\link{computeInfluenceDiagnostics}} on the deployed spec
+#' Runs \code{\link{computeInfluenceDiagnostics}} on the selected specification
 #' (\code{selected-models-pfm.yml}) for both sectors, tracking the \emph{theory}
 #' terms (Actor Power mains/index, Institutional Quality channels, and their
 #' interactions). Writes \code{<group>/influence.rds}. Report-only - it never
@@ -255,13 +255,13 @@ runPFMInfluence <- function(group,
     if (length(hit) == 0) next
     cfg <- norm(hit[[1]])
     out$spec <- out$spec %||% cfg$name
-    say("deployed satP refit (", sec, ") ...")
+    say("selected satP refit (", sec, ") ...")
     fit <- tryCatch(
       do.call(estimatePolicyStringencyModel, c(
         list(data = panel, sector = sec, estimator = "satP", indexMax = indexMax,
              modelDir = NULL, verbose = FALSE),
         # See .pfmSpecArgs(): hand-listing these dropped apTransform, so the
-        # "deployed satP refit" was not the deployed spec.
+        # "selected satP refit" was not the selected specification.
         .pfmSpecArgs(cfg))),
       error = function(e) { say("  ", sec, " refit failed: ", conditionMessage(e)); NULL }
     )

@@ -23,7 +23,7 @@ computeStrengthPath(
 
 \item{theta}{Severity for the clip diagnostics. Default 0.5.}
 
-\item{hold}{\code{"logit"} (the v6 rule) or \code{"ratio"}: the E-hold bound of D2/C5, in which
+\item{hold}{\code{"logit"} (the v6 rule) or \code{"ratio"}: the constant-limit bound of D2/C5, in which
 each country keeps its anchor efficiency ratio, \eqn{S_c(t) = E_c S^*_c(t)}.}
 
 \item{returnCountries}{Logical: also return the country paths. Default \code{FALSE}.}

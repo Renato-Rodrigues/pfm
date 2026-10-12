@@ -135,8 +135,8 @@ pfmReplayInterface <- function(remindDir = getOption("pfm.remindDir", NULL),
     lamSector = list(Bulk    = stats::setNames(rep(0.1105, length(regs)), regs),
                      Diffuse = stats::setNames(rep(0.0730, length(regs)), regs)),
     # The economy-wide floor rate, min() over the two sectors - the same maximin rule
-    # that gives the floor min(phi). Deliberately the Diffuse value, so a round trip
-    # that silently picked the Bulk rate (or 0, the pre-2026-09-11 behaviour) fails.
+    # that gives the floor min(phi). Deliberately the buildings & transport value, so a round trip
+    # that silently picked the power & industry rate (or 0, the pre-2026-09-11 behaviour) fails.
     lamFloor = stats::setNames(rep(0.0730, length(regs)), regs),
     bndSector = bnd,
     mpSector  = lapply(bnd, function(d) { names(d)[names(d) == "priceBound"] <- "price"; d }),

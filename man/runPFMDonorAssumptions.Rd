@@ -38,7 +38,7 @@ far below the frontier its institutions could support.}
 \item{qualityQuantiles}{Passed to \code{\link{computeDonorAssignment}}: the covered
 nearest-neighbour distance quantiles bounding "close" and "far". The default
 \code{c(0.5, 0.9)} is the deployed rule; \code{c(0.5, Inf)} matches every recipient to
-its nearest donors (the "nearest donors always" arm, design note 0005 §7a decision 3).}
+its nearest donors (the "nearest donors always" sensitivity run, design note 0005 §7a decision 3).}
 
 \item{verbose}{Logical.}
 }

@@ -24,7 +24,7 @@ test_that("the frontier rung fits and decomposes into ceiling + political slack"
   expect_true(all(is.finite(fr$frontierIndex)))
 })
 
-test_that("runPFMFrontier writes the frontier artifact for the deployed spec", {
+test_that("runPFMFrontier writes the frontier artifact for the selected specification", {
   skip_if_not_installed("frontier")
   resultsDir <- withr::local_tempdir()
   modelDir <- withr::local_tempdir()
@@ -148,7 +148,7 @@ test_that("wild-cluster bootstrap returns few-clusters-honest p-values", {
   expect_lt(wb$pWild[wb$term == "Actor.Power.Index"], 0.05)
 })
 
-test_that("runPFMIV writes the two-variant IV artifact from the deployed spec", {
+test_that("runPFMIV writes the two-variant IV artifact from the selected specification", {
   skip_if_not_installed("AER")
   resultsDir <- withr::local_tempdir()
   modelDir <- withr::local_tempdir()
