@@ -97,7 +97,7 @@ from the package. Anything worth doing twice belongs in a function.
 
 \describe{
 \item{\code{sweep}}{Estimate and select: the model selection sweep, frontier,
-temporal validation and sector speeds. Produces the deployed spec.}
+temporal validation and sector speeds. Produces the selected specification.}
 \item{\code{diagnostics}}{Inference and validation of that spec: estimator
 agreement and wild-cluster p-values, the shift-share IV, leave-one-country-out
 influence, and the historical-replay gate. Needed before any number from the

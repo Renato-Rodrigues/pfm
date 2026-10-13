@@ -36,6 +36,7 @@ estimatePolicyStringencyModel(
   yearFixedEffects = FALSE,
   apTransform = "linear",
   apSatScale = 1,
+  interactionWeight = NULL,
   trendMidpoint = formals(preparePanelData)$trendMidpoint,
   trendSteepness = formals(preparePanelData)$trendSteepness
 )
@@ -46,7 +47,7 @@ is assumed to be an already-assembled panel (the internal
 \code{preparePanelData} pass-through), with the outcome still on its natural
 0-\code{indexMax} scale unless \code{prepared = TRUE}.}
 
-\item{sector}{Character. \code{"Bulk"} or \code{"Diffuse"}.}
+\item{sector}{Character. \code{"Power & industry"} or \code{"Buildings & transport"}.}
 
 \item{estimator}{Character. \code{"satP"} (default), \code{"fractional"},
 \code{"beta"} or \code{"levels"} — see Description.}
@@ -103,7 +104,12 @@ fits never collide.}
 
 \item{apSatScale}{Positive number, the half-saturation point of the saturating
 actor-power transform as a multiple of the training median (\code{1}, the default, is
-the deployed form). See \code{\link{preparePanelData}}.}
+the selected form). See \code{\link{preparePanelData}}.}
+
+\item{interactionWeight}{Character or \code{NULL}. A 0-1 panel variable that multiplies every
+actor-power x institution interaction (e.g. \code{"Electoral Democracy (VDem)"}; design note
+0007, option O10). \code{NULL} (default) leaves the interactions unweighted. Stored with the
+frozen driver scaling, so projections apply it. See \code{\link{preparePanelData}}.}
 
 \item{trendMidpoint, trendSteepness}{Numeric. Shape of the logistic time trend,
 forwarded to \code{\link{preparePanelData}} and defaulting to its values.

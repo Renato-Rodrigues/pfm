@@ -46,7 +46,7 @@ re-estimate of each falsification-passing candidate is screened by the
 Projection Sanity gate; when NULL, the top falsification-passing candidate is
 selected (maximin + falsification only).}
 
-\item{sectors}{Character vector. Default \code{c("Bulk", "Diffuse")}.}
+\item{sectors}{Character vector. Default \code{c("Power & industry", "Buildings & transport")}.}
 
 \item{family}{Character. Stringency GLM family.}
 

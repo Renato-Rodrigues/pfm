@@ -20,7 +20,7 @@ runFitGrid(
 \arguments{
 \item{specs}{List of normalised specs.}
 
-\item{sectors}{Character vector (e.g. \code{c("Bulk","Diffuse")}).}
+\item{sectors}{Character vector (e.g. \code{c("Power & industry","Buildings & transport")}).}
 
 \item{stages}{Character vector (e.g. \code{c("Adoption","Stringency")}).}
 

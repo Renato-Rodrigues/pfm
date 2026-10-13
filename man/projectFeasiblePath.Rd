@@ -25,7 +25,7 @@ projectFeasiblePath(
 \item{spec}{Normalised specification (named list) as stored in
 \code{selected-models-pfm.yml}; must be \code{panelTransform = "levels"}.}
 
-\item{sector}{Character. \code{"Bulk"} or \code{"Diffuse"}.}
+\item{sector}{Character. \code{"Power & industry"} or \code{"Buildings & transport"}.}
 
 \item{histData}{Historical panel (magpie) carrying the Policy Stringency outcome.}
 

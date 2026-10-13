@@ -2,7 +2,7 @@
 % Please edit documentation in R/runPFMInference.R
 \name{runPFMInference}
 \alias{runPFMInference}
-\title{Inference artifact for the deployed spec (pfm-inference)}
+\title{Inference artifact for the selected specification (pfm-inference)}
 \usage{
 runPFMInference(
   group,
@@ -38,7 +38,7 @@ runPFMInference(
 Invisibly, the artifact list, or \code{NULL} when skipped.
 }
 \description{
-Refits the deployed specification per sector and persists the two inference quantities the
+Refits the selected specification per sector and persists the two inference quantities the
 paper quotes but no Run-Group step ever wrote:
 
 \itemize{

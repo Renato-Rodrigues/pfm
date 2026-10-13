@@ -41,7 +41,7 @@ this wrong mis-assigns every region, silently.}
 (\code{aggregateFeasibilityToRegions()} rejects \eqn{\theta \ge 1}). The default is an
 even grid: \strong{0.50} is the declared central value -- what the efficiency anchor
 takes at the resolution the coupling assigns \eqn{\varphi} on -- and \strong{0.95/0.99}
-bracket Run-Group \code{v3}'s Bulk region-resolution anchor of 0.951.
+bracket Run-Group \code{v3}'s power & industry region-resolution anchor of 0.951.
 
 \strong{Changed 2026-08-25:} the legacy country-resolution anchors 0.74 and 0.79 were
 dropped in favour of 0.75. Runs written before that date sweep 0.74/0.79 and have no

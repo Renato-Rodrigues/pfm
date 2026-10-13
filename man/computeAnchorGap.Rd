@@ -11,7 +11,7 @@ computeAnchorGap(
   mapping = "regionmapping_21_EU11.csv",
   weights = NULL,
   ssp = "SSP2",
-  sectors = c("Power & industry", "Buildings & transport"),
+  sectors = c("Bulk", "Diffuse"),
   anchorYear = NULL,
   t0 = 2025,
   anchorRule = c("anchor-year", "t0-ceiling"),
@@ -47,7 +47,7 @@ holds the shortfall between the t0 ceiling and the anchor-year efficiency ratio.
 
 \item{assignment}{Optional named list (by sector) of band-rule assignments
 (\code{\link{computeDonorAssignment}} output) used instead of the group's
-\code{donor-assignment-band-<sector>.rds}: the assignment-rule arms and their sensitivities.}
+\code{donor-assignment-band-<sector>.rds}: the assignment-rule sensitivity runs and their sensitivities.}
 
 \item{verbose}{Logical.}
 }

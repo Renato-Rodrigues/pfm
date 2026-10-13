@@ -46,6 +46,8 @@ runPFMSweep(
   apExtrapolationGate = Inf,
   apExtrapolationSd = 1,
   apExtrapolationWindow = c(2025, 2100),
+  interactionWeights = character(0),
+  edgeGate = NULL,
   gdxRegionMappingFile = "regionmappingH12.csv",
   apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
   sanityBatchSize = 5,
@@ -193,6 +195,16 @@ guard range, on the gating or the reference projection. Saturating columns are g
 their physical domain and pass by construction. \code{Inf} (default) disables it, as up
 to v5.}
 
+\item{interactionWeights}{Character. Panel variables (0-1) that each add an interaction-weighted
+twin of every spec with interactions, see \code{\link{pfmSpecs}} (design note 0007, O10). Empty
+(default): none, as up to v6.}
+
+\item{edgeGate}{\code{NULL} (default, as up to v6) or a list of thresholds for the edge-of-data
+gate of the sanity walk (\code{share}, \code{effect}, \code{capShift}, \code{cap},
+\code{mapping}; design note 0007 section 5). Severe when a driver is pushed against the
+frontier's reading in a material share of a region, or when capping the interactions at the
+sample's range moves the regional ceilings.}
+
 \item{gdxRegionMappingFile}{Character. The \strong{gdx's own native resolution}, not a
 target (PITFALLS §5) — \code{"regionmappingH12.csv"} (default) for an H12 gdx,
 \code{"regionmapping_21_EU11.csv"} for an EU21 one. Forwarded to
@@ -230,7 +242,7 @@ Writes the standard Run-Group artifacts into \code{<resultsDir>/<group>/}:
 \code{sweep.rds}, \code{selected-models-pfm.yml}, and \code{manifest.json}.
 
 The PFM has \strong{one} stage (no adoption hurdle), its outcome axis headline
-is the sectoral Bulk/Diffuse mapping, and estimator adjudication never touches
+is the sectoral power & industry / buildings & transport mapping, and estimator adjudication never touches
 selection — the sweep runs on the satP engine only ("PFM Estimator Suite" in
 CONTEXT.md); the estimator-agreement exhibit is computed on the selected spec
 afterwards (\code{\link{computeEstimatorAgreement}}).

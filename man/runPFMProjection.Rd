@@ -2,7 +2,7 @@
 % Please edit documentation in R/runPFMPostProcessing.R
 \name{runPFMProjection}
 \alias{runPFMProjection}
-\title{Persist the deployed PFM scenario projections as Run-Group artifacts}
+\title{Persist the selected PFM scenario projections as Run-Group artifacts}
 \usage{
 runPFMProjection(
   group,
@@ -47,7 +47,7 @@ by scenario id), or \code{NULL} if nothing was produced.
 }
 \description{
 The PFM counterpart of \code{\link{runProjection}} (ADR 0035 + ADR 0036): fans
-the deployed Policy Stringency spec (from the Run-Group's
+the selected Policy Stringency spec (from the Run-Group's
 \code{selected-models-pfm.yml}) out over the Policy Scenario Registry. For each
 scenario it builds the scenario panel from that scenario's gdx (with the gdx's
 own region mapping), projects both sectors via

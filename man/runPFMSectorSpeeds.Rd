@@ -41,11 +41,11 @@ Invisibly, a list \code{list(spec, trainEnd, bySector = list(<sector>
   = list(metrics, rows)))}; also writes \code{<group>/sector-speeds.rds}.
 }
 \description{
-The sector-disaggregated extension of the validated Bulk/Diffuse speed result
+The sector-disaggregated extension of the validated power & industry / buildings & transport speed result
 (2026-07-08). CAPMF natively separates electricity, industry, buildings and
 transport, and the OECD's own sectoral analysis shows they advance at
 different rates; this step estimates a validated error-correction adjustment
-speed for each of the four, applying the Run-Group's deployed shared
+speed for each of the four, applying the Run-Group's selected shared
 specification to each sector outcome. For every sector it refits on the
 training window, forecasts the held-out years recursively (the same protocol
 as \code{\link{runPFMTemporalValidation}}'s ECM form) and reports the speed,

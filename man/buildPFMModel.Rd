@@ -23,7 +23,7 @@ buildPFMModel(
 
 \item{training_data}{data.frame. The df actually passed to glm/logistf.}
 
-\item{sector}{Character. \code{"Bulk"} or \code{"Diffuse"}.}
+\item{sector}{Character. \code{"Power & industry"} or \code{"Buildings & transport"}.}
 
 \item{stage}{Character. \code{"adoption"} or \code{"stringency"}.}
 

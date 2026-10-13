@@ -43,7 +43,7 @@ permutation (\verb{seed:}, default 1) of the sorted region names. The same permu
 for both sectors, so a region keeps the pairing of its two shares and the distribution of
 values is unchanged - only which region holds which value is broken.}
 \item{\code{set}}{Named regions get fixed shares per sector, e.g.
-\verb{regions: \{CHA: \{power & industry: 0.862, buildings & transport: 0.556\}\}}; every other region is left alone.}
+\verb{regions: \{CHA: \{Bulk: 0.862, Diffuse: 0.556\}\}}; every other region is left alone.}
 }
 }
 \keyword{internal}

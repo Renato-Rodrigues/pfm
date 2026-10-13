@@ -36,7 +36,7 @@ runPFMInfluence(
 Invisibly, the artifact list, or \code{NULL} when skipped.
 }
 \description{
-Runs \code{\link{computeInfluenceDiagnostics}} on the deployed spec
+Runs \code{\link{computeInfluenceDiagnostics}} on the selected specification
 (\code{selected-models-pfm.yml}) for both sectors, tracking the \emph{theory}
 terms (Actor Power mains/index, Institutional Quality channels, and their
 interactions). Writes \code{<group>/influence.rds}. Report-only - it never

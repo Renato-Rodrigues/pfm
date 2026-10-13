@@ -28,7 +28,7 @@ runSubnational(
 The subnational sensitivity artifact (invisibly).
 }
 \description{
-Compares the deployed national-only effective carbon price with a full-coverage version that
+Compares the selected national-only effective carbon price with a full-coverage version that
 folds in subnational (\dQuote{within_country}) instruments, then re-estimates the deliverable
 on both panels. Writes \code{<group>/subnational.rds}. Cache-only assembly (national price
 from the Fit/madrat cache plus the \code{*Subnational} reader subtypes).

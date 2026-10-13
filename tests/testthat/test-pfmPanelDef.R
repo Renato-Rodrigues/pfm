@@ -4,7 +4,7 @@ test_that("the legacy definition is the v5 panel and the option overrides it", {
   withr::local_options(pfm.panel = NULL)
   d <- pfmPanelDef()
   expect_identical(d, list(firstYear = 2000L, lastYear = 2022L, movingAverage = 5L, ieaVersion = "default",
-                           geothermal = FALSE))
+                           geothermal = FALSE, democracy = FALSE))
   expect_identical(pfm:::.pfmPanelYears(d), 2000:2022)
   expect_identical(pfm:::.pfmPanelMA(d), 5L)
 

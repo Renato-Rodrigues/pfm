@@ -52,7 +52,7 @@ definition's years (\code{\link{pfmPanelDef}}).}
 \item{outputRegionMappingFile}{Character. Region mapping for data aggregation.
 Default \code{"regionmapping_54.csv"} (the model-selection report convention).}
 
-\item{sectors}{Character vector. Default \code{c("Bulk", "Diffuse")}.}
+\item{sectors}{Character vector. Default \code{c("Power & industry", "Buildings & transport")}.}
 
 \item{configDir}{Character or NULL. Directory for the sweep YAML and the selected-models
 YAML. When NULL, \code{tempdir()}. \code{runSweep}

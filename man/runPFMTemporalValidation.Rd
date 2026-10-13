@@ -2,7 +2,7 @@
 % Please edit documentation in R/runPFMTemporalValidation.R
 \name{runPFMTemporalValidation}
 \alias{runPFMTemporalValidation}
-\title{Pseudo-out-of-sample validation of the deployed Policy Stringency spec}
+\title{Pseudo-out-of-sample validation of the selected Policy Stringency spec}
 \usage{
 runPFMTemporalValidation(
   group,
@@ -52,7 +52,7 @@ Invisibly, the artifact list, or \code{NULL} when skipped.
 }
 \description{
 THE decisive test of the PFM's projection claim (R10, 2026-07-06;
-docs/psm-nature-readiness-assessment.md Tier 1): the deployed spec (from the
+docs/psm-nature-readiness-assessment.md Tier 1): the selected specification (from the
 Run-Group's \code{selected-models-pfm.yml}) is re-fit on the historical panel
 truncated at \code{trainEnd}, then projected onto the observed drivers of the
 held-out years (trend frozen at \code{trainEnd}, frozen driver scaling, the

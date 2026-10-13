@@ -24,7 +24,7 @@ computeSelectionVariants(
 
 \item{deployedGate}{Which gate's winner is the deployment (default \code{"Green"}).}
 
-\item{deployedModel}{Character or \code{NULL}. The ACTUAL deployed spec when it
+\item{deployedModel}{Character or \code{NULL}. The ACTUAL selected specification when it
 differs from the gate winner — i.e. the post-sanity selection (the sanity /
 responsiveness walk can reject the maximin leader; 2026-07-15: the walk
 rejected nine scenario-blind composites before deploying X-0290). The
@@ -51,9 +51,9 @@ under each requested tier gate (deployment = the \code{"Green"} winner; the
 \code{"Blue"} winner is the documented tier-relaxed row);
 \item the \strong{Specification-Sharing Cost exhibit} — each sector's OWN best
 spec (max \eqn{\Delta R^2}(theory) among hard-gate passers) and the
-\eqn{\Delta R^2} that sector gives up under the shared deployed winner. The
+\eqn{\Delta R^2} that sector gives up under the shared selected winner. The
 Shared Specification rule stands: per-sector winners are documented, never
-deployed (CONTEXT.md "Specification-Sharing Cost").
+selected (CONTEXT.md "Specification-Sharing Cost").
 }
 }
 \seealso{

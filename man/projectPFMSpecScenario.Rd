@@ -21,7 +21,7 @@ projectPFMSpecScenario(
 \code{panelTransform = "levels"} (anything else returns NULL, mirroring
 ADR 0005).}
 
-\item{sector}{Character. \code{"Bulk"} or \code{"Diffuse"}.}
+\item{sector}{Character. \code{"Power & industry"} or \code{"Buildings & transport"}.}
 
 \item{histData}{Historical panel (magpie) including the Policy Stringency
 outcome.}

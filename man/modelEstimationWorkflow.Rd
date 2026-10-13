@@ -56,7 +56,7 @@ aggregation. Default: \code{"regionmappingH12.csv"}.}
 See \code{panelDataHistorical} for the default structure.}
 
 \item{sectors}{Character vector of sectors to estimate.
-Default: \code{c("Bulk", "Diffuse")}.}
+Default: \code{c("Power & industry", "Buildings & transport")}.}
 
 \item{family}{Character. GLM family for the stringency model:
 \code{"Gamma"} or \code{"gaussian"}. Default: \code{"Gamma"}.}

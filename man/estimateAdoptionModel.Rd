@@ -45,8 +45,8 @@ estimateAdoptionModel(
 is provided, it is assumed to be already prepared and the internal
 call to \code{preparePanelData} is skipped.}
 
-\item{sector}{Character. The sector to estimate: \code{"Bulk"} or
-\code{"Diffuse"}. Default: \code{"Bulk"}.}
+\item{sector}{Character. The sector to estimate: \code{"Power & industry"} or
+\code{"Buildings & transport"}. Default: \code{"Power & industry"}.}
 
 \item{actorPowerDrivers}{Character vector of individual Actor Power driver
 names. If \code{actorPowerIndex} is in this list, it takes priority as

@@ -53,7 +53,7 @@ from the madrat \code{cachefolder}). Default \code{getOption("pfm.modelDir")}; a
 
 \item{movingAverage}{Integer. Passed to \code{panelDataHistorical}. Default \code{5}.}
 
-\item{sectors}{Character vector. Default \code{c("Bulk","Diffuse")}.}
+\item{sectors}{Character vector. Default \code{c("Power & industry","Buildings & transport")}.}
 
 \item{nCores}{Integer. Cores for the fit sweep (ADR 0019). Default \code{1}.}
 

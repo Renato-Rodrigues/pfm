@@ -63,6 +63,7 @@ projectPFMSpecScenario <- function(cfg, sector, histData, scenarioData,
     includeLaggedPS = isTRUE(cfg$includeLaggedPS),
     apTransform = cfg$apTransform %||% "linear",
     apSatScale = as.numeric(cfg$apSatScale %||% 1),
+    interactionWeight = cfg$interactionWeight,
     modelDir = modelDir, updateIndex = FALSE, verbose = FALSE
   )
   lastHistYear <- suppressWarnings(max(fit$data$year, na.rm = TRUE))
@@ -392,6 +393,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
                              vcovGate = c("likelihood-mismatch", "flat"),
                              apExtrapolationGate = Inf, apExtrapolationSd = 1,
                              apExtrapolationWindow = c(2025, 2100),
+                             edgeGate = NULL,
                              say = function(...) invisible(),
                              stopAtFirstPass = TRUE) {
   # stopAtFirstPass = FALSE walks EVERY model in passModels (up to maxModels) and returns a
@@ -532,10 +534,11 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
       # scenario at all (composite-AP specs clamp both pathways to the same
       # support edge), so on its own this gate would select inert specs. Never
       # enable it without those two.
-      if (is.finite(ceilingFallGate)) {
+      # The edge-of-data gate (design note 0007) reads the same frontier fit, so it also needs `ct`.
+      if (is.finite(ceilingFallGate) || !is.null(edgeGate)) {
         ct <- tryCatch(
           .pfmCeilingTrajectory(cfg, sec, panelData, scenarioData,
-                                modelDir = modelDir, indexMax = indexMax),
+                                modelDir = modelDir, indexMax = indexMax, edgeGate = edgeGate),
           error = function(e) NULL)
         # gamma screen (ADR 0043 consequences, implemented 2026-08-25). ON by default
         # at 0.999 since 2026-09-15 -- the deliberate, dated act this comment used to
@@ -597,9 +600,23 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
           }
         }
 
+        # Edge-of-data gate (design note 0007, section 5): a driver pushed against the frontier's
+        # reading by interactions evaluated far from the sample, or ceilings that move when those
+        # interactions are capped at the sample's range. Severe; thresholds declared in config.yml
+        # `sweep: edgeGate`. Off (NULL) for every group up to v6.
+        if (!is.null(edgeGate) && !is.null(ct$edge) && identical(ct$edge$pass, FALSE)) {
+          nSevere <- nSevere + 1L
+          modelFlags[[paste0(sec, ".edgeOfData")]] <- data.frame(
+            rule = "edgeOfData", severity = "severe",
+            region = "ALL", year = NA_integer_, value = ct$edge$capShift,
+            detail = ct$edge$detail, sector = sec, stringsAsFactors = FALSE
+          )
+          say("  [sanity:PolicyStringency] ", m, " (", sec, ") edge of data: ", ct$edge$detail)
+        }
+
         if (!is.null(ct) && is.finite(ct$ratio)) {
           modelCeiling[[sec]] <- ct$ratio
-          if (ct$ratio < ceilingFallGate) {
+          if (is.finite(ceilingFallGate) && ct$ratio < ceilingFallGate) {
             nSevere <- nSevere + 1L
             modelFlags[[paste0(sec, ".ceilingCollapse")]] <- data.frame(
               rule = "ceilingCollapse", severity = "severe",
@@ -745,7 +762,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
 #' @keywords internal
 .pfmCeilingTrajectory <- function(cfg, sector, histData, scenarioData,
                                   modelDir = NULL, indexMax = 10,
-                                  years = c(2025, 2100)) {
+                                  years = c(2025, 2100), edgeGate = NULL) {
   unl <- function(x) if (is.null(x)) NULL else unlist(x)
   ff <- do.call(estimatePolicyStringencyModel, c(
     list(data = histData, sector = sector, estimator = "frontier",
@@ -810,8 +827,13 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
     if ("gamma" %in% names(cf)) as.numeric(cf[["gamma"]]) else ff$frontierGamma %||% NA_real_
   }, error = function(e) NA_real_)
 
+  # The edge-of-data gate on the same fit and scenario frame (design note 0007): free, like gamma.
+  edge <- if (!is.null(edgeGate)) {
+    tryCatch(.pfmEdgeGate(b, sDf, mm, ff$data, years = years, gate = edgeGate),
+             error = function(e) list(pass = NA, detail = paste("edge gate not evaluable:", conditionMessage(e))))
+  } else NULL
   list(ratio = if (is.finite(y0) && y0 > 0) y1 / y0 else NA_real_,
-       ceil0 = y0, ceil1 = y1, year0 = years[1], year1 = years[2],
+       ceil0 = y0, ceil1 = y1, year0 = years[1], year1 = years[2], edge = edge,
        shareFalling = mean(perC < 1, na.rm = TRUE),
        gamma = gm,
        # The covariance check of the same fit (.pfmFrontierVcov): free, like gamma.

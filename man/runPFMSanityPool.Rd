@@ -51,7 +51,7 @@ Invisibly, the list saved as \code{sanity-pool.rds}, or \code{NULL} when skipped
 }
 \description{
 The sweep's sanity walk stops at the first specification that clears every severe gate, so
-only the specifications ranked above the deployed one carry a verdict. The selection
+only the specifications ranked above the selected one carry a verdict. The selection
 bootstrap re-ranks a pool of the top \code{topK} gate-passers, and its conditional winners
 could exclude only the walked ones: on Run-Group \code{v6}, 43\\% of the conditional wins
 went to specifications with a linear innovator term, which the actor-power extrapolation

@@ -2,7 +2,7 @@
 % Please edit documentation in R/runPostProcessing.R
 \name{runProjection}
 \alias{runProjection}
-\title{Persist the deployed scenario projection as a Run-Group artifact}
+\title{Persist the selected scenario projection as a Run-Group artifact}
 \usage{
 runProjection(
   group,
@@ -39,16 +39,16 @@ Invisibly, a named list of per-scenario projection data.frames (keyed by
 scenario id), or \code{NULL} if nothing was produced.
 }
 \description{
-Fans the one deployed model out over the Policy Scenario Registry (ADR 0035):
+Fans the one selected model out over the Policy Scenario Registry (ADR 0035):
 for each scenario it builds the scenario panel from that scenario's gdx (with
-the gdx's own region mapping), applies the deployed \emph{Adoption: \if{html}{\out{<sector>}}}
+the gdx's own region mapping), applies the selected \emph{Adoption: \if{html}{\out{<sector>}}}
 config from \code{selected-models.yml} via \code{\link{projectSpecScenario}},
 and writes one labelled artifact \code{<group>/projections/<id>.rds} (rows
 tagged with \code{scenario}/\code{scenarioName}). The \strong{gating} scenario
 is additionally written to the legacy \code{<group>/projection.rds} path so
 single-projection consumers (e.g. the paper's \code{make-figures.R}
 projected-adoption map) keep working unchanged. The historical panel and the
-deployed configs are scenario-independent and built once.
+selected configs are scenario-independent and built once.
 
 When \code{scenarios} is \code{NULL} the behaviour collapses to the legacy
 single-scenario path (a pre-built \code{scenarioData}, a cached scenario panel,

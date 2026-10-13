@@ -28,7 +28,7 @@ adjustment speed to let the gap close at that rate instead.}
 
 \item{sectorRule}{How to reconcile sectors onto one price per region:
 \code{"min"} (default, the worse sector — the maximin discipline used
-throughout), \code{"mean"}, \code{"Bulk"}, \code{"Diffuse"} or \code{"none"}.}
+throughout), \code{"mean"}, \code{"Power & industry"}, \code{"Buildings & transport"} or \code{"none"}.}
 
 \item{regions}{Optional character vector of \emph{all} REMIND regions. Any
 region absent from \code{feasibility} is written explicitly with

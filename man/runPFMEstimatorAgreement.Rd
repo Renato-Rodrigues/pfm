@@ -2,7 +2,7 @@
 % Please edit documentation in R/runPFMPostProcessing.R
 \name{runPFMEstimatorAgreement}
 \alias{runPFMEstimatorAgreement}
-\title{Estimator-agreement Run-Group step for the deployed PFM spec}
+\title{Estimator-agreement Run-Group step for the selected PFM spec}
 \usage{
 runPFMEstimatorAgreement(
   group,
@@ -36,10 +36,10 @@ Stringency outcomes).}
 }
 \value{
 Invisibly, a list with one \code{\link{computeEstimatorAgreement}}
-result per sector plus the deployed spec name, or \code{NULL} when skipped.
+result per sector plus the selected specification name, or \code{NULL} when skipped.
 }
 \description{
-Post-selection exhibit (ADR 0036): re-estimates the Run-Group's deployed Policy
+Post-selection exhibit (ADR 0036): re-estimates the Run-Group's selected Policy
 Stringency spec under every member of the PFM Estimator Suite per sector
 (\code{\link{computeEstimatorAgreement}} — satP engine, fractional-logit
 headline, beta-regression cross-check, levels benchmark) and writes

@@ -38,7 +38,7 @@ the gate degenerates to an identity check (reported, not silently passed).}
 \item{y}{Years of the historical panel.}
 
 \item{outputRegionMappingFile}{Regional resolution of the panel. Must match the
-resolution the deployed model was estimated at.}
+resolution the selected model was estimated at.}
 
 \item{indexMax}{Index ceiling. Default \code{10}.}
 

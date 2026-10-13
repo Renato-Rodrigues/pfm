@@ -57,7 +57,7 @@ so it is the one regressor for which this column has no automatic backstop.
 }
 \examples{
 \dontrun{
-fit <- estimatePolicyStringencyModel(panel, "Bulk", estimator = "frontier")
+fit <- estimatePolicyStringencyModel(panel, "Power & industry", estimator = "frontier")
 computeComparableCoefficients(fit)
 }
 }

@@ -46,7 +46,7 @@ stated provenance instead of being a constant nobody can re-derive.
 \eqn{u} is normalised over whatever units the frame contains, so the anchor derived over
 48 \strong{countries} is not the same number as the one derived over 21 REMIND
 \strong{regions}: \eqn{g_{\min}} and \eqn{g_{\max}} differ. The coupling normalises over
-regions, so a region-level frame is the one that describes the deployed constraint.
+regions, so a region-level frame is the one that describes the selected constraint.
 \code{resolution} records which was used, and it must travel with the number.
 }
 
@@ -54,8 +54,8 @@ regions, so a region-level frame is the one that describes the deployed constrai
 
 Nothing guarantees the solution lands in \eqn{[0,1)}. A compressed gap distribution —
 small \eqn{\bar u} relative to \eqn{1-\bar E} — needs \eqn{\theta > 1} to reproduce the
-median efficiency, which the continuous rule does not admit. On Run-Group \code{v1} Bulk
-does exactly this (\eqn{\theta} = 1.19). That says the rule cannot reproduce median Bulk
+median efficiency, which the continuous rule does not admit. On Run-Group \code{v1} power & industry
+does exactly this (\eqn{\theta} = 1.19). That says the rule cannot reproduce median power & industry
 efficiency at any legal \eqn{\theta}; it is \strong{not} a reason to raise the ceiling.
 \code{inRange} flags it.
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/runPFMFrontier.R
 \name{runPFMFrontier}
 \alias{runPFMFrontier}
-\title{Feasibility-frontier Run-Group step for the deployed PFM spec}
+\title{Feasibility-frontier Run-Group step for the selected PFM spec}
 \usage{
 runPFMFrontier(
   group,
@@ -32,7 +32,7 @@ runPFMFrontier(
 Invisibly, the artifact list, or \code{NULL} when skipped.
 }
 \description{
-Re-estimates the Run-Group's deployed Policy Stringency spec under the
+Re-estimates the Run-Group's selected Policy Stringency spec under the
 stochastic-frontier rung (\code{\link{estimatePolicyStringencyModel}} with
 \code{estimator = "frontier"}) per sector and writes
 \code{<group>/frontier.rds}: the frontier coefficient table, the

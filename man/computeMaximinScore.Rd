@@ -24,7 +24,7 @@ computeMaximinScore(
 \item{df}{Data.frame with one row per (model, sector) and columns:
 \describe{
 \item{model}{Character. Specification identifier (shared across sectors).}
-\item{sector}{Character. e.g. \code{"Bulk"} / \code{"Diffuse"}.}
+\item{sector}{Character. e.g. \code{"Power & industry"} / \code{"Buildings & transport"}.}
 \item{sigActorPower, sigInstQual, sigInteractions}{Integer significant-term
 counts per theory group (as in the model-selection report tables).}
 \item{deltaR2Theory}{Numeric. \eqn{\Delta R^2}(theory) for that sector fit.}
@@ -112,7 +112,7 @@ selection is unchanged; \code{runPFMSweep} enables it at \code{2.33}, i.e. rough
 \code{"tierMean"} (default — unchanged price-model semantics): worse-sector
 Theory Tier first, mean \eqn{\Delta R^2}(theory) second. \code{"worseDeltaR2"}
 (PFM Tournament v2): rank directly by the \strong{worse sector's}
-\eqn{\Delta R^2}(theory) — \code{min(Bulk, Diffuse)} — the more faithful
+\eqn{\Delta R^2}(theory) — \code{min(Power & industry, buildings & transport)} — the more faithful
 operationalisation of the maximin principle; tier then acts only through
 \code{tierGate}, and the near-tie band + within-band preferences operate on
 the worse-sector metric.}

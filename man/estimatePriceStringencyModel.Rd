@@ -48,8 +48,8 @@ estimatePriceStringencyModel(
 is provided, it is assumed to be already prepared and the internal
 call to \code{preparePanelData} is skipped.}
 
-\item{sector}{Character. The sector to estimate: \code{"Bulk"} or
-\code{"Diffuse"}. Default: \code{"Bulk"}.}
+\item{sector}{Character. The sector to estimate: \code{"Power & industry"} or
+\code{"Buildings & transport"}. Default: \code{"Power & industry"}.}
 
 \item{family}{Character. GLM family to use: \code{"Gamma"} or
 \code{"gaussian"}. Both use a log link.

@@ -13,6 +13,8 @@
 #'   harmonised to: its years, moving-average window, IEA edition and clean-baseload definition
 #'   (\code{geothermal} also applies to the scenario's own control). Default: the active panel definition
 #'   (\code{\link{pfmPanelDef}}), which must be the one the Run-Group was fitted on.
+#' @param democracy add the V-Dem electoral democracy index, held at its last observed value in every
+#'   scenario year (design note 0007). Default: the active panel definition.
 #' @param ssp \code{"SSP1"} ... \code{"SSP5"}: the SSP of GDP, population and the SSP-extension
 #'   series (Government Effectiveness, Control of Corruption, Rule of Law, urban share, Gini,
 #'   gender inequality). Must match the REMIND run's \code{cm_GDPpopScen}. Default \code{"SSP2"}.
@@ -45,6 +47,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
                               histYears = .pfmPanelYears(),
                               ieaVersion = pfmPanelDef()$ieaVersion,
                               geothermal = pfmPanelDef()$geothermal,
+                              democracy = pfmPanelDef()$democracy,
                               ssp = "SSP2",
                               institutions = "storyline",
                               histCache = NULL,
@@ -163,6 +166,15 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
 
   vdemNorm <- toolNormalize(vdemInt, minVal = vdemMin, maxVal = vdemMax, targetRange = c(0, 1))
   out <- mbind(out, vdemNorm[, y, ])
+
+  # V-Dem electoral democracy index (design note 0007), when the panel definition asks for it: the
+  # weight of a democracy-weighted spec, HELD at its last observed value in every scenario year (a
+  # declared rule, whatever `institutions` says: no regime path is projected).
+  if (isTRUE(democracy)) {
+    dem <- calcOutput("VDem", subtype = "democracy", aggregate = aggregate, regionmapping = outputRegionMappingFile)
+    demInt <- mrpfm::toolImputeMedians(.pfmProjectInstitutions(dem, y, "hold", ssp))
+    out <- mbind(out, demInt[, y, ])
+  }
 
   # V-Dem state-capacity indicators: the same `institutions` rule as the accountability indicators
   scRaw <- calcOutput("VDem", subtype = "stateCapacity",

@@ -34,7 +34,7 @@ one, and nothing in between compared the two.
 
 The group's \code{manifest.json} already records \code{panel_hash}, and the
 sweep already wrote \code{<resultsDir>/panels/panel_<hash>.rds}. That file is
-the authoritative input: it is exactly what the deployed coefficients were
+the authoritative input: it is exactly what the selected coefficients were
 estimated on. This helper loads it, and only falls back to a rebuild when it
 is genuinely absent — warning loudly, because a rebuild is a different dataset.
 }

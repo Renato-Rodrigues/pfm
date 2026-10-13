@@ -19,7 +19,7 @@
 \arguments{
 \item{cfg}{A normalised spec (named list) from the sweep config.}
 
-\item{sector}{Character. \code{"Bulk"} or \code{"Diffuse"}.}
+\item{sector}{Character. \code{"Power & industry"} or \code{"Buildings & transport"}.}
 
 \item{stage}{Character. \code{"Adoption"} or \code{"Stringency"}.}
 

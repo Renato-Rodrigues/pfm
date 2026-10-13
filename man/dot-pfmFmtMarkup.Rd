@@ -32,7 +32,7 @@ The symbol description; \code{.pfmWriteCouplingGdx} returns \code{file}.
 Median 2050 markup of the ETS path over the economy-wide floor, for the log.
 
 Purely diagnostic: it is the one number that says at a glance whether the sector
-split is doing anything this iteration. A markup of zero everywhere means Bulk is
+split is doing anything this iteration. A markup of zero everywhere means power & industry is
 never the easier sector, which would make ADR 0042 inert and is worth seeing.
 
 A formatted string.

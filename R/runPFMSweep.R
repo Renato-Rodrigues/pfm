@@ -142,6 +142,14 @@
 #'   guard range, on the gating or the reference projection. Saturating columns are guarded at
 #'   their physical domain and pass by construction. \code{Inf} (default) disables it, as up
 #'   to v5.
+#' @param interactionWeights Character. Panel variables (0-1) that each add an interaction-weighted
+#'   twin of every spec with interactions, see \code{\link{pfmSpecs}} (design note 0007, O10). Empty
+#'   (default): none, as up to v6.
+#' @param edgeGate \code{NULL} (default, as up to v6) or a list of thresholds for the edge-of-data
+#'   gate of the sanity walk (\code{share}, \code{effect}, \code{capShift}, \code{cap},
+#'   \code{mapping}; design note 0007 section 5). Severe when a driver is pushed against the
+#'   frontier's reading in a material share of a region, or when capping the interactions at the
+#'   sample's range moves the regional ceilings.
 #' @param minScenarioDelta,deltaWindow Responsiveness-gate knobs (default
 #'   \code{0.05} index points over \code{c(2040, 2060)}).
 #' @param sanityBatchSize,sanityMaxModels,sanityThresholds Sanity-walk knobs;
@@ -197,6 +205,8 @@ runPFMSweep <- function(group,
                         apExtrapolationGate = Inf,
                         apExtrapolationSd = 1,
                         apExtrapolationWindow = c(2025, 2100),
+                        interactionWeights = character(0),
+                        edgeGate = NULL,
                         gdxRegionMappingFile = "regionmappingH12.csv",
                         apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
                         sanityBatchSize = 5,
@@ -313,7 +323,7 @@ runPFMSweep <- function(group,
     specs <- yaml::read_yaml(configPath)
   }
   specs <- pfmSpecs(specs, verbose = verbose, apTransforms = apTransforms,
-                    dropCompositeAP = dropCompositeAP)
+                    dropCompositeAP = dropCompositeAP, interactionWeights = interactionWeights)
   say(length(specs), " PFM specs after adaptation.")
 
   # ── Fit grid: one stage, satP engine ─────────────────────────────────────────
@@ -430,6 +440,7 @@ runPFMSweep <- function(group,
       vcovGate = vcovGate,
       apExtrapolationGate = apExtrapolationGate, apExtrapolationSd = apExtrapolationSd,
       apExtrapolationWindow = apExtrapolationWindow,
+      edgeGate = edgeGate,
       say = say
     )
     # Tier-relaxed fallback (ADR 0039): if every Green-gate candidate fails the
@@ -456,6 +467,7 @@ runPFMSweep <- function(group,
           vcovGate = vcovGate,
           apExtrapolationGate = apExtrapolationGate, apExtrapolationSd = apExtrapolationSd,
           apExtrapolationWindow = apExtrapolationWindow,
+          edgeGate = edgeGate,
           say = say
         )
         if (!isTRUE(selBlue$forced)) {
@@ -528,7 +540,10 @@ runPFMSweep <- function(group,
                         apExtrapolationWindow = as.list(apExtrapolationWindow),
                         # The within-band rule the group was selected under (ADR 0048); the
                         # selection bootstrap re-ranks its resamples under the same one.
-                        softVifGate = softVifGate %||% Inf, inferenceTGate = inferenceTGate %||% 0),
+                        softVifGate = softVifGate %||% Inf, inferenceTGate = inferenceTGate %||% 0,
+                        # the interaction-weight axis and the edge-of-data gate (design note 0007)
+                        interactionWeights = as.list(interactionWeights),
+                        edgeGate = edgeGate %||% "off"),
     panelDef = list(firstYear = min(y), lastYear = max(y), movingAverage = movingAverage %||% 1L,
                     ieaVersion = pfmPanelDef()$ieaVersion, geothermal = pfmPanelDef()$geothermal)
   )
@@ -574,10 +589,14 @@ runPFMSweep <- function(group,
 #' @param dropCompositeAP Logical. Drop the specs whose actor power is the composite Actor
 #'   Power Index (a difference that cannot be saturated; design note 0005 D7). Default
 #'   \code{FALSE}, as up to v5.
+#' @param interactionWeights Character. Panel variables (0-1) each of which adds a twin of every
+#'   spec with actor-power x institution interactions, its interactions multiplied by that variable
+#'   (\code{interactionWeight}; design note 0007, O10). \code{"none"} or empty (default) adds none.
+#'   The twins carry the suffix \code{" iw:poly"} for the V-Dem electoral democracy index.
 #' @return The adapted, normalised spec list.
 #' @export
 pfmSpecs <- function(specs, verbose = TRUE, apTransforms = c("linear", "saturating"),
-                     dropCompositeAP = FALSE) {
+                     dropCompositeAP = FALSE, interactionWeights = character(0)) {
   apTransforms <- match.arg(apTransforms, c("linear", "saturating", "saturating-innovator",
                                             "saturating-incumbent"), several.ok = TRUE)
   normalize <- function(cfg) {
@@ -657,6 +676,28 @@ pfmSpecs <- function(specs, verbose = TRUE, apTransforms = c("linear", "saturati
   if (isTRUE(verbose)) {
     message("[pfmSpecs] ", length(twins), " saturating actor-power variants appended",
             " (total ", length(specs), " specs).")
+  }
+
+  # --- Interaction-weight axis (design note 0007, O10) --------------------------
+  # A twin of every spec that HAS actor-power x institution interactions, with every interaction
+  # multiplied by a 0-1 panel variable (preparePanelData `interactionWeight`). The V-Dem electoral
+  # democracy index makes interactions estimated mostly on democracies act in proportion to how
+  # democratic a country is, instead of being extended to closed autocracies.
+  interactionWeights <- setdiff(as.character(unlist(interactionWeights)), c("none", ""))
+  hasInteractions <- function(cfg) length(unlist(cfg$actorPowerIndex)) > 0 && length(unlist(cfg$instQualityDrivers)) > 0
+  iwSuffix <- function(wv) if (identical(wv, "Electoral Democracy (VDem)")) " iw:poly" else paste0(" iw:", make.names(wv))
+  base <- Filter(hasInteractions, specs)
+  wTwins <- unlist(lapply(interactionWeights, function(wv) lapply(base, function(cfg) {
+    cfg$interactionWeight <- wv
+    cfg$name <- paste0(cfg$name, iwSuffix(wv))
+    cfg$description <- paste0(cfg$description %||% "", if (nzchar(cfg$description %||% "")) " " else "",
+                              "[interactions weighted by ", wv, ": design note 0007]")
+    cfg
+  })), recursive = FALSE)
+  if (length(wTwins)) {
+    specs <- c(specs, wTwins)
+    if (isTRUE(verbose)) message("[pfmSpecs] ", length(wTwins), " interaction-weighted variants appended",
+                                 " (total ", length(specs), " specs).")
   }
   specs
 }

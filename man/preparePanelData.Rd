@@ -22,13 +22,14 @@ preparePanelData(
   outcomeVar = "Effective Carbon Price",
   apTransform = "linear",
   apSatScale = 1,
+  interactionWeight = NULL,
   excludeCountries = getOption("pfm.excludeCountries", "EST")
 )
 }
 \arguments{
 \item{data}{magpie object}
 
-\item{sector}{character, "Bulk" or "Diffuse"}
+\item{sector}{character, "Power & industry" or "Buildings & transport"}
 
 \item{actorPowerDrivers}{character vector or NULL}
 
@@ -102,10 +103,17 @@ argument.}
 
 \item{apSatScale}{Positive number. The half-saturation point of the saturating
 transform as a multiple of the training median: \code{xBar = apSatScale * median}.
-\code{1} (default) is the deployed form. A sensitivity on the curve's shape (design
+\code{1} (default) is the selected form. A sensitivity on the curve's shape (design
 note 0005 §7a decision 6): below 1 the curve flattens earlier, above 1 it stays closer
 to linear over the observed range. Fit mode only, like \code{apTransform}: the scaled
 \code{xBar} is what \code{"driverScaling"} stores.}
+
+\item{interactionWeight}{Character or \code{NULL}. A 0-1 panel variable (e.g.
+\code{"Electoral Democracy (VDem)"}) that multiplies every actor-power x institution
+interaction (design note 0007, O10), read with the drivers' lag and kept on its own scale
+(column \code{interactionWeight__}). Fit mode records it on the returned
+\code{"driverScaling"}; apply mode reads it from there when this is \code{NULL}.
+\code{NULL} or \code{"none"} (default): unweighted interactions.}
 
 \item{excludeCountries}{ISO3 codes dropped from the panel before estimation.
 Defaults to \code{getOption("pfm.excludeCountries", "EST")}. Estonia's upstream

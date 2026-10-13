@@ -6,7 +6,7 @@
 \usage{
 modelSelection(
   data,
-  sector = "Power & industry",
+  sector = "Bulk",
   stage = "adoption",
   family = "Gamma",
   testMode = "incremental",

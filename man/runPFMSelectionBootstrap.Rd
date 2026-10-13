@@ -47,7 +47,7 @@ fallback).}
 \item{nResamples}{Integer. Number of bootstrap resamples. Default \code{200}.}
 
 \item{topK}{Integer. Size of the candidate pool (top gate-passing maximin specs;
-the deployed spec is always included). Default \code{40}.}
+the selected specification is always included). Default \code{40}.}
 
 \item{seed}{Integer. RNG seed for the region draws. Default \code{1}.}
 
@@ -66,7 +66,7 @@ Invisibly, the bootstrap summary list (also saved as
 The PFM counterpart of \code{\link{runSelectionBootstrap}} (ADR 0025/0034), run
 under the Tournament v2 selection semantics (ADR 0039). For each resample the
 panel's outcome-supported regions (countries carrying the CAPMF index at the
-deployed resolution — the coverage set, not the full 249-country map) are drawn
+selected resolution — the coverage set, not the full 249-country map) are drawn
 with replacement, the gate-passing candidate pool is refit on the resampled design
 (via the \code{prepared = TRUE} entry of
 \code{\link{estimatePolicyStringencyModel}} — duplicated region rows add weight

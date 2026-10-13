@@ -22,7 +22,7 @@ computeLORO(
 \arguments{
 \item{data}{A \code{magpie} object: the historical panel (54-region resolution).}
 
-\item{sector}{Character. \code{"Bulk"} or \code{"Diffuse"}.}
+\item{sector}{Character. \code{"Power & industry"} or \code{"Buildings & transport"}.}
 
 \item{stage}{Character. \code{"adoption"} or \code{"stringency"}.}
 

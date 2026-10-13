@@ -35,7 +35,7 @@ floor, \code{sector = "min"}.
 \bar u_s)]\big)}, with \eqn{\bar u_s} the weighted mean position. The headline spread is
 \eqn{d = k} (D11), which reduces to \eqn{1 - \theta k_s(t) u_{r,s}}. Orderings other than the
 model's are the ordering tests of D15 / C1. The region's floor is \eqn{\min_s \varphi_{r,s}};
-market delivery (ETS from Bulk, ES and other from Diffuse) stays in REMIND.
+market delivery (ETS from power & industry, ES and other from buildings & transport) stays in REMIND.
 }
 \author{
 Renato Rodrigues

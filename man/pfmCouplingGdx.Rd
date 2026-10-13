@@ -45,11 +45,11 @@
 \code{TRUE} invisibly, or an error naming the symbol and what is wrong.
 }
 \description{
-The single place this mapping is written down. Bulk is the ETS sector (electricity +
-industry); Diffuse covers effort sharing and everything not otherwise assigned.
+The single place this mapping is written down. Power & industry is the ETS sector (electricity +
+industry); buildings & transport covers effort sharing and everything not otherwise assigned.
 \code{"other"} follows \code{"ES"} deliberately - it is REMIND's own convention
 (\code{47_regipol/regiCarbonPrice/postsolve.gms:409} does \code{other = ES}) and it
-matches the mapping ADR 0042 states, "ETS ~ Bulk, ES + other ~ Diffuse".
+matches the mapping ADR 0042 states, "ETS ~ power & industry, ES + other ~ buildings & transport".
 
 \code{lambda} reaches \code{iterativePFM()} either named by sector (the normal case,
 read from \code{temporal-validation.rds}) or as a bare scalar (a caller overriding it).

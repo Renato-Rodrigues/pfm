@@ -305,7 +305,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     # there, while the estimation read the 2025 edition: silent (PITFALLS 32). Restored on exit.
     oldPanelOpt <- getOption("pfm.panel")
     on.exit(options(pfm.panel = oldPanelOpt), add = TRUE)
-    options(pfm.panel = panelDef[c("firstYear", "lastYear", "movingAverage", "ieaVersion", "geothermal")])
+    options(pfm.panel = panelDef[c("firstYear", "lastYear", "movingAverage", "ieaVersion", "geothermal", "democracy")])
     scen <- panelDataScenario(gdxFile = gdx, aggregate = TRUE,
                               gdxRegionMappingFile = gdxRegionMapping,
                               outputRegionMappingFile = "country",
@@ -514,6 +514,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
           gdpGovInteraction = isTRUE(cfg$gdpGovInteraction),
           apTransform = cfg$apTransform %||% "linear",
           apSatScale = as.numeric(cfg$apSatScale %||% 1),
+          interactionWeight = cfg$interactionWeight,
           modelDir = modelDir, updateIndex = FALSE, verbose = FALSE)
         saveRDS(ecm, fitCache)
         say(sprintf("%s ECM fitted and cached in %.0fs [key %s] - later iterations reuse it",

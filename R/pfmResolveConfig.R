@@ -236,6 +236,20 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
       stop("sweep options: '", k, "' must be one number or \"off\"", call. = FALSE)
     }
   }
+  # The interaction-weight axis and the edge-of-data gate (design note 0007). edgeGate: "off" (or
+  # unquoted off) disables it; `on`/true takes the declared defaults; a mapping overrides some of them.
+  if (!is.null(o$interactionWeights)) o$interactionWeights <- as.character(unlist(o$interactionWeights))
+  if (!is.null(o$edgeGate)) {
+    eg <- o$edgeGate
+    o$edgeGate <- if (isOff(eg)) NULL else if (isTRUE(eg) || identical(eg, "on")) .pfmEdgeGateDefaults() else {
+      if (!is.list(eg)) stop("sweep options: 'edgeGate' must be \"off\", on, or a mapping of thresholds", call. = FALSE)
+      bad <- setdiff(names(eg), names(.pfmEdgeGateDefaults()))
+      if (length(bad)) stop("sweep options: unknown edgeGate key(s) ", paste(bad, collapse = ", "), call. = FALSE)
+      eg$cap <- if (!is.null(eg$cap)) as.numeric(unlist(eg$cap)) else NULL
+      utils::modifyList(.pfmEdgeGateDefaults(), eg[!vapply(eg, is.null, logical(1))])
+    }
+    if (is.null(o$edgeGate)) o["edgeGate"] <- list(NULL)
+  }
   o
 }
 
@@ -243,7 +257,8 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
 # and extrapolation gate (0005 D7), and the within-band soft keys (ADR 0048).
 .pfmSweepOptionKeys <- c("apTransforms", "dropCompositeAP", "apExtrapolationGate",
                          "apExtrapolationSd", "apExtrapolationWindow",
-                         "softVifGate", "inferenceTGate")
+                         "softVifGate", "inferenceTGate",
+                         "interactionWeights", "edgeGate")
 
 # A group's sweep options: the manifest record > none for a group swept before the record
 # (runPFMSweep's defaults, the v5 grid) > config.yml sweep: > none. As .pfmPanelDefForGroup.
@@ -283,6 +298,10 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
                   paste(o$apExtrapolationWindow %||% c(2025, 2100), collapse = "-"), ")")
          } else ", no AP-extrapolation gate",
          "; within-band soft keys: VIF ", if (is.finite(vif)) paste0("> ", vif) else "off",
-         ", |t| ", if (tg > 0) paste0("< ", tg) else "off")
+         ", |t| ", if (tg > 0) paste0("< ", tg) else "off",
+         {iw <- setdiff(as.character(unlist(o$interactionWeights)), "none")
+          if (length(iw)) paste0("; interaction weights: ", paste(iw, collapse = ", ")) else ""},
+         if (is.list(o$edgeGate)) paste0("; edge-of-data gate (share ", o$edgeGate$share, ", effect ",
+                                         o$edgeGate$effect, ", cap shift ", o$edgeGate$capShift, ")") else "")
 }
 # nolint end

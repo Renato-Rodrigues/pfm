@@ -25,7 +25,7 @@ per-capita by naming the drivers it wants; nothing downstream changes. See
 \code{design-notes/0001-actor-power-share-vs-level.md} for why both are carried.}
 
 \item{coeff}{List with weights for Innovator and Incumbent index calculation.
-Default weights apply the predefined Bulk and Diffuse schema.}
+Default weights apply the predefined power & industry and buildings & transport schema.}
 }
 \value{
 A \code{magpie} object with the calculated indices.

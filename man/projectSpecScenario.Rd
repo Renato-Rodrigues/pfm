@@ -20,7 +20,7 @@ projectSpecScenario(
 \arguments{
 \item{cfg}{List. A channel spec (fields as in \code{\link{channelSpecs}}).}
 
-\item{sector}{Character. \code{"Bulk"} or \code{"Diffuse"}.}
+\item{sector}{Character. \code{"Power & industry"} or \code{"Buildings & transport"}.}
 
 \item{histData}{\code{magpie}. Historical panel (for fitting via cache).}
 

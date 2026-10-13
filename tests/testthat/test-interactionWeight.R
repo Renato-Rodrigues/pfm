@@ -1,0 +1,127 @@
+# The interaction weight (design note 0007, O10) and the edge-of-data gate.
+
+makeWeightMagpie <- function() {
+  set.seed(7)
+  regions <- paste0("R", 1:12)
+  years <- 2000:2015
+  vars <- c("Effective Carbon Price|Bulk", "Incumbent Power|Bulk", "Rule of Law (VDem)",
+            "Electoral Democracy (VDem)")
+  m <- magclass::new.magpie(regions, years, vars, fill = NA)
+  for (v in vars) m[, , v] <- runif(length(regions) * length(years))
+  m[, , "Effective Carbon Price|Bulk"] <- runif(length(regions) * length(years)) * 50
+  m
+}
+
+prepW <- function(m, weight = NULL, scaling = NULL) {
+  preparePanelData(
+    m, sector = "Bulk",
+    actorPowerDrivers = "Incumbent Power", actorPowerIndex = "Incumbent Power",
+    instQualityDrivers = "Rule of Law (VDem)", controlDrivers = NULL,
+    regionMappingFixedEffects = NULL, driverScaling = scaling, interactionWeight = weight,
+    excludeCountries = character(0)
+  )
+}
+
+test_that("without a weight the interaction is the plain product and no weight column is added", {
+  df <- prepW(makeWeightMagpie())
+  expect_false("interactionWeight__" %in% colnames(df))
+  expect_null(attr(attr(df, "driverScaling"), "interactionWeight"))
+  expect_equal(df$Incumbent.Power_x_Rule.of.Law..VDem., df$Incumbent.Power * df$Rule.of.Law..VDem.)
+})
+
+test_that("a weight multiplies the interaction, is kept on its 0-1 scale and is recorded in the scaling", {
+  m <- makeWeightMagpie()
+  df <- prepW(m, weight = "Electoral Democracy (VDem)")
+  expect_true("interactionWeight__" %in% colnames(df))
+  expect_true(all(df$interactionWeight__ >= 0 & df$interactionWeight__ <= 1, na.rm = TRUE))
+  expect_equal(df$Incumbent.Power_x_Rule.of.Law..VDem.,
+               df$Incumbent.Power * df$Rule.of.Law..VDem. * df$interactionWeight__)
+  expect_identical(attr(attr(df, "driverScaling"), "interactionWeight"), "Electoral Democracy (VDem)")
+  # the weight is not standardised: it is not a driver
+  expect_false("Electoral.Democracy..VDem." %in% names(attr(df, "driverScaling")))
+})
+
+test_that("apply mode takes the weight from the frozen scaling alone", {
+  m <- makeWeightMagpie()
+  fitDf <- prepW(m, weight = "Electoral Democracy (VDem)")
+  applyDf <- prepW(m, scaling = attr(fitDf, "driverScaling"))
+  expect_equal(applyDf$Incumbent.Power_x_Rule.of.Law..VDem., fitDf$Incumbent.Power_x_Rule.of.Law..VDem.)
+})
+
+test_that("'none' or an empty weight means no weight", {
+  df <- prepW(makeWeightMagpie(), weight = "none")
+  expect_false("interactionWeight__" %in% colnames(df))
+})
+
+test_that("a missing weight variable is reported like a missing driver", {
+  m <- makeWeightMagpie()[, , "Electoral Democracy (VDem)", invert = TRUE]
+  expect_error(prepW(m, weight = "Electoral Democracy (VDem)"), "missing from the data")
+})
+
+test_that("the driver guard keeps the weight when it recomputes the interactions", {
+  df <- prepW(makeWeightMagpie(), weight = "Electoral Democracy (VDem)")
+  ranges <- list(Incumbent.Power = c(min = -0.5, max = 0.5), Rule.of.Law..VDem. = c(min = -0.5, max = 0.5))
+  g <- .pfmDriverGuard(df, ranges)$df
+  expect_equal(g$Incumbent.Power_x_Rule.of.Law..VDem.,
+               g$Incumbent.Power * g$Rule.of.Law..VDem. * g$interactionWeight__)
+})
+
+test_that("pfmSpecs adds a weighted twin of every spec with interactions, and only those", {
+  specs <- list(
+    list(name = "X-1 a", actorPowerDrivers = "Incumbent Power", actorPowerIndex = "Incumbent Power",
+         instQualityDrivers = "Rule of Law (VDem)", controlDrivers = NULL),
+    list(name = "X-2 b", actorPowerDrivers = "Incumbent Power", actorPowerIndex = NULL,
+         instQualityDrivers = "Rule of Law (VDem)", controlDrivers = NULL))
+  out <- pfmSpecs(specs, verbose = FALSE, apTransforms = "linear",
+                  interactionWeights = c("none", "Electoral Democracy (VDem)"))
+  nm <- vapply(out, `[[`, character(1), "name")
+  expect_setequal(nm, c("X-1 a", "X-2 b", "X-1 a iw:poly"))
+  tw <- out[[which(nm == "X-1 a iw:poly")]]
+  expect_identical(tw$interactionWeight, "Electoral Democracy (VDem)")
+  expect_true("interactionWeight" %in% names(.pfmSpecArgs(tw)))
+  # the default adds nothing, as up to v6
+  expect_length(pfmSpecs(specs, verbose = FALSE, apTransforms = "linear"), 2)
+})
+
+test_that("sweep options parse the weight axis and the edge gate", {
+  o <- .pfmSweepOptionsNormalise(list(interactionWeights = list("none", "Electoral Democracy (VDem)"),
+                                      edgeGate = list(share = 0.3)))
+  expect_identical(o$interactionWeights, c("none", "Electoral Democracy (VDem)"))
+  expect_equal(o$edgeGate$share, 0.3)
+  expect_equal(o$edgeGate$effect, .pfmEdgeGateDefaults()$effect)
+  expect_null(.pfmSweepOptionsNormalise(list(edgeGate = "off"))$edgeGate)
+  expect_identical(.pfmSweepOptionsNormalise(list(edgeGate = TRUE))$edgeGate, .pfmEdgeGateDefaults())
+  expect_error(.pfmSweepOptionsNormalise(list(edgeGate = list(bogus = 1))), "unknown edgeGate")
+})
+
+test_that("the panel definition carries the democracy key, off by default", {
+  expect_false(.pfmPanelDefNormalise(NULL)$democracy)
+  expect_true(.pfmPanelDefNormalise(list(democracy = TRUE))$democracy)
+})
+
+test_that("the edge gate flags a driver reversed by an extreme moderator and passes once it is weighted out", {
+  # two countries far below the sample on the moderator reverse the fossil effect through the interaction
+  set.seed(3)
+  ctys <- c(paste0("C", 1:20), "CHN", "SAU")
+  mkScen <- function(w) {
+    d <- expand.grid(region = ctys, year = c(2025, 2100), stringsAsFactors = FALSE)
+    d$Incumbent.Power <- ifelse(d$year == 2025, 1, -1)              # fossil dependence falls
+    d$Innovator.Power <- ifelse(d$year == 2025, -1, 1)
+    d$Vertical.Accountability..VDem. <- ifelse(d$region %in% c("CHN", "SAU"), -4, 0.2)
+    d$interactionWeight__ <- if (w) ifelse(d$region %in% c("CHN", "SAU"), 0.05, 0.9) else 1
+    d$Incumbent.Power_x_Vertical.Accountability..VDem. <- d$Incumbent.Power * d$Vertical.Accountability..VDem. * d$interactionWeight__
+    d
+  }
+  train <- data.frame(Vertical.Accountability..VDem. = rnorm(200, 0, 0.5))
+  beta <- c(Incumbent.Power = -0.15, Innovator.Power = 0.1, Incumbent.Power_x_Vertical.Accountability..VDem. = -0.54)
+  gate <- list(mapping = NULL)
+  # a toy mapping and weights stand in for the REMIND ones
+  local_mocked_bindings(
+    .pfmResolveCountryMap = function(mapping) stats::setNames(ifelse(ctys %in% c("CHN", "SAU"), "AUT", "DEM"), ctys),
+    pfmCouplingWeights = function(...) stats::setNames(rep(1, length(ctys)), ctys))
+  bad <- .pfmEdgeGate(beta, mkScen(FALSE), NULL, train, gate = gate)
+  expect_false(bad$pass)
+  expect_true("AUT" %in% bad$against$region)
+  ok <- .pfmEdgeGate(beta, mkScen(TRUE), NULL, train, gate = gate)
+  expect_true(is.null(ok$against))
+})

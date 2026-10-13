@@ -8,7 +8,8 @@ pfmSpecs(
   specs,
   verbose = TRUE,
   apTransforms = c("linear", "saturating"),
-  dropCompositeAP = FALSE
+  dropCompositeAP = FALSE,
+  interactionWeights = character(0)
 )
 }
 \arguments{
@@ -25,6 +26,11 @@ it is, the others append a variant with the suffix \code{" satAP"} (both groups 
 \item{dropCompositeAP}{Logical. Drop the specs whose actor power is the composite Actor
 Power Index (a difference that cannot be saturated; design note 0005 D7). Default
 \code{FALSE}, as up to v5.}
+
+\item{interactionWeights}{Character. Panel variables (0-1) each of which adds a twin of every
+spec with actor-power x institution interactions, its interactions multiplied by that variable
+(\code{interactionWeight}; design note 0007, O10). \code{"none"} or empty (default) adds none.
+The twins carry the suffix \code{" iw:poly"} for the V-Dem electoral democracy index.}
 }
 \value{
 The adapted, normalised spec list.

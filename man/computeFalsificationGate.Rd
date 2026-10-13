@@ -26,7 +26,7 @@ computeFalsificationGate(
 
 \item{stage}{Character. \code{"Adoption"} or \code{"Stringency"} (case-insensitive).}
 
-\item{sectors}{Character vector. Default \code{c("Bulk", "Diffuse")}.}
+\item{sectors}{Character vector. Default \code{c("Power & industry", "Buildings & transport")}.}
 
 \item{family}{Character. Stringency GLM family (default \code{"gaussian"}).}
 

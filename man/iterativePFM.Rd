@@ -39,7 +39,7 @@ written by the time presolve runs.}
 \code{Execute_Loadpoint} name in
 \code{45_carbonprice/functionalForm/presolve.gms}.}
 
-\item{group, resultsDir, modelDir}{The PFM Run-Group supplying the deployed
+\item{group, resultsDir, modelDir}{The PFM Run-Group supplying the selected
 specification, frontier and speeds. Inside a REMIND run they come from
 \code{couplingConfig} (\code{pfm-coupling.yml}, written into the run folder by
 REMIND's \code{scripts/start/preparePFM.R}); REMIND's own \code{.Rprofile} is not
@@ -55,7 +55,7 @@ madrat cache (see \code{\link{pfmPrepareCache}}).}
 \item{theta, nTiers, lambda}{Coupling knobs, passed through to
 \code{\link{aggregateFeasibilityToRegions}}. \code{theta} is a declared
 scenario parameter, not an estimate — sweep it. \code{nTiers} is used only with
-\code{phiRule = "tiered"}; the deployed rule is \code{"continuous"}.}
+\code{phiRule = "tiered"}; the selected rule is \code{"continuous"}.}
 
 \item{gdxRegionMapping}{Mapping matching the REMIND gdx's OWN resolution
 (\code{"regionmapping_21_EU11.csv"} for EU21 runs, \code{"regionmappingH12.csv"}
@@ -84,7 +84,7 @@ over-represent small emitters and should only be used deliberately.}
 
 \item{weightYear, weightScenario}{Year and SSP used to project the final-energy
 weights (see \code{\link{pfmCouplingWeights}}). Default 2025 / \code{"SSP2"}, the
-values the deployed runs use (\code{cfg$pfm$weightYear} in REMIND's
+values the selected runs use (\code{cfg$pfm$weightYear} in REMIND's
 \code{default.cfg}, written into \code{pfm-coupling.yml}). Inside a REMIND run
 the SSP is the run's own \code{cm_GDPpopScen}; offline,
 \strong{\code{weightScenario} must match the SSP the coupled run uses},

@@ -47,7 +47,7 @@ aggregation. Default: \code{"regionmappingH12.csv"}.}
 
 \item{coeff}{List of coefficients for actor power index calculation.}
 
-\item{sectors}{Character vector. Default: \code{c("Bulk", "Diffuse")}.}
+\item{sectors}{Character vector. Default: \code{c("Power & industry", "Buildings & transport")}.}
 
 \item{stages}{Character vector. Default: \code{c("adoption", "stringency")}.}
 

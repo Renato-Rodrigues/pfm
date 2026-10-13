@@ -32,7 +32,7 @@ with \code{k} after the closure sensitivity run), \code{options}.
 \description{
 The whole v6 coupling step except the REMIND interface: \code{\link{computeStrengthPath}} on the
 scenario panel, the declared options (\code{\link{pfmV6CouplingDefaults}}), and
-\code{\link{computeSharePath}} (or the regional-strength arm). Region weights are recomputed when
+\code{\link{computeSharePath}} (or the regional-strength sensitivity run). Region weights are recomputed when
 \code{weights} is given (the run's SSP or weight year differs from the anchor's).
 }
 \author{

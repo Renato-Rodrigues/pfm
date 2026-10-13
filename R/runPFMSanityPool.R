@@ -80,6 +80,7 @@ runPFMSanityPool <- function(group,
     apGate <- apExtrapolationGate %||% rec$apExtrapolationGate %||% Inf
     apSd <- apExtrapolationSd %||% rec$apExtrapolationSd %||% 1
     apWin <- apExtrapolationWindow %||% rec$apExtrapolationWindow %||% c(2025, 2100)
+    edge <- rec$edgeGate   # NULL ("off") for every group up to v6 (design note 0007)
 
     hash <- tryCatch(jsonlite::read_json(file.path(groupDir, "manifest.json"))$panel_hash,
                      error = function(e) NULL)
@@ -114,6 +115,7 @@ runPFMSanityPool <- function(group,
       supportShareGate = supportShareGate, ceilingFallGate = ceilingFallGate,
       gammaGate = gammaGate, vcovGate = vcovGate,
       apExtrapolationGate = apGate, apExtrapolationSd = apSd, apExtrapolationWindow = apWin,
+      edgeGate = edge,
       say = say, stopAtFirstPass = FALSE)
   }
 

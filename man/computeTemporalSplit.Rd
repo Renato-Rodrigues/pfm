@@ -26,7 +26,7 @@ computeTemporalSplit(
 \arguments{
 \item{data}{A \code{magpie} object: the historical panel.}
 
-\item{sector, stage}{Character. Sector (\code{"Bulk"}/\code{"Diffuse"}) and stage
+\item{sector, stage}{Character. Sector (\code{"Power & industry"}/\code{"Buildings & transport"}) and stage
 (\code{"adoption"}/\code{"stringency"}).}
 
 \item{actorPowerDrivers, actorPowerIndex, instQualityDrivers, controlDrivers}{Spec drivers.}

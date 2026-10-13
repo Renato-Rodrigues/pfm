@@ -90,6 +90,10 @@
 #' @param apSatScale Positive number, the half-saturation point of the saturating
 #'   actor-power transform as a multiple of the training median (\code{1}, the default, is
 #'   the selected form). See \code{\link{preparePanelData}}.
+#' @param interactionWeight Character or \code{NULL}. A 0-1 panel variable that multiplies every
+#'   actor-power x institution interaction (e.g. \code{"Electoral Democracy (VDem)"}; design note
+#'   0007, option O10). \code{NULL} (default) leaves the interactions unweighted. Stored with the
+#'   frozen driver scaling, so projections apply it. See \code{\link{preparePanelData}}.
 #' @param form Character. \code{"static"} (default) or \code{"ecm"} — the
 #'   error-correction dynamics form (satP engine only; see Description). Appended
 #'   last for backward compatibility.
@@ -162,6 +166,7 @@ estimatePolicyStringencyModel <- function(
     yearFixedEffects = FALSE,
     apTransform = "linear",
     apSatScale = 1,
+    interactionWeight = NULL,
     trendMidpoint = formals(preparePanelData)$trendMidpoint,
     trendSteepness = formals(preparePanelData)$trendSteepness) {
   estimator <- match.arg(estimator, c("satP", "fractional", "beta", "levels",
@@ -231,6 +236,7 @@ estimatePolicyStringencyModel <- function(
       outcomeVar = outcomeVar,
       apTransform = apTransform,
       apSatScale = apSatScale,
+      interactionWeight = interactionWeight,
       trendMidpoint = trendMidpoint,
       trendSteepness = trendSteepness
     )
@@ -325,6 +331,9 @@ estimatePolicyStringencyModel <- function(
                               "saturating-incumbent" = "+satInc", ""),
                        # the curve's shape, only when not the default: every existing key stays valid
                        if (!isTRUE(all.equal(apSatScale, 1))) paste0("+satScale", apSatScale) else "",
+                       # the interaction weight, only when set: every existing key stays valid
+                       if (!is.null(interactionWeight) && !identical(interactionWeight, "none"))
+                         paste0("+iw:", make.names(interactionWeight)) else "",
                        "+trend", trendMidpoint, "_", trendSteepness, "+scaledTrend")
   usesCache <- identical(estimator, "satP") && !is.null(modelDir)
   if (usesCache && !isTRUE(ignoreCache)) {
@@ -639,6 +648,7 @@ estimatePolicyStringencyModel <- function(
         lag = lag,
         useMundlak = useMundlak,
         gdpGovInteraction = gdpGovInteraction,
+        interactionWeight = interactionWeight,
         panelTransform = "levels",
         outcomeVar = outcomeVar,
         estimator = estimator,

@@ -15,6 +15,9 @@
 #'   \code{\link{iamHistoricalData}}. Default: the active panel definition.
 #' @param geothermal count geothermal in the clean-baseload control ("Hydro Nuclear Share"), see
 #'   \code{\link{iamCalculatedDrivers}}. Default: the active panel definition.
+#' @param democracy add the V-Dem electoral democracy index ("Electoral Democracy (VDem)", 0-1, not
+#'   normalised), the weight of a democracy-weighted spec (design note 0007). Default: the active panel
+#'   definition.
 #' @param coeff list of coefficients for actor power index calculation
 #' @param includePolicyStringency logical; if TRUE, adds the CAPMF-based Policy
 #'   Stringency Model outcomes ("Policy Stringency|Power & industry", "Policy Stringency|Buildings & transport"
@@ -43,6 +46,7 @@ panelDataHistorical <- function(aggregate = TRUE,
                                 movingAverage = .pfmPanelMA(),
                                 ieaVersion = pfmPanelDef()$ieaVersion,
                                 geothermal = pfmPanelDef()$geothermal,
+                                democracy = pfmPanelDef()$democracy,
                                 coeff = list(
                                   bulk = list(
                                     actor_power = list(innov = 1, incumb = 1),
@@ -166,6 +170,15 @@ panelDataHistorical <- function(aggregate = TRUE,
 
   vdemNorm <- toolNormalize(vdemInt, minVal = vdemMin, maxVal = vdemMax, targetRange = c(0, 1))
   out <- mbind(out, vdemNorm[, y, ])
+
+  # V-Dem electoral democracy index, when the panel definition asks for it (design note 0007): the
+  # weight of a democracy-weighted spec. Kept on its own 0-1 scale (not min-max normalised), so a
+  # weight of 0.4 means what the index means.
+  if (isTRUE(democracy)) {
+    dem <- calcOutput("VDem", subtype = "democracy", aggregate = aggregate, regionmapping = outputRegionMappingFile)
+    demInt <- mrpfm::toolImputeMedians(toolTimeInterpolation(dem, y))
+    out <- mbind(out, demInt[, y, ])
+  }
 
   # V-Dem state-capacity indicators (replace WGI Government Effectiveness)
   # Three variables are "bad when high" (corruption/neopatrimonialism) and are

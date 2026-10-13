@@ -15,6 +15,7 @@ panelDataScenario(
   histYears = .pfmPanelYears(),
   ieaVersion = pfmPanelDef()$ieaVersion,
   geothermal = pfmPanelDef()$geothermal,
+  democracy = pfmPanelDef()$democracy,
   ssp = "SSP2",
   institutions = "storyline",
   histCache = NULL,
@@ -43,6 +44,9 @@ stays at REMIND resolution - the sentinel here is for symmetry, not the default)
 harmonised to: its years, moving-average window, IEA edition and clean-baseload definition
 (\code{geothermal} also applies to the scenario's own control). Default: the active panel definition
 (\code{\link{pfmPanelDef}}), which must be the one the Run-Group was fitted on.}
+
+\item{democracy}{add the V-Dem electoral democracy index, held at its last observed value in every
+scenario year (design note 0007). Default: the active panel definition.}
 
 \item{ssp}{\code{"SSP1"} ... \code{"SSP5"}: the SSP of GDP, population and the SSP-extension
 series (Government Effectiveness, Control of Corruption, Rule of Law, urban share, Gini,

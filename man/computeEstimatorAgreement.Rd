@@ -21,7 +21,7 @@ panel \code{data.frame}; passed to
 data.frame guarantees all estimators see identical rows and avoids repeated
 panel preparation.}
 
-\item{sector}{Character. \code{"Bulk"} or \code{"Diffuse"}.}
+\item{sector}{Character. \code{"Power & industry"} or \code{"Buildings & transport"}.}
 
 \item{estimators}{Character vector; suite members to fit. Defaults to the full
 suite. An unavailable member (e.g. \code{"beta"} without the optional

@@ -11,6 +11,7 @@ panelDataHistorical(
   movingAverage = .pfmPanelMA(),
   ieaVersion = pfmPanelDef()$ieaVersion,
   geothermal = pfmPanelDef()$geothermal,
+  democracy = pfmPanelDef()$democracy,
   coeff = list(bulk = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
     list(vre = 1, elec = 0.6), incumbents_power = list(coal = 1, oilgas = 1, fossilInd =
     0.5)), diffuse = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
@@ -41,19 +42,23 @@ scoped around the data calls so the CAPMF coverage filter sees the right mapping
 \item{geothermal}{count geothermal in the clean-baseload control ("Hydro Nuclear Share"), see
 \code{\link{iamCalculatedDrivers}}. Default: the active panel definition.}
 
+\item{democracy}{add the V-Dem electoral democracy index ("Electoral Democracy (VDem)", 0-1, not
+normalised), the weight of a democracy-weighted spec (design note 0007). Default: the active panel
+definition.}
+
 \item{coeff}{list of coefficients for actor power index calculation}
 
 \item{includePolicyStringency}{logical; if TRUE, adds the CAPMF-based Policy
-Stringency Model outcomes ("Policy Stringency|Bulk", "Policy Stringency|Diffuse"
+Stringency Model outcomes ("Policy Stringency|Power & industry", "Policy Stringency|Buildings & transport"
 and, when available, "Policy Stringency|Composite"; ADR 0036). Default FALSE so
 the carbon-price panel (and its end-year rule) is unchanged unless the PFM
 explicitly asks for it. Years the CAPMF source does not reach are NA-filled;
 preparePanelData later drops rows with a missing outcome.}
 
-\item{psSectorResolution}{character; \code{"two"} (Bulk/Diffuse, default) or \code{"four"}
+\item{psSectorResolution}{character; \code{"two"} (Power & industry / buildings & transport, default) or \code{"four"}
 (Electricity/Industry/Buildings/Transport) CAPMF sector outcomes.}
 
-\item{psWeighting}{how CAPMF sectors are aggregated into Bulk/Diffuse: \code{"equal"}
+\item{psWeighting}{how CAPMF sectors are aggregated into power & industry / buildings & transport: \code{"equal"}
 (default), \code{"ghg"} (EDGAR sectoral emissions), \code{"gdp"} (OECD value added by
 activity), \code{"fe"} (final-energy activity proxy), or explicit weights (a named
 numeric vector or a per-cell magpie), forwarded to

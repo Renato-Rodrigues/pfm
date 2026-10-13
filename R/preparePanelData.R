@@ -81,6 +81,12 @@
 #'   note 0005 §7a decision 6): below 1 the curve flattens earlier, above 1 it stays closer
 #'   to linear over the observed range. Fit mode only, like \code{apTransform}: the scaled
 #'   \code{xBar} is what \code{"driverScaling"} stores.
+#' @param interactionWeight Character or \code{NULL}. A 0-1 panel variable (e.g.
+#'   \code{"Electoral Democracy (VDem)"}) that multiplies every actor-power x institution
+#'   interaction (design note 0007, O10), read with the drivers' lag and kept on its own scale
+#'   (column \code{interactionWeight__}). Fit mode records it on the returned
+#'   \code{"driverScaling"}; apply mode reads it from there when this is \code{NULL}.
+#'   \code{NULL} or \code{"none"} (default): unweighted interactions.
 #'
 #' @return data.frame with columns: region, year, timeTrend, regionFE (unless
 #'   \code{useMundlak = TRUE}), ecp, plus one column per driver (safe R-named),
@@ -108,11 +114,24 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
                              outcomeVar = "Effective Carbon Price",
                              apTransform = "linear",
                              apSatScale = 1,
+                             interactionWeight = NULL,
                              excludeCountries = getOption("pfm.excludeCountries",
                                                           "EST")) {
   # If data is already a data.frame, assume it is already prepared and return it.
   if (is.data.frame(data)) {
     return(data)
+  }
+
+  # Interaction weight (design note 0007 O10): a 0-1 country variable that multiplies every
+  # actor-power x institution interaction, so a conditional effect acts only to the degree the
+  # weight allows (e.g. the V-Dem electoral democracy index: interactions estimated mostly on
+  # democracies are not extended to closed autocracies). Fit mode takes it from the spec; apply
+  # mode (scenario projection) reads it from the frozen driverScaling, so every caller that
+  # already passes driverScaling = fit$driverScaling applies it with no signature change.
+  interactionWeight <- interactionWeight %||% attr(driverScaling, "interactionWeight")
+  if (!is.null(interactionWeight) && (!is.character(interactionWeight) || length(interactionWeight) != 1 ||
+                                      !nzchar(interactionWeight) || identical(interactionWeight, "none"))) {
+    interactionWeight <- NULL
   }
 
   # ADR 0011: derived control columns, computed on the fly from base variables so
@@ -168,7 +187,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
   allVarsNeeded <- c(
     apiName, 
     sapply(actorPowerDrivers, getMagpieName, sector = sector),
-    instQualityDrivers, controlDrivers
+    instQualityDrivers, controlDrivers, interactionWeight
   )
 
   availableVars <- magclass::getNames(data)
@@ -293,6 +312,11 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
         vMagpie <- getMagpieName(v, sector)
         val <- lagValue(r, yi, vMagpie)
         row[[safeName]] <- if (is.finite(val)) val else NA_real_
+      }
+      # the interaction weight, read with the drivers' lag and kept on its own 0-1 scale
+      if (!is.null(interactionWeight)) {
+        val <- lagValue(r, yi, interactionWeight)
+        row[["interactionWeight__"]] <- if (is.finite(val)) min(max(val, 0), 1) else NA_real_
       }
 
       rows[[idx]] <- row
@@ -556,10 +580,11 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
 
   # --- Pre-compute interaction columns (from STANDARDIZED factors) -----------
   if (!is.null(actorPowerIndex) && !is.null(instQualityDrivers)) {
+    w <- if ("interactionWeight__" %in% colnames(df)) df[["interactionWeight__"]] else 1
     for (v in instQualityDrivers) {
       for (api in actorPowerIndex) {
         a <- make.names(api); b <- make.names(v)
-        df[[paste0(a, "_x_", b)]] <- df[[a]] * df[[b]]
+        df[[paste0(a, "_x_", b)]] <- df[[a]] * df[[b]] * w
       }
     }
   }
@@ -577,6 +602,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
     }
   }
 
+  if (!is.null(interactionWeight)) attr(scaling, "interactionWeight") <- interactionWeight
   attr(df, "driverScaling") <- scaling
   return(df)
 }

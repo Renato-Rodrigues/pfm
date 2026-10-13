@@ -126,6 +126,7 @@ projectFeasiblePath <- function(spec, sector, histData, scenarioData,
     gdpGovInteraction = isTRUE(spec$gdpGovInteraction),
     apTransform = spec$apTransform %||% "linear",
     apSatScale = as.numeric(spec$apSatScale %||% 1),
+    interactionWeight = spec$interactionWeight,
     trendMidpoint = spec$trendMidpoint %||% formals(preparePanelData)$trendMidpoint,
     trendSteepness = spec$trendSteepness %||% formals(preparePanelData)$trendSteepness,
     modelDir = modelDir, updateIndex = FALSE, verbose = FALSE
