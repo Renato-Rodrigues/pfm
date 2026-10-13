@@ -834,6 +834,9 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
   } else NULL
   list(ratio = if (is.finite(y0) && y0 > 0) y1 / y0 else NA_real_,
        ceil0 = y0, ceil1 = y1, year0 = years[1], year1 = years[2], edge = edge,
+       # the fit itself, for screens that compare specifications on it (analysis/checks/vdemScreen.R)
+       logLik = tryCatch(as.numeric(stats::logLik(ff$model)), error = function(e) NA_real_), beta = b,
+       se = tryCatch(sqrt(pmax(diag(stats::vcov(ff$model)), 0))[names(b)], error = function(e) NULL),
        shareFalling = mean(perC < 1, na.rm = TRUE),
        gamma = gm,
        # The covariance check of the same fit (.pfmFrontierVcov): free, like gamma.
