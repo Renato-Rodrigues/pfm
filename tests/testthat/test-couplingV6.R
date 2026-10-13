@@ -98,7 +98,7 @@ test_that("on the real v6 anchor, pfmV6Shares reproduces Phase 1 and its options
   base <- pfmV6Shares(anc, scen, theta = 0.5)
   k <- base$strength
   expect_equal(k$k[k$sector == "Bulk" & k$year == 2050], 0.6287, tolerance = 1e-3)
-  expect_equal(k$k[k$sector == "Bulk" & k$year == 2100], 0.4809, tolerance = 1e-3)
+  expect_equal(k$k[k$sector == "Bulk" & k$year == 2100], 0.4884, tolerance = 1e-3)   # 0.4809 before the scenario panel was rebuilt (2026-10-08)
   expect_equal(min(base$floor$phi[base$floor$year == 2025]), 0.5, tolerance = 1e-9)   # phi(t0) = 1 - theta u, max u = 1
   # the same weights passed explicitly change nothing (the SSP / weight-year path)
   same <- pfmV6Shares(anc, scen, theta = 0.5, weights = anc$weights)
