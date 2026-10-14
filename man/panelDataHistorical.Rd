@@ -42,9 +42,9 @@ scoped around the data calls so the CAPMF coverage filter sees the right mapping
 \item{geothermal}{count geothermal in the clean-baseload control ("Hydro Nuclear Share"), see
 \code{\link{iamCalculatedDrivers}}. Default: the active panel definition.}
 
-\item{democracy}{add the V-Dem electoral democracy index ("Electoral Democracy (VDem)", 0-1, not
-normalised), the weight of a democracy-weighted spec (design note 0007). Default: the active panel
-definition.}
+\item{democracy}{add the V-Dem democracy indices ("Electoral Democracy (VDem)", "Liberal Democracy
+(VDem)", "Freedom of Expression (VDem)"; 0-1, not normalised), the candidate weights of a
+democracy-weighted spec (design note 0007). Default: the active panel definition.}
 
 \item{coeff}{list of coefficients for actor power index calculation}
 

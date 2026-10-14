@@ -45,8 +45,8 @@ harmonised to: its years, moving-average window, IEA edition and clean-baseload 
 (\code{geothermal} also applies to the scenario's own control). Default: the active panel definition
 (\code{\link{pfmPanelDef}}), which must be the one the Run-Group was fitted on.}
 
-\item{democracy}{add the V-Dem electoral democracy index, held at its last observed value in every
-scenario year (design note 0007). Default: the active panel definition.}
+\item{democracy}{add the V-Dem democracy indices (electoral, liberal, freedom of expression), each
+held at its last observed value in every scenario year (design note 0007). Default: the active panel definition.}
 
 \item{ssp}{\code{"SSP1"} ... \code{"SSP5"}: the SSP of GDP, population and the SSP-extension
 series (Government Effectiveness, Control of Corruption, Rule of Law, urban share, Gini,

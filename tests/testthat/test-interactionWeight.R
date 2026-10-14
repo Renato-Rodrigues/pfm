@@ -79,6 +79,10 @@ test_that("pfmSpecs adds a weighted twin of every spec with interactions, and on
   tw <- out[[which(nm == "X-1 a iw:poly")]]
   expect_identical(tw$interactionWeight, "Electoral Democracy (VDem)")
   expect_true("interactionWeight" %in% names(.pfmSpecArgs(tw)))
+  # one twin per weight, each with its own suffix
+  out3 <- pfmSpecs(specs, verbose = FALSE, apTransforms = "linear",
+                   interactionWeights = c("none", "Liberal Democracy (VDem)", "Freedom of Expression (VDem)"))
+  expect_setequal(vapply(out3, `[[`, character(1), "name"), c("X-1 a", "X-2 b", "X-1 a iw:libdem", "X-1 a iw:fexp"))
   # the default adds nothing, as up to v6
   expect_length(pfmSpecs(specs, verbose = FALSE, apTransforms = "linear"), 2)
 })

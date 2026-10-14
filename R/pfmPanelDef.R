@@ -62,8 +62,9 @@ pfmPanelDef <- function() {
   out$movingAverage <- as.integer(out$movingAverage %||% 1L)
   out$ieaVersion <- as.character(out$ieaVersion)
   out$geothermal <- isTRUE(as.logical(out$geothermal))
-  # the V-Dem electoral democracy index in the panels, the weight of a democracy-weighted spec
-  # (interactionWeight; design note 0007). Off for every group up to v6.
+  # the V-Dem democracy indices (electoral, liberal, freedom of expression) in the panels, the
+  # candidate weights of a democracy-weighted spec (interactionWeight; design note 0007). Off for
+  # every group up to v6.
   out$democracy <- isTRUE(as.logical(out$democracy))
   if (out$lastYear < out$firstYear) {
     stop("panel definition: lastYear (", out$lastYear, ") < firstYear (", out$firstYear, ")",
@@ -98,7 +99,7 @@ pfmPanelDef <- function() {
          if (def$movingAverage <= 1L) "annual values" else paste0(def$movingAverage, "-year moving average"),
          ", IEA ", if (identical(def$ieaVersion, "latest")) "2025 edition" else "2024 edition",
          if (isTRUE(def$geothermal)) ", geothermal in the baseload control" else "",
-         if (isTRUE(def$democracy)) ", electoral democracy index" else "")
+         if (isTRUE(def$democracy)) ", V-Dem democracy indices" else "")
 }
 
 # The definition for a group, in the resolution order documented above, with where it came from.

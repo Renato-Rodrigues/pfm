@@ -13,8 +13,8 @@
 #'   harmonised to: its years, moving-average window, IEA edition and clean-baseload definition
 #'   (\code{geothermal} also applies to the scenario's own control). Default: the active panel definition
 #'   (\code{\link{pfmPanelDef}}), which must be the one the Run-Group was fitted on.
-#' @param democracy add the V-Dem electoral democracy index, held at its last observed value in every
-#'   scenario year (design note 0007). Default: the active panel definition.
+#' @param democracy add the V-Dem democracy indices (electoral, liberal, freedom of expression), each
+#'   held at its last observed value in every scenario year (design note 0007). Default: the active panel definition.
 #' @param ssp \code{"SSP1"} ... \code{"SSP5"}: the SSP of GDP, population and the SSP-extension
 #'   series (Government Effectiveness, Control of Corruption, Rule of Law, urban share, Gini,
 #'   gender inequality). Must match the REMIND run's \code{cm_GDPpopScen}. Default \code{"SSP2"}.
@@ -167,8 +167,8 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   vdemNorm <- toolNormalize(vdemInt, minVal = vdemMin, maxVal = vdemMax, targetRange = c(0, 1))
   out <- mbind(out, vdemNorm[, y, ])
 
-  # V-Dem electoral democracy index (design note 0007), when the panel definition asks for it: the
-  # weight of a democracy-weighted spec, HELD at its last observed value in every scenario year (a
+  # V-Dem democracy indices (design note 0007), when the panel definition asks for it: the candidate
+  # weights of a democracy-weighted spec, HELD at its last observed value in every scenario year (a
   # declared rule, whatever `institutions` says: no regime path is projected).
   if (isTRUE(democracy)) {
     dem <- calcOutput("VDem", subtype = "democracy", aggregate = aggregate, regionmapping = outputRegionMappingFile)

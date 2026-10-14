@@ -592,7 +592,9 @@ runPFMSweep <- function(group,
 #' @param interactionWeights Character. Panel variables (0-1) each of which adds a twin of every
 #'   spec with actor-power x institution interactions, its interactions multiplied by that variable
 #'   (\code{interactionWeight}; design note 0007, O10). \code{"none"} or empty (default) adds none.
-#'   The twins carry the suffix \code{" iw:poly"} for the V-Dem electoral democracy index.
+#'   The twins carry the suffix \code{" iw:poly"} (V-Dem electoral democracy), \code{" iw:libdem"}
+#'   (liberal democracy) or \code{" iw:fexp"} (freedom of expression and alternative information);
+#'   another variable gets \code{" iw:"} and its syntactic name.
 #' @return The adapted, normalised spec list.
 #' @export
 pfmSpecs <- function(specs, verbose = TRUE, apTransforms = c("linear", "saturating"),
@@ -685,7 +687,9 @@ pfmSpecs <- function(specs, verbose = TRUE, apTransforms = c("linear", "saturati
   # democratic a country is, instead of being extended to closed autocracies.
   interactionWeights <- setdiff(as.character(unlist(interactionWeights)), c("none", ""))
   hasInteractions <- function(cfg) length(unlist(cfg$actorPowerIndex)) > 0 && length(unlist(cfg$instQualityDrivers)) > 0
-  iwSuffix <- function(wv) if (identical(wv, "Electoral Democracy (VDem)")) " iw:poly" else paste0(" iw:", make.names(wv))
+  iwShort <- c("Electoral Democracy (VDem)" = "poly", "Liberal Democracy (VDem)" = "libdem",
+               "Freedom of Expression (VDem)" = "fexp")
+  iwSuffix <- function(wv) paste0(" iw:", if (wv %in% names(iwShort)) iwShort[[wv]] else make.names(wv))
   base <- Filter(hasInteractions, specs)
   wTwins <- unlist(lapply(interactionWeights, function(wv) lapply(base, function(cfg) {
     cfg$interactionWeight <- wv
