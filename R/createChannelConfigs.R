@@ -25,6 +25,11 @@
 #' no ridge, no lagged terms.
 #'
 #' @param mode Character. \code{"guided"} or \code{"exhaustive"}.
+#' @param apPcForms Character. The per-capita actor-power forms of the appended per-capita block.
+#' @param extraAccountability Character. Extra accountability channels appended to the exhaustive grid as a
+#'   further option of the accountability slot, crossed like the three parts (\code{"OvAcc"}: V-Dem's
+#'   overall accountability, which needs the panel key \code{overallAccountability}). Default none: the
+#'   grid of every group up to v6.
 #'
 #' @return A list of specification lists, each with the fields consumed by the
 #'   model-selection report (\code{name}, \code{description},
@@ -34,7 +39,8 @@
 #' @export
 #' @author Renato Rodrigues
 channelSpecs <- function(mode = c("guided", "exhaustive"),
-                         apPcForms = c("splitAPpc", "mixedAP", "bothIncAP")) {
+                         apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
+                         extraAccountability = character(0)) {
   mode <- match.arg(mode)
 
   backbone <- list(
@@ -401,6 +407,80 @@ channelSpecs <- function(mode = c("guided", "exhaustive"),
     }
   }
 
+  # ── Extra accountability channels (v7, 2026-10-14) ──────────────────────────
+  # APPENDED after every existing cross so X-numbers stay stable. Each extra channel joins the
+  # accountability slot as a fifth option and is crossed exactly as the three parts are above: the
+  # base levels and hybridFD cross, the context-dummies block and the per-capita block. "OvAcc" is
+  # V-Dem's overall accountability (vertical, horizontal and diagonal in one index; the index of the
+  # PoliClim institution projections). It needs the panel key overallAccountability.
+  extraAccOptions <- list("OvAcc" = "Overall Accountability (VDem)")
+  unknownAcc <- setdiff(extraAccountability, names(extraAccOptions))
+  if (length(unknownAcc)) {
+    stop("channelSpecs: unknown extraAccountability: ", paste(unknownAcc, collapse = ", "),
+         ". Available: ", paste(names(extraAccOptions), collapse = ", "))
+  }
+  for (ac in extraAccountability) {
+    for (ge in names(govEffOptions)) {
+      for (rl in names(rolOptions)) {
+        iq <- c(govEffOptions[[ge]], rolOptions[[rl]], extraAccOptions[[ac]])
+        for (ap in names(apForms)) {
+          for (cs in names(controlSets)) {
+            for (fl in names(feLevels)) {
+              idx <- idx + 1L
+              specs[[idx]] <- spec(
+                sprintf("X-%04d %s|%s|%s %s lev ctl:%s fe:%s", idx, ge, rl, ac, ap, cs, fl),
+                paste0("Extra accountability channel (v7): GovEff=", ge, ", RoL=", rl, ", Acc=", ac,
+                       ", AP=", ap, ", controls=", cs, ", FE=", fl, ", levels."),
+                apForms[[ap]]$drivers, apForms[[ap]]$index, iq, transform = "levels",
+                overrides = list(controlDrivers = controlSets[[cs]],
+                                 regionMappingFixedEffects = feLevels[[fl]]$fe,
+                                 useMundlak = feLevels[[fl]]$mundlak)
+              )
+            }
+            idx <- idx + 1L
+            specs[[idx]] <- spec(
+              sprintf("X-%04d %s|%s|%s %s hybFD ctl:%s", idx, ge, rl, ac, ap, cs),
+              paste0("Extra accountability channel (v7): GovEff=", ge, ", RoL=", rl, ", Acc=", ac,
+                     ", AP=", ap, ", controls=", cs, ", hybridFD (FE differenced out)."),
+              apForms[[ap]]$drivers, apForms[[ap]]$index, iq, transform = "hybridFD",
+              overrides = list(controlDrivers = controlSets[[cs]],
+                               regionMappingFixedEffects = NULL, useMundlak = FALSE)
+            )
+            for (fl in names(feLevels)) {
+              idx <- idx + 1L
+              specs[[idx]] <- spec(
+                sprintf("X-%04d %s|%s|%s %s lev ctl:%s.Ctx fe:%s", idx, ge, rl, ac, ap, cs, fl),
+                paste0("Extra accountability channel (v7), context dummies (ADR 0038): GovEff=", ge,
+                       ", RoL=", rl, ", Acc=", ac, ", AP=", ap, ", controls=", cs,
+                       " + EU/transition dummies, FE=", fl, ", levels."),
+                apForms[[ap]]$drivers, apForms[[ap]]$index, iq, transform = "levels",
+                overrides = list(controlDrivers = c(controlSets[[cs]], CTX),
+                                 regionMappingFixedEffects = feLevels[[fl]]$fe,
+                                 useMundlak = feLevels[[fl]]$mundlak)
+              )
+            }
+          }
+        }
+        for (ap in names(pcForms)) {
+          for (cs in names(controlSets)) {
+            for (fl in names(feLevels)) {
+              idx <- idx + 1L
+              specs[[idx]] <- spec(
+                sprintf("X-%04d %s|%s|%s %s lev ctl:%s fe:%s", idx, ge, rl, ac, ap, cs, fl),
+                paste0("Extra accountability channel (v7), per-capita actor power: GovEff=", ge,
+                       ", RoL=", rl, ", Acc=", ac, ", AP=", ap, ", controls=", cs, ", FE=", fl, ", levels."),
+                pcForms[[ap]]$drivers, pcForms[[ap]]$index, iq, transform = "levels",
+                overrides = list(controlDrivers = controlSets[[cs]],
+                                 regionMappingFixedEffects = feLevels[[fl]]$fe,
+                                 useMundlak = feLevels[[fl]]$mundlak)
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+
   # ── Lagged stringency-price variants (2026-06-14) ──────────────────────────
   # Carbon prices are sticky; a lagged price both fits that and damps projection
   # swings. A lagged dependent + region FE incurs dynamic-panel (Nickell) bias, so
@@ -458,6 +538,7 @@ channelSpecs <- function(mode = c("guided", "exhaustive"),
 #'
 #' @param dir Character. Target directory (created if missing).
 #' @param mode Character. \code{"guided"} or \code{"exhaustive"}.
+#' @param apPcForms,extraAccountability See \code{\link{channelSpecs}}.
 #' @param overwrite Logical. Overwrite an existing file. Default: \code{FALSE}
 #'   (the existing file is kept and its path returned).
 #'
@@ -467,6 +548,7 @@ channelSpecs <- function(mode = c("guided", "exhaustive"),
 #' @author Renato Rodrigues
 createChannelConfigs <- function(dir, mode = c("guided", "exhaustive"),
                                  apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
+                                 extraAccountability = character(0),
                                  overwrite = FALSE) {
   mode <- match.arg(mode)
   if (!requireNamespace("yaml", quietly = TRUE)) {
@@ -478,7 +560,7 @@ createChannelConfigs <- function(dir, mode = c("guided", "exhaustive"),
     message("createChannelConfigs: keeping existing ", out)
     return(invisible(out))
   }
-  specs <- channelSpecs(mode, apPcForms = apPcForms)
+  specs <- channelSpecs(mode, apPcForms = apPcForms, extraAccountability = extraAccountability)
   nSatTwin <- sum(vapply(specs, function(s) isTRUE(s$stringencyOnly), logical(1)))
   nFits <- (length(specs) - nSatTwin) * 4L + nSatTwin * 2L  # Variants are stringency-only (ADR 0028)
   header <- paste0(

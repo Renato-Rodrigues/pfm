@@ -239,6 +239,8 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
   # The interaction-weight axis and the edge-of-data gate (design note 0007). edgeGate: "off" (or
   # unquoted off) disables it; `on`/true takes the declared defaults; a mapping overrides some of them.
   if (!is.null(o$interactionWeights)) o$interactionWeights <- as.character(unlist(o$interactionWeights))
+  # extra accountability channels of the grid ("OvAcc"; v7)
+  if (!is.null(o$extraAccountability)) o$extraAccountability <- as.character(unlist(o$extraAccountability))
   if (!is.null(o$edgeGate)) {
     eg <- o$edgeGate
     o$edgeGate <- if (isOff(eg)) NULL else if (isTRUE(eg) || identical(eg, "on")) .pfmEdgeGateDefaults() else {
@@ -258,7 +260,7 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
 .pfmSweepOptionKeys <- c("apTransforms", "dropCompositeAP", "apExtrapolationGate",
                          "apExtrapolationSd", "apExtrapolationWindow",
                          "softVifGate", "inferenceTGate",
-                         "interactionWeights", "edgeGate")
+                         "interactionWeights", "edgeGate", "extraAccountability")
 
 # A group's sweep options: the manifest record > none for a group swept before the record
 # (runPFMSweep's defaults, the v5 grid) > config.yml sweep: > none. As .pfmPanelDefForGroup.
@@ -301,6 +303,8 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
          ", |t| ", if (tg > 0) paste0("< ", tg) else "off",
          {iw <- setdiff(as.character(unlist(o$interactionWeights)), "none")
           if (length(iw)) paste0("; interaction weights: ", paste(iw, collapse = ", ")) else ""},
+         {ea <- as.character(unlist(o$extraAccountability))
+          if (length(ea)) paste0("; extra accountability channels: ", paste(ea, collapse = ", ")) else ""},
          if (is.list(o$edgeGate)) paste0("; edge-of-data gate (share ", o$edgeGate$share, ", effect ",
                                          o$edgeGate$effect, ", cap shift ", o$edgeGate$capShift, ")") else "")
 }

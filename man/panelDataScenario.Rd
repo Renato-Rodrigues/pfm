@@ -16,6 +16,7 @@ panelDataScenario(
   ieaVersion = pfmPanelDef()$ieaVersion,
   geothermal = pfmPanelDef()$geothermal,
   democracy = pfmPanelDef()$democracy,
+  overallAccountability = pfmPanelDef()$overallAccountability,
   ssp = "SSP2",
   institutions = "storyline",
   histCache = NULL,
@@ -47,6 +48,10 @@ harmonised to: its years, moving-average window, IEA edition and clean-baseload 
 
 \item{democracy}{add the V-Dem democracy indices (electoral, liberal, freedom of expression), each
 held at its last observed value in every scenario year (design note 0007). Default: the active panel definition.}
+
+\item{overallAccountability}{add V-Dem's overall accountability index ("Overall Accountability (VDem)"),
+projected by the \code{institutions} rule and normalised like the other V-Dem channels. Default: the
+active panel definition.}
 
 \item{ssp}{\code{"SSP1"} ... \code{"SSP5"}: the SSP of GDP, population and the SSP-extension
 series (Government Effectiveness, Control of Corruption, Rule of Law, urban share, Gini,

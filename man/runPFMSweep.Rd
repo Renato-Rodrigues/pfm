@@ -48,6 +48,7 @@ runPFMSweep(
   apExtrapolationWindow = c(2025, 2100),
   interactionWeights = character(0),
   edgeGate = NULL,
+  extraAccountability = character(0),
   gdxRegionMappingFile = "regionmappingH12.csv",
   apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
   sanityBatchSize = 5,
@@ -204,6 +205,11 @@ gate of the sanity walk (\code{share}, \code{effect}, \code{capShift}, \code{cap
 \code{mapping}; design note 0007 section 5). Severe when a driver is pushed against the
 frontier's reading in a material share of a region, or when capping the interactions at the
 sample's range moves the regional ceilings.}
+
+\item{extraAccountability}{Character. Extra accountability channels added to the spec grid as a
+further option of the accountability slot (\code{"OvAcc"}: V-Dem's overall accountability, the
+PoliClim index; needs the panel key \code{overallAccountability}), see \code{\link{channelSpecs}}.
+Empty (default): none, as up to v6. Only consulted when \code{specs} is \code{NULL}.}
 
 \item{gdxRegionMappingFile}{Character. The \strong{gdx's own native resolution}, not a
 target (PITFALLS §5) — \code{"regionmappingH12.csv"} (default) for an H12 gdx,

@@ -305,7 +305,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     # there, while the estimation read the 2025 edition: silent (PITFALLS 32). Restored on exit.
     oldPanelOpt <- getOption("pfm.panel")
     on.exit(options(pfm.panel = oldPanelOpt), add = TRUE)
-    options(pfm.panel = panelDef[c("firstYear", "lastYear", "movingAverage", "ieaVersion", "geothermal", "democracy")])
+    options(pfm.panel = panelDef[c("firstYear", "lastYear", "movingAverage", "ieaVersion", "geothermal", "democracy", "overallAccountability")])
     scen <- panelDataScenario(gdxFile = gdx, aggregate = TRUE,
                               gdxRegionMappingFile = gdxRegionMapping,
                               outputRegionMappingFile = "country",

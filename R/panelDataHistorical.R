@@ -18,6 +18,10 @@
 #' @param democracy add the V-Dem democracy indices ("Electoral Democracy (VDem)", "Liberal Democracy
 #'   (VDem)", "Freedom of Expression (VDem)"; 0-1, not normalised), the candidate weights of a
 #'   democracy-weighted spec (design note 0007). Default: the active panel definition.
+#' @param overallAccountability add V-Dem's overall accountability index ("Overall Accountability (VDem)",
+#'   \code{v2x_accountability_osp}, the accountability index of the PoliClim projections), min-max normalised
+#'   like the other V-Dem channels: a candidate for the accountability channel of the search (v7). Default:
+#'   the active panel definition.
 #' @param coeff list of coefficients for actor power index calculation
 #' @param includePolicyStringency logical; if TRUE, adds the CAPMF-based Policy
 #'   Stringency Model outcomes ("Policy Stringency|Power & industry", "Policy Stringency|Buildings & transport"
@@ -47,6 +51,7 @@ panelDataHistorical <- function(aggregate = TRUE,
                                 ieaVersion = pfmPanelDef()$ieaVersion,
                                 geothermal = pfmPanelDef()$geothermal,
                                 democracy = pfmPanelDef()$democracy,
+                                overallAccountability = pfmPanelDef()$overallAccountability,
                                 coeff = list(
                                   bulk = list(
                                     actor_power = list(innov = 1, incumb = 1),
@@ -158,6 +163,13 @@ panelDataHistorical <- function(aggregate = TRUE,
 
   # V-Dem governance indicators (rule of law and accountability)
   vdem <- calcOutput("VDem", aggregate = aggregate, regionmapping = outputRegionMappingFile)
+  # V-Dem's overall accountability (vertical, horizontal and diagonal in one index), when the panel
+  # definition asks for it: one more accountability channel for the search, treated exactly like the
+  # three parts (interpolated, median-filled, min-max normalised on the country range).
+  if (isTRUE(overallAccountability)) {
+    vdem <- mbind(vdem, calcOutput("VDem", subtype = "accountabilityOverall", aggregate = aggregate,
+                                   regionmapping = outputRegionMappingFile))
+  }
   vdemInt <- toolTimeInterpolation(vdem, y)
   # Guard against regions that survive aggregation with < 2 valid data points
   # (toolTimeInterpolation skips those, leaving NAs that drop rows in preparePanelData).
@@ -165,6 +177,9 @@ panelDataHistorical <- function(aggregate = TRUE,
 
   # Calculate dynamic global country-level baseline bounds
   vdemCnt <- calcOutput("VDem", aggregate = FALSE)
+  if (isTRUE(overallAccountability)) {
+    vdemCnt <- mbind(vdemCnt, calcOutput("VDem", subtype = "accountabilityOverall", aggregate = FALSE))
+  }
   vdemMin <- apply(vdemCnt, 3, min, na.rm = TRUE)
   vdemMax <- apply(vdemCnt, 3, max, na.rm = TRUE)
 

@@ -8,6 +8,7 @@ createChannelConfigs(
   dir,
   mode = c("guided", "exhaustive"),
   apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
+  extraAccountability = character(0),
   overwrite = FALSE
 )
 }
@@ -15,6 +16,8 @@ createChannelConfigs(
 \item{dir}{Character. Target directory (created if missing).}
 
 \item{mode}{Character. \code{"guided"} or \code{"exhaustive"}.}
+
+\item{apPcForms, extraAccountability}{See \code{\link{channelSpecs}}.}
 
 \item{overwrite}{Logical. Overwrite an existing file. Default: \code{FALSE}
 (the existing file is kept and its path returned).}

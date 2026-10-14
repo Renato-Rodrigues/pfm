@@ -282,7 +282,7 @@ pfmRun <- function(group = NULL,
   # else config.yml's `panel` block. Every panel builder takes its defaults from this option,
   # and startRun() carries it into SLURM jobs.
   panelDef <- .pfmPanelDefForGroup(groupDir, rc$panel)
-  options(pfm.panel = panelDef[c("firstYear", "lastYear", "movingAverage", "ieaVersion", "geothermal", "democracy")])
+  options(pfm.panel = panelDef[c("firstYear", "lastYear", "movingAverage", "ieaVersion", "geothermal", "democracy", "overallAccountability")])
   # The sweep's actor-power axes and extrapolation gate (0005 D7), resolved the same way; they
   # reach runPFMSweep as arguments below, and the caller's own arguments still win.
   sweepOpts <- .pfmSweepOptionsForGroup(groupDir, rc$sweep)

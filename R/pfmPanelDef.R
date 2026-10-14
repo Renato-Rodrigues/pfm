@@ -26,7 +26,7 @@
 #' Editing \code{config.yml} therefore never changes a group that has already been swept.
 #'
 #' @param def A panel definition (\code{firstYear}, \code{lastYear}, \code{movingAverage},
-#'   \code{ieaVersion}, \code{geothermal}).
+#'   \code{ieaVersion}, \code{geothermal}, \code{democracy}, \code{overallAccountability}).
 #' @return \code{pfmPanelDef()}: the active definition (the \code{pfm.panel} option, else the
 #'   legacy one).
 #' @export
@@ -41,7 +41,7 @@ pfmPanelDef <- function() {
 #' @keywords internal
 .pfmPanelDefLegacy <- function() {
   list(firstYear = 2000L, lastYear = 2022L, movingAverage = 5L, ieaVersion = "default",
-       geothermal = FALSE, democracy = FALSE)
+       geothermal = FALSE, democracy = FALSE, overallAccountability = FALSE)
 }
 
 # Accepts the config form (years = c(first, last) or a full vector) and the manifest form
@@ -66,6 +66,9 @@ pfmPanelDef <- function() {
   # candidate weights of a democracy-weighted spec (interactionWeight; design note 0007). Off for
   # every group up to v6.
   out$democracy <- isTRUE(as.logical(out$democracy))
+  # V-Dem's overall accountability index in the panels, one more candidate for the accountability
+  # channel of the search (the PoliClim index; v7). Off for every group up to v6.
+  out$overallAccountability <- isTRUE(as.logical(out$overallAccountability))
   if (out$lastYear < out$firstYear) {
     stop("panel definition: lastYear (", out$lastYear, ") < firstYear (", out$firstYear, ")",
          call. = FALSE)
@@ -99,7 +102,8 @@ pfmPanelDef <- function() {
          if (def$movingAverage <= 1L) "annual values" else paste0(def$movingAverage, "-year moving average"),
          ", IEA ", if (identical(def$ieaVersion, "latest")) "2025 edition" else "2024 edition",
          if (isTRUE(def$geothermal)) ", geothermal in the baseload control" else "",
-         if (isTRUE(def$democracy)) ", V-Dem democracy indices" else "")
+         if (isTRUE(def$democracy)) ", V-Dem democracy indices" else "",
+         if (isTRUE(def$overallAccountability)) ", V-Dem overall accountability" else "")
 }
 
 # The definition for a group, in the resolution order documented above, with where it came from.

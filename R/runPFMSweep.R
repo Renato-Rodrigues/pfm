@@ -145,6 +145,10 @@
 #' @param interactionWeights Character. Panel variables (0-1) that each add an interaction-weighted
 #'   twin of every spec with interactions, see \code{\link{pfmSpecs}} (design note 0007, O10). Empty
 #'   (default): none, as up to v6.
+#' @param extraAccountability Character. Extra accountability channels added to the spec grid as a
+#'   further option of the accountability slot (\code{"OvAcc"}: V-Dem's overall accountability, the
+#'   PoliClim index; needs the panel key \code{overallAccountability}), see \code{\link{channelSpecs}}.
+#'   Empty (default): none, as up to v6. Only consulted when \code{specs} is \code{NULL}.
 #' @param edgeGate \code{NULL} (default, as up to v6) or a list of thresholds for the edge-of-data
 #'   gate of the sanity walk (\code{share}, \code{effect}, \code{capShift}, \code{cap},
 #'   \code{mapping}; design note 0007 section 5). Severe when a driver is pushed against the
@@ -207,6 +211,7 @@ runPFMSweep <- function(group,
                         apExtrapolationWindow = c(2025, 2100),
                         interactionWeights = character(0),
                         edgeGate = NULL,
+                        extraAccountability = character(0),
                         gdxRegionMappingFile = "regionmappingH12.csv",
                         apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
                         sanityBatchSize = 5,
@@ -319,6 +324,7 @@ runPFMSweep <- function(group,
   # ── Specs: shared channel grid adapted for the PFM ───────────────────────────
   if (is.null(specs)) {
     configPath <- createChannelConfigs(groupDir, mode, apPcForms = apPcForms,
+                                      extraAccountability = extraAccountability,
                                       overwrite = overwriteConfig)
     specs <- yaml::read_yaml(configPath)
   }
@@ -543,9 +549,15 @@ runPFMSweep <- function(group,
                         softVifGate = softVifGate %||% Inf, inferenceTGate = inferenceTGate %||% 0,
                         # the interaction-weight axis and the edge-of-data gate (design note 0007)
                         interactionWeights = as.list(interactionWeights),
-                        edgeGate = edgeGate %||% "off"),
+                        edgeGate = edgeGate %||% "off",
+                        extraAccountability = as.list(extraAccountability)),
+    # Every key of the definition: a key left out is read back as its default by every later step
+    # (diagnostics, downstream, the coupling), which would then build panels without the columns the
+    # selected spec needs (the democracy weights, the overall-accountability channel).
     panelDef = list(firstYear = min(y), lastYear = max(y), movingAverage = movingAverage %||% 1L,
-                    ieaVersion = pfmPanelDef()$ieaVersion, geothermal = pfmPanelDef()$geothermal)
+                    ieaVersion = pfmPanelDef()$ieaVersion, geothermal = pfmPanelDef()$geothermal,
+                    democracy = pfmPanelDef()$democracy,
+                    overallAccountability = pfmPanelDef()$overallAccountability)
   )
   # Which scenario gates the selection actually saw, in the audit: a skipped gate has no
   # error, so its absence must be readable after the fact (PITFALLS 18, 28).

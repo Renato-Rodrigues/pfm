@@ -6,11 +6,19 @@
 \usage{
 channelSpecs(
   mode = c("guided", "exhaustive"),
-  apPcForms = c("splitAPpc", "mixedAP", "bothIncAP")
+  apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
+  extraAccountability = character(0)
 )
 }
 \arguments{
 \item{mode}{Character. \code{"guided"} or \code{"exhaustive"}.}
+
+\item{apPcForms}{Character. The per-capita actor-power forms of the appended per-capita block.}
+
+\item{extraAccountability}{Character. Extra accountability channels appended to the exhaustive grid as a
+further option of the accountability slot, crossed like the three parts (\code{"OvAcc"}: V-Dem's
+overall accountability, which needs the panel key \code{overallAccountability}). Default none: the
+grid of every group up to v6.}
 }
 \value{
 A list of specification lists, each with the fields consumed by the

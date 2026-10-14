@@ -8,7 +8,7 @@ pfmPanelDef()
 }
 \arguments{
 \item{def}{A panel definition (\code{firstYear}, \code{lastYear}, \code{movingAverage},
-\code{ieaVersion}, \code{geothermal}).}
+\code{ieaVersion}, \code{geothermal}, \code{democracy}, \code{overallAccountability}).}
 }
 \value{
 \code{pfmPanelDef()}: the active definition (the \code{pfm.panel} option, else the

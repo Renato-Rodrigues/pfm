@@ -15,6 +15,9 @@
 #'   (\code{\link{pfmPanelDef}}), which must be the one the Run-Group was fitted on.
 #' @param democracy add the V-Dem democracy indices (electoral, liberal, freedom of expression), each
 #'   held at its last observed value in every scenario year (design note 0007). Default: the active panel definition.
+#' @param overallAccountability add V-Dem's overall accountability index ("Overall Accountability (VDem)"),
+#'   projected by the \code{institutions} rule and normalised like the other V-Dem channels. Default: the
+#'   active panel definition.
 #' @param ssp \code{"SSP1"} ... \code{"SSP5"}: the SSP of GDP, population and the SSP-extension
 #'   series (Government Effectiveness, Control of Corruption, Rule of Law, urban share, Gini,
 #'   gender inequality). Must match the REMIND run's \code{cm_GDPpopScen}. Default \code{"SSP2"}.
@@ -48,6 +51,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
                               ieaVersion = pfmPanelDef()$ieaVersion,
                               geothermal = pfmPanelDef()$geothermal,
                               democracy = pfmPanelDef()$democracy,
+                              overallAccountability = pfmPanelDef()$overallAccountability,
                               ssp = "SSP2",
                               institutions = "storyline",
                               histCache = NULL,
@@ -156,11 +160,18 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
 
   # V-Dem governance indicators: no SSP projection exists; the declared `institutions` rule.
   vdem <- calcOutput("VDem", aggregate = aggregate, regionmapping = outputRegionMappingFile)
+  if (isTRUE(overallAccountability)) {
+    vdem <- mbind(vdem, calcOutput("VDem", subtype = "accountabilityOverall", aggregate = aggregate,
+                                   regionmapping = outputRegionMappingFile))
+  }
   vdemInt <- .pfmProjectInstitutions(vdem, y, institutions, ssp)
   vdemInt <- mrpfm::toolImputeMedians(vdemInt)
 
   # Calculate dynamic global country-level baseline bounds
   vdemCnt <- calcOutput("VDem", aggregate = FALSE)
+  if (isTRUE(overallAccountability)) {
+    vdemCnt <- mbind(vdemCnt, calcOutput("VDem", subtype = "accountabilityOverall", aggregate = FALSE))
+  }
   vdemMin <- apply(vdemCnt, 3, min, na.rm = TRUE)
   vdemMax <- apply(vdemCnt, 3, max, na.rm = TRUE)
 
@@ -280,6 +291,10 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
                      outputRegionMappingFile = outputRegionMappingFile,
                      movingAverage = movingAverage, ieaVersion = ieaVersion,
                      geothermal = geothermal, coeff = coeff)
+    # The V-Dem keys shape the history panel too, so they belong in the cache key; added only when on,
+    # so the keys of caches built before they existed (every group up to v6) do not change.
+    if (isTRUE(democracy)) histArgs$democracy <- TRUE
+    if (isTRUE(overallAccountability)) histArgs$overallAccountability <- TRUE
     histPanel <- .pfmHistHarmonisationPanel(histArgs, histCache)
 
     # Use the latest historical year as the harmonization anchor so that recent
