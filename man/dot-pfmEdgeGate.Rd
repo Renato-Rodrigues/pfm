@@ -43,6 +43,7 @@ mean of the capped minus uncapped logit ceiling, in its level in the first year 
 to the last year, moves by more than \code{capShift}.
 }
 Regions are those of \code{mapping}, weighted by \code{\link{pfmCouplingWeights}} (final energy).
-An interaction weight (\code{interactionWeight}) is honoured: its column multiplies every interaction.
+An interaction weight (\code{interactionWeight}) is honoured: its column multiplies every interaction
+in its scope (\code{.pfmIwFactor}).
 }
 \keyword{internal}

@@ -86,7 +86,10 @@
 #'   interaction (design note 0007, O10), read with the drivers' lag and kept on its own scale
 #'   (column \code{interactionWeight__}). Fit mode records it on the returned
 #'   \code{"driverScaling"}; apply mode reads it from there when this is \code{NULL}.
-#'   \code{NULL} or \code{"none"} (default): unweighted interactions.
+#'   \code{NULL} or \code{"none"} (default): unweighted interactions. A suffix \code{"@accRoL"}
+#'   (e.g. \code{"Liberal Democracy (VDem)@accRoL"}) weights only the accountability and rule-of-law
+#'   interactions; the state-capability interactions act unweighted (design note 0007 §8, A7;
+#'   \code{.pfmIwScopes}).
 #'
 #' @return data.frame with columns: region, year, timeTrend, regionFE (unless
 #'   \code{useMundlak = TRUE}), ecp, plus one column per driver (safe R-named),
@@ -133,6 +136,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
                                       !nzchar(interactionWeight) || identical(interactionWeight, "none"))) {
     interactionWeight <- NULL
   }
+  iwPart <- .pfmIwParse(interactionWeight)   # panel variable and scope (NULL: every interaction)
 
   # ADR 0011: derived control columns, computed on the fly from base variables so
   # every caller — historical AND scenario panels — has them without separate
@@ -187,7 +191,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
   allVarsNeeded <- c(
     apiName, 
     sapply(actorPowerDrivers, getMagpieName, sector = sector),
-    instQualityDrivers, controlDrivers, interactionWeight
+    instQualityDrivers, controlDrivers, iwPart$variable
   )
 
   availableVars <- magclass::getNames(data)
@@ -315,8 +319,9 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
       }
       # the interaction weight, read with the drivers' lag and kept on its own 0-1 scale
       if (!is.null(interactionWeight)) {
-        val <- lagValue(r, yi, interactionWeight)
+        val <- lagValue(r, yi, iwPart$variable)
         row[["interactionWeight__"]] <- if (is.finite(val)) min(max(val, 0), 1) else NA_real_
+        if (!is.null(iwPart$scope)) row[["interactionWeightScope__"]] <- match(iwPart$scope, names(.pfmIwScopes))
       }
 
       rows[[idx]] <- row
@@ -580,11 +585,10 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
 
   # --- Pre-compute interaction columns (from STANDARDIZED factors) -----------
   if (!is.null(actorPowerIndex) && !is.null(instQualityDrivers)) {
-    w <- if ("interactionWeight__" %in% colnames(df)) df[["interactionWeight__"]] else 1
     for (v in instQualityDrivers) {
       for (api in actorPowerIndex) {
         a <- make.names(api); b <- make.names(v)
-        df[[paste0(a, "_x_", b)]] <- df[[a]] * df[[b]] * w
+        df[[paste0(a, "_x_", b)]] <- df[[a]] * df[[b]] * .pfmIwFactor(df, b)
       }
     }
   }

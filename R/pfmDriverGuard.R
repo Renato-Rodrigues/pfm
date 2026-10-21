@@ -131,13 +131,13 @@
   }
   # Recompute interaction columns from the guarded factors (they were built from
   # unguarded values in preparePanelData).
-  # An interaction weight (preparePanelData `interactionWeight`, design note 0007) multiplies them again.
+  # An interaction weight (preparePanelData `interactionWeight`, design note 0007) multiplies them again,
+  # within its scope (.pfmIwFactor).
   intCols <- grep("_x_", colnames(df), value = TRUE)
-  w <- if ("interactionWeight__" %in% colnames(df)) df[["interactionWeight__"]] else 1
   for (ic in intCols) {
     parts <- strsplit(ic, "_x_", fixed = TRUE)[[1]]
     if (length(parts) == 2 && all(parts %in% colnames(df))) {
-      df[[ic]] <- df[[parts[1]]] * df[[parts[2]]] * if (grepl("^GDP", parts[1])) 1 else w
+      df[[ic]] <- df[[parts[1]]] * df[[parts[2]]] * if (grepl("^GDP", parts[1])) 1 else .pfmIwFactor(df, parts[2])
     }
   }
   list(df = df,

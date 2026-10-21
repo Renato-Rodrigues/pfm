@@ -129,3 +129,78 @@ test_that("the edge gate flags a driver reversed by an extreme moderator and pas
   ok <- .pfmEdgeGate(beta, mkScen(TRUE), NULL, train, gate = gate)
   expect_true(is.null(ok$against))
 })
+
+# --- the weight's scope: accountability and rule of law only (design note 0007 section 8, A7) ---------------
+
+makeScopeMagpie <- function() {
+  set.seed(11)
+  regions <- paste0("R", 1:12)
+  years <- 2000:2015
+  vars <- c("Effective Carbon Price|Bulk", "Incumbent Power|Bulk", "Rule of Law (VDem)",
+            "Government Effectiveness (WGI)", "Vertical Accountability (VDem)", "Liberal Democracy (VDem)")
+  m <- magclass::new.magpie(regions, years, vars, fill = NA)
+  for (v in vars) m[, , v] <- runif(length(regions) * length(years))
+  m[, , "Effective Carbon Price|Bulk"] <- runif(length(regions) * length(years)) * 50
+  m
+}
+prepScope <- function(m, weight = NULL, scaling = NULL) {
+  preparePanelData(
+    m, sector = "Bulk",
+    actorPowerDrivers = "Incumbent Power", actorPowerIndex = "Incumbent Power",
+    instQualityDrivers = c("Government Effectiveness (WGI)", "Rule of Law (VDem)", "Vertical Accountability (VDem)"),
+    controlDrivers = NULL, regionMappingFixedEffects = NULL, driverScaling = scaling, interactionWeight = weight,
+    excludeCountries = character(0)
+  )
+}
+
+test_that("a scoped weight multiplies the accountability and rule-of-law interactions only", {
+  m <- makeScopeMagpie()
+  df <- prepScope(m, weight = "Liberal Democracy (VDem)@accRoL")
+  w <- df$interactionWeight__
+  expect_true(all(df$interactionWeightScope__ == 1))
+  expect_equal(df$Incumbent.Power_x_Rule.of.Law..VDem., df$Incumbent.Power * df$Rule.of.Law..VDem. * w)
+  expect_equal(df$Incumbent.Power_x_Vertical.Accountability..VDem.,
+               df$Incumbent.Power * df$Vertical.Accountability..VDem. * w)
+  expect_equal(df$Incumbent.Power_x_Government.Effectiveness..WGI.,
+               df$Incumbent.Power * df$Government.Effectiveness..WGI.)
+  # the weight itself is the one an unscoped spec reads
+  expect_equal(w, prepScope(m, weight = "Liberal Democracy (VDem)")$interactionWeight__)
+  expect_identical(attr(attr(df, "driverScaling"), "interactionWeight"), "Liberal Democracy (VDem)@accRoL")
+  # apply mode keeps the scope
+  ap <- prepScope(m, scaling = attr(df, "driverScaling"))
+  expect_equal(ap$Incumbent.Power_x_Government.Effectiveness..WGI., df$Incumbent.Power_x_Government.Effectiveness..WGI.)
+  expect_equal(ap$Incumbent.Power_x_Rule.of.Law..VDem., df$Incumbent.Power_x_Rule.of.Law..VDem.)
+  expect_error(prepScope(m, weight = "Liberal Democracy (VDem)@bogus"), "unknown scope")
+})
+
+test_that("the driver guard keeps the scope when it recomputes the interactions", {
+  df <- prepScope(makeScopeMagpie(), weight = "Liberal Democracy (VDem)@accRoL")
+  ranges <- list(Incumbent.Power = c(min = -0.5, max = 0.5), Government.Effectiveness..WGI. = c(min = -0.5, max = 0.5),
+                 Rule.of.Law..VDem. = c(min = -0.5, max = 0.5))
+  g <- .pfmDriverGuard(df, ranges)$df
+  expect_equal(g$Incumbent.Power_x_Government.Effectiveness..WGI., g$Incumbent.Power * g$Government.Effectiveness..WGI.)
+  expect_equal(g$Incumbent.Power_x_Rule.of.Law..VDem., g$Incumbent.Power * g$Rule.of.Law..VDem. * g$interactionWeight__)
+})
+
+test_that("pfmSpecs names a scoped twin by weight and scope", {
+  specs <- list(list(name = "X-1 a", actorPowerDrivers = "Incumbent Power", actorPowerIndex = "Incumbent Power",
+                     instQualityDrivers = "Rule of Law (VDem)", controlDrivers = NULL))
+  out <- pfmSpecs(specs, verbose = FALSE, apTransforms = "linear",
+                  interactionWeights = c("Liberal Democracy (VDem)", "Liberal Democracy (VDem)@accRoL"))
+  nm <- vapply(out, `[[`, character(1), "name")
+  expect_setequal(nm, c("X-1 a", "X-1 a iw:libdem"))   # rule of law only: the scoped twin is the unscoped one
+})
+
+test_that("a scoped twin is added only where it differs from the unweighted and the unscoped twin", {
+  mk <- function(nm, inst) list(name = nm, actorPowerDrivers = "Incumbent Power", actorPowerIndex = "Incumbent Power",
+                                instQualityDrivers = inst, controlDrivers = NULL)
+  specs <- list(mk("X-1 mixed", c("Government Effectiveness (WGI)", "Vertical Accountability (VDem)")),
+                mk("X-2 allIn", c("Rule of Law (VDem)", "Vertical Accountability (VDem)")),
+                mk("X-3 noneIn", "Government Effectiveness (WGI)"))
+  out <- pfmSpecs(specs, verbose = FALSE, apTransforms = "linear",
+                  interactionWeights = c("none", "Electoral Democracy (VDem)", "Electoral Democracy (VDem)@accRoL"))
+  nm <- vapply(out, `[[`, character(1), "name")
+  expect_true("X-1 mixed iw:poly@accRoL" %in% nm)
+  expect_false(any(c("X-2 allIn iw:poly@accRoL", "X-3 noneIn iw:poly@accRoL") %in% nm))
+  expect_true(all(c("X-2 allIn iw:poly", "X-3 noneIn iw:poly") %in% nm))
+})

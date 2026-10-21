@@ -32,7 +32,9 @@ spec with actor-power x institution interactions, its interactions multiplied by
 (\code{interactionWeight}; design note 0007, O10). \code{"none"} or empty (default) adds none.
 The twins carry the suffix \code{" iw:poly"} (V-Dem electoral democracy), \code{" iw:libdem"}
 (liberal democracy) or \code{" iw:fexp"} (freedom of expression and alternative information);
-another variable gets \code{" iw:"} and its syntactic name.}
+another variable gets \code{" iw:"} and its syntactic name. A variable followed by
+\code{"@accRoL"} weights only the accountability and rule-of-law interactions (design note 0007
+section 8, A7); its twins carry the scope in the suffix (\code{" iw:libdem@accRoL"}).}
 }
 \value{
 The adapted, normalised spec list.

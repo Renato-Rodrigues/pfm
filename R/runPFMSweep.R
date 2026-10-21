@@ -606,7 +606,9 @@ runPFMSweep <- function(group,
 #'   (\code{interactionWeight}; design note 0007, O10). \code{"none"} or empty (default) adds none.
 #'   The twins carry the suffix \code{" iw:poly"} (V-Dem electoral democracy), \code{" iw:libdem"}
 #'   (liberal democracy) or \code{" iw:fexp"} (freedom of expression and alternative information);
-#'   another variable gets \code{" iw:"} and its syntactic name.
+#'   another variable gets \code{" iw:"} and its syntactic name. A variable followed by
+#'   \code{"@accRoL"} weights only the accountability and rule-of-law interactions (design note 0007
+#'   section 8, A7); its twins carry the scope in the suffix (\code{" iw:libdem@accRoL"}).
 #' @return The adapted, normalised spec list.
 #' @export
 pfmSpecs <- function(specs, verbose = TRUE, apTransforms = c("linear", "saturating"),
@@ -701,9 +703,23 @@ pfmSpecs <- function(specs, verbose = TRUE, apTransforms = c("linear", "saturati
   hasInteractions <- function(cfg) length(unlist(cfg$actorPowerIndex)) > 0 && length(unlist(cfg$instQualityDrivers)) > 0
   iwShort <- c("Electoral Democracy (VDem)" = "poly", "Liberal Democracy (VDem)" = "libdem",
                "Freedom of Expression (VDem)" = "fexp")
-  iwSuffix <- function(wv) paste0(" iw:", if (wv %in% names(iwShort)) iwShort[[wv]] else make.names(wv))
+  # a scoped weight ("<variable>@accRoL", .pfmIwScopes) keeps its scope in the suffix: " iw:libdem@accRoL"
+  iwSuffix <- function(wv) {
+    p <- .pfmIwParse(wv)
+    paste0(" iw:", if (p$variable %in% names(iwShort)) iwShort[[p$variable]] else make.names(p$variable),
+           if (!is.null(p$scope)) paste0("@", p$scope) else "")
+  }
   base <- Filter(hasInteractions, specs)
-  wTwins <- unlist(lapply(interactionWeights, function(wv) lapply(base, function(cfg) {
+  # A scoped weight differs from the unscoped one only where the spec interacts with institutions both in
+  # and out of the scope: with none in scope its twin is the unweighted spec, with all in scope it is the
+  # unscoped twin. Those duplicates are not added.
+  scopeDiffers <- function(cfg, wv) {
+    sc <- .pfmIwParse(wv)$scope
+    if (is.null(sc)) return(TRUE)
+    inScope <- grepl(.pfmIwScopes[[sc]], make.names(unlist(cfg$instQualityDrivers)))
+    any(inScope) && !all(inScope)
+  }
+  wTwins <- unlist(lapply(interactionWeights, function(wv) lapply(Filter(function(cfg) scopeDiffers(cfg, wv), base), function(cfg) {
     cfg$interactionWeight <- wv
     cfg$name <- paste0(cfg$name, iwSuffix(wv))
     cfg$description <- paste0(cfg$description %||% "", if (nzchar(cfg$description %||% "")) " " else "",

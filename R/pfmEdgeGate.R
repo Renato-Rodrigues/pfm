@@ -19,7 +19,8 @@
 #'     to the last year, moves by more than \code{capShift}.
 #' }
 #' Regions are those of \code{mapping}, weighted by \code{\link{pfmCouplingWeights}} (final energy).
-#' An interaction weight (\code{interactionWeight}) is honoured: its column multiplies every interaction.
+#' An interaction weight (\code{interactionWeight}) is honoured: its column multiplies every interaction
+#' in its scope (\code{.pfmIwFactor}).
 #'
 #' @param beta Named frontier coefficients (\code{sigmaSq}, \code{gamma} removed).
 #' @param scenDf The prepared and guarded scenario frame (every country, every year).
@@ -40,8 +41,10 @@
   if (length(ints)) rownames(pr) <- ints
   keep <- grepl("Power", pr[, 1]) & pr[, 1] %in% colnames(scenDf) & pr[, 2] %in% colnames(scenDf)
   pr <- pr[keep, , drop = FALSE]; ints <- rownames(pr)
-  w <- if ("interactionWeight__" %in% colnames(scenDf)) scenDf[["interactionWeight__"]] else rep(1, nrow(scenDf))
-  w[!is.finite(w)] <- 1
+  # the weight of each interaction (its scope included), on every row
+  wOf <- lapply(stats::setNames(ints, ints), function(k) {
+    v <- rep_len(.pfmIwFactor(scenDf, pr[k, 2]), nrow(scenDf)); v[!is.finite(v)] <- 1; v
+  })
   yrs <- sort(unique(scenDf$year))
   pick <- function(y) yrs[which.min(abs(yrs - y))]
   y0 <- pick(years[1]); y1 <- pick(years[2])
@@ -63,8 +66,8 @@
   for (d in intersect(names(expect), names(beta))) {
     if (sign(beta[[d]]) != expect[[d]] || !d %in% colnames(scenDf)) next   # the centre disagrees: model-wide, not an edge
     s <- rep(beta[[d]], length(i0))
-    for (k in ints[pr[, 1] == d]) s <- s + beta[[k]] * scenDf[[pr[k, 2]]][i0] * w[i0]
-    for (k in ints[pr[, 2] == d]) s <- s + beta[[k]] * scenDf[[pr[k, 1]]][i0] * w[i0]
+    for (k in ints[pr[, 1] == d]) s <- s + beta[[k]] * scenDf[[pr[k, 2]]][i0] * wOf[[k]][i0]
+    for (k in ints[pr[, 2] == d]) s <- s + beta[[k]] * scenDf[[pr[k, 1]]][i0] * wOf[[k]][i0]
     eff <- abs((scenDf[[d]][i1] - scenDf[[d]][i0]) * s)
     flag <- sign(s) != expect[[d]] & is.finite(eff) & eff >= g$effect
     sh <- regionShare(flag)
@@ -82,7 +85,7 @@
     dEta <- rep(0, nrow(scenDf))
     for (k in ints) {
       m <- pr[k, 2]; v <- scenDf[[m]]
-      dEta <- dEta + beta[[k]] * scenDf[[pr[k, 1]]] * (pmin(pmax(v, lo[[m]]), hi[[m]]) - v) * w
+      dEta <- dEta + beta[[k]] * scenDf[[pr[k, 1]]] * (pmin(pmax(v, lo[[m]]), hi[[m]]) - v) * wOf[[k]]
     }
     dEta[!is.finite(dEta)] <- 0
     level <- dEta[i0]; change <- dEta[i1] - dEta[i0]

@@ -113,7 +113,10 @@ to linear over the observed range. Fit mode only, like \code{apTransform}: the s
 interaction (design note 0007, O10), read with the drivers' lag and kept on its own scale
 (column \code{interactionWeight__}). Fit mode records it on the returned
 \code{"driverScaling"}; apply mode reads it from there when this is \code{NULL}.
-\code{NULL} or \code{"none"} (default): unweighted interactions.}
+\code{NULL} or \code{"none"} (default): unweighted interactions. A suffix \code{"@accRoL"}
+(e.g. \code{"Liberal Democracy (VDem)@accRoL"}) weights only the accountability and rule-of-law
+interactions; the state-capability interactions act unweighted (design note 0007 §8, A7;
+\code{.pfmIwScopes}).}
 
 \item{excludeCountries}{ISO3 codes dropped from the panel before estimation.
 Defaults to \code{getOption("pfm.excludeCountries", "EST")}. Estonia's upstream
