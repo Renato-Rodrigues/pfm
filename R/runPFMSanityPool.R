@@ -81,6 +81,7 @@ runPFMSanityPool <- function(group,
     apSd <- apExtrapolationSd %||% rec$apExtrapolationSd %||% 1
     apWin <- apExtrapolationWindow %||% rec$apExtrapolationWindow %||% c(2025, 2100)
     edge <- rec$edgeGate   # NULL ("off") for every group up to v6 (design note 0007)
+    theory <- rec$theoryGate   # H3 in the walk; H1-H2 already left the pool through mm$gatePass (0007 section 15)
 
     hash <- tryCatch(jsonlite::read_json(file.path(groupDir, "manifest.json"))$panel_hash,
                      error = function(e) NULL)
@@ -115,7 +116,7 @@ runPFMSanityPool <- function(group,
       supportShareGate = supportShareGate, ceilingFallGate = ceilingFallGate,
       gammaGate = gammaGate, vcovGate = vcovGate,
       apExtrapolationGate = apGate, apExtrapolationSd = apSd, apExtrapolationWindow = apWin,
-      edgeGate = edge,
+      edgeGate = edge, theoryGate = theory,
       say = say, stopAtFirstPass = FALSE)
   }
 

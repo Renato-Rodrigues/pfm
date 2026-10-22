@@ -154,6 +154,12 @@
 #'   \code{mapping}; design note 0007 section 5). Severe when a driver is pushed against the
 #'   frontier's reading in a material share of a region, or when capping the interactions at the
 #'   sample's range moves the regional ceilings.
+#' @param theoryGate \code{NULL} (default, as up to v7's first selection) or a list (\code{p}, \code{structural},
+#'   \code{contingency}, \code{coherence}) for the theory gate (design note 0007 section 15): H1 fossil dependence
+#'   lowers the ceiling (main effect < 0, p < \code{p}) and H2 depends on institutions (a fossil x institution term
+#'   at p < \code{p} / their number) in every sector, screened on the fits before the walk; H3 the fossil effect,
+#'   interactions included, is negative in at least \code{coherence} of the estimation rows, severe in the walk.
+#'   The verdicts are kept as \code{sweep.rds$theory}.
 #' @param minScenarioDelta,deltaWindow Responsiveness-gate knobs (default
 #'   \code{0.05} index points over \code{c(2040, 2060)}).
 #' @param sanityBatchSize,sanityMaxModels,sanityThresholds Sanity-walk knobs;
@@ -211,6 +217,7 @@ runPFMSweep <- function(group,
                         apExtrapolationWindow = c(2025, 2100),
                         interactionWeights = character(0),
                         edgeGate = NULL,
+                        theoryGate = NULL,
                         extraAccountability = character(0),
                         gdxRegionMappingFile = "regionmappingH12.csv",
                         apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
@@ -399,6 +406,21 @@ runPFMSweep <- function(group,
                         ps$bestDeltaR2, ps$sharingCost), collapse = " | "))
     }
   }
+  # Theory gate, H1-H2 (design note 0007 section 15): every spec of the pool whose fits do not show fossil
+  # dependence lowering the ceiling, and depending on institutions, in every sector leaves the pool before the walk.
+  theoryScreen <- NULL; theoryPassAll <- NULL
+  if (!is.null(theoryGate) && !is.null(grid$coefficients)) {
+    theoryScreen <- .pfmTheoryScreen(grid$coefficients, unique(results$model), sectors, theoryGate)
+    theoryPassAll <- theoryScreen$model[theoryScreen$pass]
+    bad <- mm$gatePass & !mm$model %in% theoryPassAll
+    why <- theoryScreen$reason[match(mm$model[bad], theoryScreen$model)]
+    mm$gateFailReason[bad] <- ifelse(nzchar(mm$gateFailReason[bad]), paste0(mm$gateFailReason[bad], "; "), "")
+    mm$gateFailReason[bad] <- paste0(mm$gateFailReason[bad], "theory: ", why)
+    mm$gatePass[bad] <- FALSE
+    maximin[["PolicyStringency"]] <- mm
+    say("Theory gate (H1 structural power, H2 contingency): ", sum(mm$gatePass), " of ", sum(mm$gatePass | bad),
+        " pool spec(s) pass; best-ranked passing: ", mm$model[mm$gatePass][1] %||% "none")
+  }
   pass <- mm[mm$gatePass, , drop = FALSE]
   if (nrow(pass) == 0) {
     # Self-diagnosing: tally WHY every spec failed the hard gate (reason labels,
@@ -446,7 +468,7 @@ runPFMSweep <- function(group,
       vcovGate = vcovGate,
       apExtrapolationGate = apExtrapolationGate, apExtrapolationSd = apExtrapolationSd,
       apExtrapolationWindow = apExtrapolationWindow,
-      edgeGate = edgeGate,
+      edgeGate = edgeGate, theoryGate = theoryGate,
       say = say
     )
     # Tier-relaxed fallback (ADR 0039): if every Green-gate candidate fails the
@@ -456,6 +478,7 @@ runPFMSweep <- function(group,
           !is.null(selectionVariants) && "Blue" %in% names(selectionVariants$rankings)) {
       mmBlue <- selectionVariants$rankings$Blue
       blueOnly <- setdiff(mmBlue$model[mmBlue$gatePass], pass$model)
+      if (!is.null(theoryScreen)) blueOnly <- intersect(blueOnly, theoryPassAll)
       if (length(blueOnly) > 0) {
         say("Green pool exhausted in sanity - walking the tier-relaxed (Blue) pool ...")
         selBlue <- .pfmSanitySelect(
@@ -473,7 +496,7 @@ runPFMSweep <- function(group,
           vcovGate = vcovGate,
           apExtrapolationGate = apExtrapolationGate, apExtrapolationSd = apExtrapolationSd,
           apExtrapolationWindow = apExtrapolationWindow,
-          edgeGate = edgeGate,
+          edgeGate = edgeGate, theoryGate = theoryGate,
           say = say
         )
         if (!isTRUE(selBlue$forced)) {
@@ -529,7 +552,7 @@ runPFMSweep <- function(group,
   res <- list(
     results = results, coefficients = grid$coefficients,
     maximin = maximin, selected = selected, sanity = sanity,
-    selectionVariants = selectionVariants,
+    selectionVariants = selectionVariants, theory = theoryScreen,
     specs = specs, selectedConfigPath = selectedConfigPath,
     fitSummary = list(nJobs = grid$nJobs, nNew = grid$nNew, nFailed = grid$nFailed)
   )
@@ -550,6 +573,7 @@ runPFMSweep <- function(group,
                         # the interaction-weight axis and the edge-of-data gate (design note 0007)
                         interactionWeights = as.list(interactionWeights),
                         edgeGate = edgeGate %||% "off",
+                        theoryGate = theoryGate %||% "off",
                         extraAccountability = as.list(extraAccountability)),
     # Every key of the definition: a key left out is read back as its default by every later step
     # (diagnostics, downstream, the coupling), which would then build panels without the columns the

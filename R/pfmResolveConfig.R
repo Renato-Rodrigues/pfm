@@ -252,6 +252,17 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
     }
     if (is.null(o$edgeGate)) o["edgeGate"] <- list(NULL)
   }
+  # The theory gate (design note 0007 section 15): "off", on (declared defaults), or a mapping.
+  if (!is.null(o$theoryGate)) {
+    tg <- o$theoryGate
+    o$theoryGate <- if (isOff(tg)) NULL else if (isTRUE(tg) || identical(tg, "on")) .pfmTheoryGateDefaults() else {
+      if (!is.list(tg)) stop("sweep options: 'theoryGate' must be \"off\", on, or a mapping", call. = FALSE)
+      bad <- setdiff(names(tg), names(.pfmTheoryGateDefaults()))
+      if (length(bad)) stop("sweep options: unknown theoryGate key(s) ", paste(bad, collapse = ", "), call. = FALSE)
+      utils::modifyList(.pfmTheoryGateDefaults(), tg[!vapply(tg, is.null, logical(1))])
+    }
+    if (is.null(o$theoryGate)) o["theoryGate"] <- list(NULL)
+  }
   o
 }
 
@@ -260,7 +271,7 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
 .pfmSweepOptionKeys <- c("apTransforms", "dropCompositeAP", "apExtrapolationGate",
                          "apExtrapolationSd", "apExtrapolationWindow",
                          "softVifGate", "inferenceTGate",
-                         "interactionWeights", "edgeGate", "extraAccountability")
+                         "interactionWeights", "edgeGate", "extraAccountability", "theoryGate")
 
 # A group's sweep options: the manifest record > none for a group swept before the record
 # (runPFMSweep's defaults, the v5 grid) > config.yml sweep: > none. As .pfmPanelDefForGroup.
@@ -306,6 +317,9 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
          {ea <- as.character(unlist(o$extraAccountability))
           if (length(ea)) paste0("; extra accountability channels: ", paste(ea, collapse = ", ")) else ""},
          if (is.list(o$edgeGate)) paste0("; edge-of-data gate (share ", o$edgeGate$share, ", effect ",
-                                         o$edgeGate$effect, ", cap shift ", o$edgeGate$capShift, ")") else "")
+                                         o$edgeGate$effect, ", cap shift ", o$edgeGate$capShift, ")") else "",
+         if (is.list(o$theoryGate)) paste0("; theory gate (p ", o$theoryGate$p, ", H1 ", isTRUE(o$theoryGate$structural),
+                                           ", H2 ", isTRUE(o$theoryGate$contingency), ", H3 coherence ",
+                                           o$theoryGate$coherence, ")") else "")
 }
 # nolint end

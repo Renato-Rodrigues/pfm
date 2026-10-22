@@ -48,6 +48,7 @@ runPFMSweep(
   apExtrapolationWindow = c(2025, 2100),
   interactionWeights = character(0),
   edgeGate = NULL,
+  theoryGate = NULL,
   extraAccountability = character(0),
   gdxRegionMappingFile = "regionmappingH12.csv",
   apPcForms = c("splitAPpc", "mixedAP", "bothIncAP"),
@@ -205,6 +206,13 @@ gate of the sanity walk (\code{share}, \code{effect}, \code{capShift}, \code{cap
 \code{mapping}; design note 0007 section 5). Severe when a driver is pushed against the
 frontier's reading in a material share of a region, or when capping the interactions at the
 sample's range moves the regional ceilings.}
+
+\item{theoryGate}{\code{NULL} (default, as up to v7's first selection) or a list (\code{p}, \code{structural},
+\code{contingency}, \code{coherence}) for the theory gate (design note 0007 section 15): H1 fossil dependence
+lowers the ceiling (main effect < 0, p < \code{p}) and H2 depends on institutions (a fossil x institution term
+at p < \code{p} / their number) in every sector, screened on the fits before the walk; H3 the fossil effect,
+interactions included, is negative in at least \code{coherence} of the estimation rows, severe in the walk.
+The verdicts are kept as \code{sweep.rds$theory}.}
 
 \item{extraAccountability}{Character. Extra accountability channels added to the spec grid as a
 further option of the accountability slot (\code{"OvAcc"}: V-Dem's overall accountability, the

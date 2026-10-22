@@ -393,7 +393,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
                              vcovGate = c("likelihood-mismatch", "flat"),
                              apExtrapolationGate = Inf, apExtrapolationSd = 1,
                              apExtrapolationWindow = c(2025, 2100),
-                             edgeGate = NULL,
+                             edgeGate = NULL, theoryGate = NULL,
                              say = function(...) invisible(),
                              stopAtFirstPass = TRUE) {
   # stopAtFirstPass = FALSE walks EVERY model in passModels (up to maxModels) and returns a
@@ -535,7 +535,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
       # support edge), so on its own this gate would select inert specs. Never
       # enable it without those two.
       # The edge-of-data gate (design note 0007) reads the same frontier fit, so it also needs `ct`.
-      if (is.finite(ceilingFallGate) || !is.null(edgeGate)) {
+      if (is.finite(ceilingFallGate) || !is.null(edgeGate) || !is.null(theoryGate)) {
         ct <- tryCatch(
           .pfmCeilingTrajectory(cfg, sec, panelData, scenarioData,
                                 modelDir = modelDir, indexMax = indexMax, edgeGate = edgeGate),
@@ -616,6 +616,25 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
             detail = ct$edge$detail, sector = sec, stringsAsFactors = FALSE
           )
           say("  [sanity:PolicyStringency] ", m, " (", sec, ") edge of data: ", ct$edge$detail)
+        }
+
+        # Theory gate, H3 (design note 0007 section 15): the fossil effect, its interactions included, is a
+        # constraint over most of the estimation sample. H1-H2 screened the pool before the walk.
+        if (!is.null(theoryGate) && !is.null(ct)) {
+          tg <- utils::modifyList(.pfmTheoryGateDefaults(), theoryGate)
+          sh <- ct$coherence$share %||% NA_real_
+          if (is.finite(tg$coherence %||% NA_real_) && !(is.finite(sh) && sh >= tg$coherence)) {
+            nSevere <- nSevere + 1L
+            modelFlags[[paste0(sec, ".theoryCoherence")]] <- data.frame(
+              rule = "theoryCoherence", severity = "severe",
+              region = "ALL", year = NA_integer_, value = sh,
+              detail = sprintf("fossil effect (%s, interactions included) negative in %.0f%% of the estimation rows < %.0f%%",
+                               ct$coherence$driver %||% "?", 100 * sh, 100 * tg$coherence),
+              sector = sec, stringsAsFactors = FALSE
+            )
+            say("  [sanity:PolicyStringency] ", m, " (", sec, ") theory coherence: fossil effect negative in ",
+                round(100 * sh), "% of the sample < ", round(100 * tg$coherence), "%")
+          }
         }
 
         if (!is.null(ct) && is.finite(ct$ratio)) {
@@ -838,6 +857,8 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
   } else NULL
   list(ratio = if (is.finite(y0) && y0 > 0) y1 / y0 else NA_real_,
        ceil0 = y0, ceil1 = y1, year0 = years[1], year1 = years[2], edge = edge,
+       # theory gate H3: the share of estimation rows with a negative conditional fossil effect (free, like gamma)
+       coherence = tryCatch(.pfmTheoryCoherence(b, ff$data), error = function(e) list(share = NA_real_, driver = NA_character_)),
        # the fit itself, for screens that compare specifications on it (analysis/checks/vdemScreen.R)
        logLik = tryCatch(as.numeric(stats::logLik(ff$model)), error = function(e) NA_real_), beta = b,
        se = tryCatch(sqrt(pmax(diag(stats::vcov(ff$model)), 0))[names(b)], error = function(e) NULL),
