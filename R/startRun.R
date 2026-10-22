@@ -217,6 +217,9 @@ startRun <- function(group,
 #' @keywords internal
 .rlit <- function(x) {
   if (is.null(x)) return("NULL")
+  # A list (the edge-of-data gate's thresholds) keeps its names and element types: written as
+  # c(...) it reached the v7 job (2026-10-21) as six unnamed strings, and the gate could not run.
+  if (is.list(x)) return(paste(deparse(x, width.cutoff = 500L), collapse = " "))
   # Vectors first, whatever their type: a numeric c(2025, 2100) used to come back as two
   # strings, which would have split the job script's call.
   if (length(x) != 1) return(paste0("c(", paste(vapply(x, .rlit, character(1)), collapse = ", "), ")"))

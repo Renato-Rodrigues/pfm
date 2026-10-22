@@ -34,8 +34,18 @@
 #'   share and drivers), \code{capShift} (the largest regional shift), \code{capRegion}, \code{detail}.
 #' @keywords internal
 .pfmEdgeGate <- function(beta, scenDf, mm, trainDf, years = c(2025, 2100), gate = list()) {
+  if (!is.list(gate %||% list())) {
+    stop(".pfmEdgeGate: `gate` must be a named list of thresholds (share, effect, capShift, cap, mapping)",
+         call. = FALSE)
+  }
   g <- utils::modifyList(.pfmEdgeGateDefaults(), gate %||% list())
+  # The expected direction of each interest (theory, design note 0007 section 2), read on its share form,
+  # or on its per-person form where the spec measures that interest per person only (splitAPpc). Next to
+  # its share form the per-person fossil term carries no expectation (only the pair has one).
   expect <- c(Innovator.Power = 1, Incumbent.Power = -1)
+  names(expect) <- vapply(names(expect), function(d) {
+    if (!d %in% names(beta) && paste0(d, ".pc") %in% names(beta)) paste0(d, ".pc") else d
+  }, character(1))
   ints <- grep("_x_", names(beta), value = TRUE)
   pr <- if (length(ints)) do.call(rbind, strsplit(ints, "_x_", fixed = TRUE)) else matrix(character(0), 0, 2)
   if (length(ints)) rownames(pr) <- ints

@@ -204,3 +204,33 @@ test_that("a scoped twin is added only where it differs from the unweighted and 
   expect_false(any(c("X-2 allIn iw:poly@accRoL", "X-3 noneIn iw:poly@accRoL") %in% nm))
   expect_true(all(c("X-2 allIn iw:poly", "X-3 noneIn iw:poly") %in% nm))
 })
+
+# --- found on v7's first sweep (2026-10-22): the gate never ran -----------------------------------------------
+
+test_that("the job script writes the gate's thresholds as a named list", {
+  g <- list(share = 0.25, effect = 0.25, capShift = 0.5, cap = c(0.05, 0.95), mapping = "regionmapping_21_EU11.csv")
+  expect_identical(eval(parse(text = .rlit(g))), g)
+  expect_identical(eval(parse(text = .rlit(c(2025, 2100)))), c(2025, 2100))   # atomic vectors as before
+  expect_error(.pfmEdgeGate(c(Incumbent.Power = 1), data.frame(), NULL, data.frame(), gate = unlist(g)),
+               "named list")
+})
+
+test_that("the gate reads the direction on the per-person forms when the spec has no share form", {
+  set.seed(3)
+  ctys <- c(paste0("C", 1:20), "CHN", "SAU")
+  d <- expand.grid(region = ctys, year = c(2025, 2100), stringsAsFactors = FALSE)
+  d$Incumbent.Power.pc <- ifelse(d$year == 2025, 1, -1)
+  d$Innovator.Power.pc <- ifelse(d$year == 2025, -1, 1)
+  d$Vertical.Accountability..VDem. <- ifelse(d$region %in% c("CHN", "SAU"), -4, 0.2)
+  d$Incumbent.Power.pc_x_Vertical.Accountability..VDem. <- d$Incumbent.Power.pc * d$Vertical.Accountability..VDem.
+  train <- data.frame(Vertical.Accountability..VDem. = rnorm(200, 0, 0.5))
+  beta <- c(Incumbent.Power.pc = -0.15, Innovator.Power.pc = 0.1,
+            Incumbent.Power.pc_x_Vertical.Accountability..VDem. = -0.54)
+  local_mocked_bindings(
+    .pfmResolveCountryMap = function(mapping) stats::setNames(ifelse(ctys %in% c("CHN", "SAU"), "AUT", "DEM"), ctys),
+    pfmCouplingWeights = function(...) stats::setNames(rep(1, length(ctys)), ctys))
+  bad <- .pfmEdgeGate(beta, d, NULL, train, gate = list(mapping = NULL))
+  expect_false(bad$pass)
+  expect_true("AUT" %in% bad$against$region)
+  expect_true(all(bad$against$driver == "Incumbent.Power.pc"))
+})

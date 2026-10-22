@@ -604,7 +604,11 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
         # reading by interactions evaluated far from the sample, or ceilings that move when those
         # interactions are capped at the sample's range. Severe; thresholds declared in config.yml
         # `sweep: edgeGate`. Off (NULL) for every group up to v6.
-        if (!is.null(edgeGate) && !is.null(ct$edge) && identical(ct$edge$pass, FALSE)) {
+        # A gate that was asked for but could not be evaluated fails too: v7's first sweep
+        # (2026-10-22) passed every candidate because the gate errored on its own thresholds.
+        if (!is.null(edgeGate) && !is.null(ct) && (is.null(ct$edge) || !isTRUE(ct$edge$pass))) {
+          if (is.null(ct$edge)) ct$edge <- list(pass = NA, capShift = NA_real_, detail = "edge gate not evaluated")
+          if (!is.numeric(ct$edge$capShift) || length(ct$edge$capShift) != 1) ct$edge$capShift <- NA_real_
           nSevere <- nSevere + 1L
           modelFlags[[paste0(sec, ".edgeOfData")]] <- data.frame(
             rule = "edgeOfData", severity = "severe",
