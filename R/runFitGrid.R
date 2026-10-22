@@ -116,7 +116,8 @@ fitOneSpec <- function(cfg, sector, stage, panelData, family = "gaussian",
     coefRows <- ct
   }
   list(metrics = metrics, coefRows = coefRows,
-       failed = is.null(fit) || is.null(fit$model), errMsg = errMsg)
+       failed = is.null(fit) || is.null(fit$model), errMsg = errMsg,
+       indexEntry = if (!is.null(fit)) fit$cacheIndexEntry else NULL)
 }
 
 #' Fit a full sweep grid (specs × sectors × stages), optionally in parallel
@@ -169,6 +170,10 @@ runFitGrid <- function(specs, sectors, stages, panelData, family = "gaussian",
     length(list.files(file.path(modelDir, "models"), pattern = "\\.rds$"))
   } else 0L
   nBefore <- countRds()
+  idsOf <- function() if (!is.null(modelDir)) {
+    sub("\\.rds$", "", list.files(file.path(modelDir, "models"), pattern = "\\.rds$"))
+  } else character(0)
+  idsBefore <- idsOf()
 
   workerSetup <- .captureWorkerSetup(modelDir)
   fitFun <- function(job) {
@@ -187,8 +192,14 @@ runFitGrid <- function(specs, sectors, stages, panelData, family = "gaussian",
   nFailed <- sum(vapply(out, function(o) isTRUE(o$failed), logical(1)))
 
   # Master writes the index exactly once (ADR 0019: avoids the parallel race and the
-  # O(n^2) per-save churn).
-  if (!is.null(modelDir)) rebuildPFMModelIndex(modelDir)
+  # O(n^2) per-save churn). It merges the rows the workers returned into the existing index
+  # instead of re-reading every fit on disk: a full rebuild reads the whole Fit Cache (v7,
+  # 2026-10-22: 600 GB, 17 h on one core). Only fits written by this run that came back
+  # without a row (the adoption and retired stringency stages) are read.
+  if (!is.null(modelDir)) {
+    entries <- Filter(Negate(is.null), lapply(out, `[[`, "indexEntry"))
+    .pfmMergeModelIndex(modelDir, entries, readIds = setdiff(idsOf(), idsBefore))
+  }
   nNew <- max(0L, countRds() - nBefore)
   say(total, " jobs: ", nNew, " newly fit, ~", max(0L, total - nNew - nFailed),
       " from cache, ", nFailed, " failed.")

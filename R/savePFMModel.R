@@ -228,9 +228,52 @@ rebuildPFMModelIndex <- function(dir = getOption("pfm.modelDir")) {
     }
     entries[[length(entries) + 1L]] <- .pfmModelIndexEntry(m)
   }
-  idx <- if (length(entries) > 0) do.call(rbind, entries) else data.frame()
+  idx <- .pfmBindIndexRows(entries)
   jsonlite::write_json(idx, idxPath, pretty = TRUE, auto_unbox = TRUE)
   if (nBad > 0) message("rebuildPFMModelIndex: ", nBad, " unreadable fit(s) skipped.")
+  invisible(idx)
+}
+
+# Bind one-row index entries by column: do.call(rbind) on 1e5 one-row data.frames takes hours.
+.pfmBindIndexRows <- function(entries) {
+  if (!length(entries)) return(data.frame())
+  cols <- unique(unlist(lapply(entries, names)))
+  out <- lapply(cols, function(cl) {
+    v <- lapply(entries, function(e) if (cl %in% names(e)) e[[cl]] else NA)
+    if (all(lengths(v) == 1L)) unlist(v, use.names = FALSE) else vapply(v, function(x) paste(x, collapse = " "), "")
+  })
+  names(out) <- cols
+  as.data.frame(out, stringsAsFactors = FALSE)
+}
+
+# Merge new index rows into index.json (one read, one write): a new row replaces the row of
+# the same id; rows whose fit file is gone are dropped. `readIds`: fits to read for their row
+# when none was passed (only those).
+.pfmMergeModelIndex <- function(dir, entries, readIds = character(0)) {
+  have <- vapply(entries, function(e) as.character(e$id[1]), "")
+  for (id in setdiff(readIds, have)) {
+    m <- tryCatch(readRDS(file.path(dir, "models", paste0(id, ".rds"))), error = function(e) NULL)
+    if (inherits(m, "PFMModel")) entries[[length(entries) + 1L]] <- .pfmModelIndexEntry(m)
+  }
+  idxPath <- file.path(dir, "index.json")
+  existing <- if (file.exists(idxPath)) {
+    tryCatch(jsonlite::fromJSON(idxPath, simplifyDataFrame = TRUE), error = function(e) data.frame())
+  } else {
+    data.frame()
+  }
+  if (!is.data.frame(existing)) existing <- data.frame()
+  new <- .pfmBindIndexRows(entries)
+  if (nrow(new)) new <- new[!duplicated(new$id, fromLast = TRUE), , drop = FALSE]
+  if (nrow(existing) && "id" %in% names(existing)) {
+    onDisk <- sub("\\.rds$", "", list.files(file.path(dir, "models"), pattern = "\\.rds$"))
+    existing <- existing[existing$id %in% onDisk & !existing$id %in% new$id, , drop = FALSE]
+    for (cl in setdiff(names(new), names(existing))) existing[[cl]] <- rep(NA, nrow(existing))
+    for (cl in setdiff(names(existing), names(new))) new[[cl]] <- rep(NA, nrow(new))
+    idx <- if (nrow(new)) rbind(existing, new[, names(existing), drop = FALSE]) else existing
+  } else {
+    idx <- new
+  }
+  jsonlite::write_json(idx, idxPath, pretty = TRUE, auto_unbox = TRUE)
   invisible(idx)
 }
 # nolint end

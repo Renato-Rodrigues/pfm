@@ -393,6 +393,8 @@ estimatePolicyStringencyModel <- function(
           .pfmAMEIndex(cr$model, cr$vcov, estimator, indexMax, df, fml),
           error = function(e) NULL
         )
+        # the Fit Cache index row, so the sweep's master updates index.json without re-reading the file
+        cr$cacheIndexEntry <- tryCatch(.pfmModelIndexEntry(cached), error = function(e) NULL)
         cr
       }, error = function(e) {
         warning("estimatePolicyStringencyModel: cached fit '", loadId,
@@ -664,6 +666,7 @@ estimatePolicyStringencyModel <- function(
       pfmModel$applyState$seed_prices <- tapply(lvl, df$region, function(v) v[length(v)])
     }
     savePFMModel(pfmModel, modelDir, updateIndex = updateIndex)
+    result$cacheIndexEntry <- .pfmModelIndexEntry(pfmModel)
     if (isTRUE(verbose)) {
       message("  [saved] Policy-stringency model ", pfmModel$id, " -> ", modelDir)
     }
