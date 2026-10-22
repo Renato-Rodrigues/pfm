@@ -227,8 +227,9 @@ buildPFMScenarioConfig <- function(matrix, remindDir, out = NULL, write = TRUE, 
       }
     }
     get <- function(k) if (k %in% names(r$values)) r$values[[k]] else ""
-    if (r$coupled && startsWith(get("pfmGroup"), "v6") && !identical(get("cm_pfmPhiPath"), "1")) {
-      stop(r$title, ": a v6 group needs cm_pfmPhiPath = 1 (PITFALLS.md 33)", call. = FALSE)
+    gv <- suppressWarnings(as.integer(sub("^v([0-9]+).*$", "\\1", get("pfmGroup"))))
+    if (r$coupled && grepl("^v[0-9]+", get("pfmGroup")) && is.finite(gv) && gv >= 6 && !identical(get("cm_pfmPhiPath"), "1")) {
+      stop(r$title, ": a v6-or-later group needs cm_pfmPhiPath = 1 (PITFALLS.md 33)", call. = FALSE)
     }
   }
   invisible(TRUE)
