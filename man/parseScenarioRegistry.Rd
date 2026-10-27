@@ -46,7 +46,7 @@ runs). Defaults to \code{regionmappingH12.csv}.}
 \item{ssp}{The SSP the REMIND run uses (\code{cm_GDPpopScen}); drives the scenario
 panel's GDP, population and SSP-extension series. Default \code{"SSP2"}.}
 \item{institutions}{How institution series without an SSP projection are projected:
-\code{"storyline"} (default), \code{"convergence"} or \code{"hold"}
+\code{"storyline"} (default), \code{"convergence"}, \code{"hold"} or \code{"gapclosure"}
 (\code{\link{pfmInstitutionProjection}}).}
 }
 

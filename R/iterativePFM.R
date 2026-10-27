@@ -67,8 +67,8 @@
 #'   or the weights describe a different world than the model does. The same SSP drives
 #'   the scenario panel's GDP, population and SSP-extension series.
 #' @param institutions How the institution series without an SSP projection are projected
-#'   in the scenario panel: \code{"storyline"} (default), \code{"convergence"} or
-#'   \code{"hold"} (\code{\link{pfmInstitutionProjection}}). Inside a REMIND run it comes
+#'   in the scenario panel: \code{"storyline"} (default), \code{"convergence"}, \code{"hold"} or
+#'   \code{"gapclosure"} (\code{\link{pfmInstitutionProjection}}). Inside a REMIND run it comes
 #'   from \code{pfm-coupling.yml} (\code{cfg$pfmInstitutions}).
 #' @param couplingConfig Path to the run-local YAML written by REMIND's
 #'   \code{scripts/start/preparePFM.R}, holding the \strong{static} settings with

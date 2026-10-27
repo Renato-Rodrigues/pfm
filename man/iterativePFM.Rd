@@ -105,8 +105,8 @@ would freeze the mild-progression price at its seed. See the note beside
 \code{lambdaGap} in the body.}
 
 \item{institutions}{How the institution series without an SSP projection are projected
-in the scenario panel: \code{"storyline"} (default), \code{"convergence"} or
-\code{"hold"} (\code{\link{pfmInstitutionProjection}}). Inside a REMIND run it comes
+in the scenario panel: \code{"storyline"} (default), \code{"convergence"}, \code{"hold"} or
+\code{"gapclosure"} (\code{\link{pfmInstitutionProjection}}). Inside a REMIND run it comes
 from \code{pfm-coupling.yml} (\code{cfg$pfmInstitutions}).}
 
 \item{formulation}{\code{"auto"} (default), \code{"v6-anchor"} or \code{"v5-tier"}. \code{"auto"}

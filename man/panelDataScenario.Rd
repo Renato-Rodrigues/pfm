@@ -25,7 +25,8 @@ panelDataScenario(
     0.5)), diffuse = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
     list(vre = 0.5, elec = 1, biofuel = 0.4), incumbents_power = list(coal = 0.2, oilgas
     = 0.2, fossilInd = 1))),
-  harmonizeScenarioYear = 2040
+  harmonizeScenarioYear = 2040,
+  harmonizeShape = NULL
 )
 }
 \arguments{
@@ -58,9 +59,12 @@ series (Government Effectiveness, Control of Corruption, Rule of Law, urban shar
 gender inequality). Must match the REMIND run's \code{cm_GDPpopScen}. Default \code{"SSP2"}.}
 
 \item{institutions}{how institution series without an SSP projection are projected:
-\code{"storyline"} (default; for SSP2 identical to \code{"convergence"}), \code{"convergence"}
-or \code{"hold"}; see
-\code{\link{pfmInstitutionProjection}}.}
+\code{"storyline"} (default; for SSP2 identical to \code{"convergence"}), \code{"convergence"},
+\code{"hold"} or \code{"gapclosure"}; see \code{\link{pfmInstitutionProjection}}. Under
+\code{"gapclosure"} the rule series start from the history panel's last value, the democracy weight
+moves smoothly to the higher of that value and its mean over the last ten panel years (reached at
+\code{harmonizeScenarioYear}), and the harmonisation of every other series fades smoothly
+(\code{harmonizeShape}).}
 
 \item{histCache}{Path of a file caching the harmonisation's historical panel, or \code{NULL}
 (default: none). The historical panel does not depend on the gdx, so a coupled run, which
@@ -71,6 +75,11 @@ the V-Dem state-capacity rotation), and a key of every argument that shapes the 
 file with another key is rebuilt.}
 
 \item{coeff}{list of coefficients for actor power index calculation}
+
+\item{harmonizeShape}{how the harmonisation offset fades to zero by \code{harmonizeScenarioYear}:
+\code{"linear"} or \code{"smooth"} (a half cosine: no kink where the fade starts or ends).
+Default: \code{"smooth"} under \code{institutions = "gapclosure"}, else \code{"linear"} (every
+Run-Group up to \code{v7}).}
 }
 \value{
 Returns the combined magpie object for scenario data

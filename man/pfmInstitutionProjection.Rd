@@ -5,12 +5,13 @@
 \title{How institution series without an SSP projection are projected}
 \usage{
 pfmInstitutionProjection(
-  rule = c("storyline", "convergence", "hold"),
+  rule = c("storyline", "convergence", "hold", "gapclosure"),
   ssp = "SSP2"
 )
 }
 \arguments{
-\item{rule}{\code{"storyline"} (default), \code{"convergence"} or \code{"hold"}.}
+\item{rule}{\code{"storyline"} (default), \code{"convergence"}, \code{"hold"} or
+\code{"gapclosure"}.}
 
 \item{ssp}{\code{"SSP1"} ... \code{"SSP5"}; only \code{"storyline"} depends on it.}
 }
@@ -36,9 +37,18 @@ closed by 2080, complete by 2150 - the rule every Run-Group up to v5 used. Sensi
 the SSPs then differ only through the series that have an SSP projection.}
 \item{\code{"hold"}}{(d) the last observed value, held: no institutional change.
 Sensitivity, a bound.}
+\item{\code{"gapclosure"}}{(e) every country closes a fixed share of its distance to the top of
+the scale each year, \eqn{x(t) = 1 - (1 - x_a) e^{-\lambda (t - t_a)}}, on the panel's
+normalised scale (0 = worst, 1 = best value observed), from its value \eqn{x_a} in the last
+year of the estimation panel \eqn{t_a}: the projection starts where the fitted history ends,
+with no step. The rate \eqn{\lambda} is the one that best reproduces PoliClim's SSP2 country
+projections for the nearest PoliClim indicator (\code{\link{pfmInstitutionGapClosureRates}};
+\code{analysis/checks/policlimRuleFit.R}). No country declines; countries further from the top
+improve faster. Applied inside \code{\link{panelDataScenario}}, after normalisation
+(\code{.pfmGapClosurePanel}). The SSP2 central rule since 2026-10-27 (design note 0008).}
 }
-In every rule a country already above the target keeps its value rather than being pulled
-down (\code{keepIfAboveTarget}).
+In the convergence rules a country already above the target keeps its value rather than being
+pulled down (\code{keepIfAboveTarget}).
 }
 \seealso{
 \code{\link{pfmInstitutionStorylines}} for the declared table.

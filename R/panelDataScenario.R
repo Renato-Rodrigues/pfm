@@ -22,9 +22,16 @@
 #'   series (Government Effectiveness, Control of Corruption, Rule of Law, urban share, Gini,
 #'   gender inequality). Must match the REMIND run's \code{cm_GDPpopScen}. Default \code{"SSP2"}.
 #' @param institutions how institution series without an SSP projection are projected:
-#'   \code{"storyline"} (default; for SSP2 identical to \code{"convergence"}), \code{"convergence"}
-#'   or \code{"hold"}; see
-#'   \code{\link{pfmInstitutionProjection}}.
+#'   \code{"storyline"} (default; for SSP2 identical to \code{"convergence"}), \code{"convergence"},
+#'   \code{"hold"} or \code{"gapclosure"}; see \code{\link{pfmInstitutionProjection}}. Under
+#'   \code{"gapclosure"} the rule series start from the history panel's last value, the democracy weight
+#'   moves smoothly to the higher of that value and its mean over the last ten panel years (reached at
+#'   \code{harmonizeScenarioYear}), and the harmonisation of every other series fades smoothly
+#'   (\code{harmonizeShape}).
+#' @param harmonizeShape how the harmonisation offset fades to zero by \code{harmonizeScenarioYear}:
+#'   \code{"linear"} or \code{"smooth"} (a half cosine: no kink where the fade starts or ends).
+#'   Default: \code{"smooth"} under \code{institutions = "gapclosure"}, else \code{"linear"} (every
+#'   Run-Group up to \code{v7}).
 #' @param histCache Path of a file caching the harmonisation's historical panel, or \code{NULL}
 #'   (default: none). The historical panel does not depend on the gdx, so a coupled run, which
 #'   calls this once per REMIND iteration, builds it once (design note 0005 E17/F7, about a third
@@ -67,9 +74,12 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
                                   incumbents_power = list(coal = 0.2, oilgas = 0.2, fossilInd = 1)
                                 )
                               ),
-                              harmonizeScenarioYear = 2040) {
+                              harmonizeScenarioYear = 2040,
+                              harmonizeShape = NULL) {
   if (!ssp %in% paste0("SSP", 1:5)) stop("panelDataScenario: unknown ssp '", ssp, "'", call. = FALSE)
-  institutions <- match.arg(institutions, c("storyline", "convergence", "hold"))
+  institutions <- match.arg(institutions, c("storyline", "convergence", "hold", "gapclosure"))
+  harmonizeShape <- match.arg(harmonizeShape %||% if (institutions == "gapclosure") "smooth" else "linear",
+                              c("linear", "smooth"))
   # "country" sentinel: see panelDataHistorical (identity mapping + scoped config)
   countryLevel <- identical(outputRegionMappingFile, "country")
   outputRegionMappingFile <- resolveRegionMapping(outputRegionMappingFile)
@@ -183,6 +193,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
   # declared rule, whatever `institutions` says: no regime path is projected).
   if (isTRUE(democracy)) {
     dem <- calcOutput("VDem", subtype = "democracy", aggregate = aggregate, regionmapping = outputRegionMappingFile)
+    # (under the gap-closure rule its level is set after harmonisation, .pfmGapClosurePanel)
     demInt <- mrpfm::toolImputeMedians(.pfmProjectInstitutions(dem, y, "hold", ssp))
     out <- mbind(out, demInt[, y, ])
   }
@@ -318,7 +329,20 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
     # their stringency by up to 6.6 index points at the anchor seam (PITFALLS 30).
     varsToHarmonize <- intersect(magclass::getNames(out), magclass::getNames(histPanel))
     out <- .pfmHarmoniseScenario(out, histPanel, outAtStitch, varsToHarmonize, stitchYear,
-                                 harmonizeScenarioYear)
+                                 harmonizeScenarioYear, shape = harmonizeShape)
+    # The gap-closure rule (design note 0008) works on the normalised scale from the history panel's last
+    # value, so the projection starts where the fitted history ends: the institution-rule series and the
+    # democracy weights are replaced after the panel's last year (the state-capacity component below is
+    # computed from them).
+    if (institutions == "gapclosure") {
+      ruleVars <- c("Voice and Accountability (WGI)", "Political Stability (WGI)", "Regulatory Quality (WGI)",
+                    magclass::getNames(vdemNorm), magclass::getNames(scNorm))
+      levelVars <- if (isTRUE(democracy)) magclass::getNames(demInt) else character(0)
+      out <- .pfmGapClosurePanel(out, histPanel, ruleVars, levelVars, stitchYear, harmonizeScenarioYear)
+    }
+  } else if (institutions == "gapclosure") {
+    stop("panelDataScenario: institutions = 'gapclosure' needs harmonizeScenario = TRUE (it starts from the history panel)",
+         call. = FALSE)
   }
 
   # ── Post-harmonization additions (need historical PCA rotation + quartile breaks) ──
@@ -341,15 +365,17 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
 }
 # Harmonisation (DATA.md §5.5): each variable is shifted by its offset to history at the stitch
 # year (the panel's last year; `atStitch` is the scenario interpolated there when the year is not a
-# scenario period), the full offset up to the stitch year, fading linearly to zero by `fadeYear`.
+# scenario period), the full offset up to the stitch year, fading to zero by `fadeYear`: linearly, or
+# along a half cosine (`shape = "smooth"`, flat at both ends, so the path has no kink there).
 #' @keywords internal
-.pfmHarmoniseScenario <- function(out, histPanel, atStitch, vars, stitchYear, fadeYear) {
+.pfmHarmoniseScenario <- function(out, histPanel, atStitch, vars, stitchYear, fadeYear, shape = "linear") {
   for (v in vars) {
     offset <- magclass::setYears(histPanel[, stitchYear, v], NULL) -
       magclass::setYears(atStitch[, stitchYear, v], NULL)
     offset[!is.finite(offset)] <- 0
     for (yv in magclass::getYears(out, as.integer = TRUE)) {
-      wt <- if (yv <= stitchYear) 1 else if (yv >= fadeYear) 0 else (fadeYear - yv) / (fadeYear - stitchYear)
+      f <- (fadeYear - yv) / (fadeYear - stitchYear)
+      wt <- if (yv <= stitchYear) 1 else if (yv >= fadeYear) 0 else if (shape == "smooth") (1 - cos(pi * f)) / 2 else f
       out[, yv, v] <- out[, yv, v] + offset * wt
     }
   }
