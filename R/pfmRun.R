@@ -477,6 +477,8 @@ pfmRun <- function(group = NULL,
   callerSweep <- list(...)[intersect(names(list(...)), sweepKeys)]
   message("  sweep       : ", .pfmSweepOptionsLabel(utils::modifyList(unclass(sweepOpts), callerSweep)),
           "  (", if (length(callerSweep)) "caller + " else "", attr(sweepOpts, "source"), ")")
+  message("  coverage    : ", list(...)$donorRule %||% rc$coverage$rule %||% "donor",
+          if (is.null(list(...)$donorRule)) "  (config)" else "  (caller)")
   ownCache <- !is.null(list(...)$cachefolder)
   message("  madrat cache: ", list(...)$cachefolder %||% rc$cachefolder,
           if (ownCache) "  (caller; not prepared)" else paste0("  [tag ", rc$madrat$tag, "]",
@@ -508,7 +510,7 @@ pfmRun <- function(group = NULL,
       # startRun's own formals, plus the step functions it forwards `...` to.
       # runModelGroup dispatches the steps; runPFMSweep is where the sweep gates
       # (gammaGate, sanityMaxModels, ceilingFallGate) actually land.
-      fns <- list(startRun, runPFMSweep, runModelGroup)
+      fns <- list(startRun, runPFMSweep, runModelGroup, runPFMDonorAssumptions)
       known <- unique(unlist(lapply(fns, function(f) names(formals(f)))))
       unknown <- setdiff(dn, known)
       if (length(unknown)) {
@@ -576,7 +578,9 @@ pfmRun <- function(group = NULL,
            # each step filtered by that step's own formals, and all of them carry
            # `outputRegionMappingFile`. Passing it once here is what keeps the fit
            # and the projection at the same resolution.
-           outputRegionMappingFile = rc$outputRegionMappingFile),
+           outputRegionMappingFile = rc$outputRegionMappingFile,
+           # the rule for the countries without CAPMF data (config.yml coverage:), read by the donor step
+           donorRule = rc$coverage$rule %||% "donor"),
       c(unclass(sweepOpts), list(...)))
     if (!is.null(rc$gdxFile)) args$gdxFile <- rc$gdxFile
     # The sweep reads the gating gdx at ITS native resolution; without this it fell back to

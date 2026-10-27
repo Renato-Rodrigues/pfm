@@ -265,3 +265,22 @@ test_that("the donor step passes the matching rule through, defaulting to the de
   src <- paste(deparse(body(runPFMDonorAssumptions)), collapse = " ")
   expect_true(grepl("qualityQuantiles = qualityQuantiles", src, fixed = TRUE))
 })
+
+test_that("the median rule gives every recipient the covered median and keeps the donors as diagnostics", {
+  fit <- donorFit()
+  cov <- unique(as.character(fit$data$region))
+  sc <- data.frame(region = cov, year = max(fit$data$year),
+                   efficiencyRatio = seq(0.3, 0.9, length.out = length(cov)), stringsAsFactors = FALSE)
+  d0 <- computeDonorAssignment(fit, sc, donorDesign(fit), k = 2, sector = "Bulk")
+  d <- computeDonorAssignment(fit, sc, donorDesign(fit), k = 2, sector = "Bulk", rule = "median")
+  expect_identical(attr(d, "rule"), "median")
+  expect_true(all(d$basis == "median"))
+  expect_equal(d$efficiencyRatio, rep(stats::median(sc$efficiencyRatio), nrow(d)))
+  expect_identical(d$donors, d0$donors)
+  # an explicit override still applies: "donor" restores the matched blend
+  m <- d0$region[d0$basis == "donor"][1]
+  dd <- computeDonorAssignment(fit, sc, donorDesign(fit), k = 2, sector = "Bulk", rule = "median",
+                               basisOverride = stats::setNames("donor", m))
+  expect_equal(dd$efficiencyRatio[dd$region == m], d0$efficiencyRatio[d0$region == m])
+  expect_identical(dd$basis[dd$region == m], "donor")
+})

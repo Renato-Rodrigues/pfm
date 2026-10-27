@@ -104,6 +104,15 @@
 #' @param qualityQuantiles The quantiles of the covered countries' nearest-neighbour distances
 #'   that bound "close" and "far". Default \code{c(0.5, 0.9)}. A second value of \code{Inf}
 #'   removes the "none" class: every recipient takes its nearest donors.
+#' @param rule \code{"donor"} (default, the rule above) or \code{"median"}: every recipient takes
+#'   the covered countries' median \eqn{E} (basis \code{"median"}), whatever its donors. Out of
+#'   sample, on Run-Group \code{v7}, the median predicts a covered country's \eqn{E} better than its
+#'   donors do (mean absolute error 0.119 against 0.151 power & industry, 0.080 against 0.087
+#'   buildings & transport; design note 0009 section 6.3): the frontier has already used what the
+#'   drivers say, and the distance below the ceiling is what they do not explain. The donors are
+#'   still found and reported (\code{donors}, \code{distance}, \code{donorQuality}) as diagnostics.
+#'   \code{basisOverride} still applies: \code{"lowBand"} places a country in the low band,
+#'   \code{"donor"} gives it its matched blend.
 #'
 #' @return Data.frame, one row per recipient: \code{region, sector, donors}
 #'   (comma-separated), \code{donorWeights}, \code{distance} (to the nearest
@@ -128,8 +137,9 @@ computeDonorAssignment <- function(fit, frontierScores, panelData, year = NULL,
                                    k = 3L, maxDistance = NULL, bandPercentile = 0.25,
                                    basisOverride = NULL, sector = NA_character_,
                                    drivers = NULL, weighting = c("beta", "equal"),
-                                   qualityQuantiles = c(0.5, 0.9)) {
+                                   qualityQuantiles = c(0.5, 0.9), rule = c("donor", "median")) {
   weighting <- match.arg(weighting)
+  rule <- match.arg(rule)
   if (!is.numeric(qualityQuantiles) || length(qualityQuantiles) != 2 ||
         any(qualityQuantiles < 0) || qualityQuantiles[1] > qualityQuantiles[2]) {
     stop("computeDonorAssignment: 'qualityQuantiles' must be two increasing values in [0, 1], ",
@@ -255,6 +265,7 @@ computeDonorAssignment <- function(fit, frontierScores, panelData, year = NULL,
 
   # --- the band rule, for everyone no donor could reach ------------------------
   matched <- out$donorQuality %in% c("close", "far")
+  blend <- out$efficiencyRatio
   out$basis[matched] <- "donor"
   if (!is.null(bandPercentile) && any(!matched)) {
     # "Below the covered range" is judged on the model's own capability ordering,
@@ -269,11 +280,22 @@ computeDonorAssignment <- function(fit, frontierScores, panelData, year = NULL,
     out$basis[structural] <- "median"
   }
 
+  # --- the median rule: every recipient at the covered median ------------------
+  if (identical(rule, "median")) {
+    if (!is.finite(bandMed)) stop("computeDonorAssignment: rule = \"median\" needs 'bandPercentile' (the band values).")
+    out$efficiencyRatio <- bandMed
+    out$basis <- "median"
+  }
+
   # --- explicit, documented overrides ------------------------------------------
   if (length(basisOverride) && !is.null(bandPercentile)) {
     for (rg in intersect(names(basisOverride), out$region)) {
       b <- basisOverride[[rg]]
-      if (identical(b, "donor")) next          # keep the matched blend
+      if (identical(b, "donor")) {             # keep (or, under the median rule, restore) the matched blend
+        i <- out$region == rg & matched
+        out$efficiencyRatio[i] <- blend[i]; out$basis[i] <- "donor"
+        next
+      }
       out$efficiencyRatio[out$region == rg] <- if (identical(b, "median")) bandMed else bandLow
       out$basis[out$region == rg] <- b
     }
@@ -282,6 +304,7 @@ computeDonorAssignment <- function(fit, frontierScores, panelData, year = NULL,
   out <- out[order(out$distance), , drop = FALSE]
   rownames(out) <- NULL
   attr(out, "basisOverride") <- basisOverride
+  attr(out, "rule") <- rule
   attr(out, "weights") <- w
   attr(out, "year") <- yr
   attr(out, "k") <- kk

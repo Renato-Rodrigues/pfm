@@ -178,11 +178,21 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
     sweep <- .pfmSweepOptionsNormalise(sweep)
   }
 
+  # --- coverage: the rule for the countries without CAPMF data (design note 0009 section 6.3), same override rule ---
+  coverage <- cfg[["coverage"]] %||% list()
+  covOverride <- if (!is.null(group)) coverage[["groups"]][[group]] else NULL
+  coverage[["groups"]] <- NULL
+  if (!is.null(covOverride)) coverage <- utils::modifyList(coverage, covOverride)
+  coverage$rule <- coverage$rule %||% "donor"
+  if (!coverage$rule %in% c("donor", "median")) {
+    stop("config.yml coverage: rule must be \"donor\" or \"median\", not \"", coverage$rule, "\"", call. = FALSE)
+  }
+
   list(scenarios = scenarios, gdxFile = gdxFile, gdxRegionMapping = gdxRegionMapping,
        referenceGdxFile = referenceGdxFile,
        referenceGdxRegionMapping = referenceGdxRegionMapping,
        cachefolder = cachefolder, sourcefolder = sourcefolder, madrat = madratBlock,
-       panel = panel, sweep = sweep, group = group,
+       panel = panel, sweep = sweep, coverage = coverage, group = group,
        resultsDir = def("resultsDir", NULL), modelDir = def("modelDir", NULL),
        # Tracked reproduction records, one folder per Run-Group: the madrat pin and the list
        # of input files (pfmPrepareCache). Unlike output/, this folder is in git.

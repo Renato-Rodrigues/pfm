@@ -136,3 +136,15 @@ test_that("the cache builders cover every SSP the registry declares, SSP2 under 
   ids <- vapply(pfm:::.cacheBuilders(spec, "country", list()), `[[`, "", "id")
   expect_identical(ids, c("historical-panel", "historical-panel-four", "coupling-weights"))
 })
+
+test_that("the coverage rule resolves per Run-Group, donor by default", {
+  dir <- withr::local_tempdir()
+  cfg <- file.path(dir, "config.yml")
+  yaml::write_yaml(list(coverage = list(rule = "donor", groups = list(v8 = list(rule = "median")))), cfg)
+  expect_identical(pfmResolveConfig(cfg, group = "v7", verbose = FALSE)$coverage$rule, "donor")
+  expect_identical(pfmResolveConfig(cfg, group = "v8", verbose = FALSE)$coverage$rule, "median")
+  yaml::write_yaml(list(group = "v5"), cfg)
+  expect_identical(pfmResolveConfig(cfg, verbose = FALSE)$coverage$rule, "donor")
+  yaml::write_yaml(list(coverage = list(rule = "nearest")), cfg)
+  expect_error(pfmResolveConfig(cfg, verbose = FALSE), "coverage: rule")
+})
