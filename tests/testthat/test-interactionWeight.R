@@ -130,6 +130,23 @@ test_that("the edge gate flags a driver reversed by an extreme moderator and pas
   expect_true(is.null(ok$against))
 })
 
+test_that("the edge gate is not evaluable, not passed, when the final-energy weights are missing", {
+  ctys <- c(paste0("C", 1:20), "CHN", "SAU")
+  d <- expand.grid(region = ctys, year = c(2025, 2100), stringsAsFactors = FALSE)
+  d$Incumbent.Power <- ifelse(d$year == 2025, 1, -1)
+  d$Vertical.Accountability..VDem. <- ifelse(d$region %in% c("CHN", "SAU"), -4, 0.2)
+  d$Incumbent.Power_x_Vertical.Accountability..VDem. <- d$Incumbent.Power * d$Vertical.Accountability..VDem.
+  train <- data.frame(Vertical.Accountability..VDem. = stats::rnorm(200, 0, 0.5))
+  beta <- c(Incumbent.Power = -0.15, Incumbent.Power_x_Vertical.Accountability..VDem. = -0.54)
+  local_mocked_bindings(
+    .pfmResolveCountryMap = function(mapping) stats::setNames(rep("DEM", length(ctys)), ctys),
+    pfmCouplingWeights = function(...) stop("no madrat cache"))
+  r <- .pfmEdgeGate(beta, d, NULL, train, gate = list(mapping = NULL))
+  expect_true(is.na(r$pass))
+  expect_match(r$detail, "not evaluable")
+  expect_match(r$detail, "no madrat cache")
+})
+
 # --- the weight's scope: accountability and rule of law only (design note 0007 section 8, A7) ---------------
 
 makeScopeMagpie <- function() {

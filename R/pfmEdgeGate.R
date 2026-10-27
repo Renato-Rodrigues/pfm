@@ -30,7 +30,7 @@
 #' @param gate A list: \code{share} (0.25), \code{effect} (0.25), \code{capShift} (0.5), \code{cap}
 #'   (c(0.05, 0.95)), \code{mapping} (\code{"regionmapping_21_EU11.csv"}). Missing elements take these
 #'   defaults.
-#' @return A list: \code{pass}, \code{against} (regions failing the direction criterion, with their
+#' @return A list: \code{pass} (\code{NA} when no country of the scenario has a final-energy weight: not evaluable), \code{against} (regions failing the direction criterion, with their
 #'   share and drivers), \code{capShift} (the largest regional shift), \code{capRegion}, \code{detail}.
 #' @keywords internal
 .pfmEdgeGate <- function(beta, scenDf, mm, trainDf, years = c(2025, 2100), gate = list()) {
@@ -63,7 +63,15 @@
 
   # --- regions and final-energy weights ---
   map <- .pfmResolveCountryMap(g$mapping)
-  fe <- tryCatch(pfmCouplingWeights(year = 2025, scenario = "SSP2"), error = function(e) NULL)
+  feErr <- NULL
+  fe <- tryCatch(pfmCouplingWeights(year = 2025, scenario = "SSP2"), error = function(e) { feErr <<- conditionMessage(e); NULL })
+  # Without weights no region can be scored, and both criteria would pass by default ("cap shift 0"). That is
+  # what an offline call without the Run-Group's madrat cache gets (design note 0009 section 6.1): not evaluable.
+  if (!length(intersect(cty0, intersect(names(map), names(fe))))) {
+    return(list(pass = NA, against = NULL, capShift = NA_real_, capRegion = NA_character_,
+                detail = paste0("edge gate not evaluable: no final-energy weights for the scenario's countries",
+                                if (!is.null(feErr)) paste0(" (pfmCouplingWeights: ", feErr, ")") else "")))
+  }
   regionShare <- function(flag) {
     cc <- intersect(cty0, intersect(names(map), names(fe)))
     if (!length(cc)) return(numeric(0))
