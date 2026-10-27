@@ -63,6 +63,7 @@ projectPFMSpecScenario <- function(cfg, sector, histData, scenarioData,
     includeLaggedPS = isTRUE(cfg$includeLaggedPS),
     apTransform = cfg$apTransform %||% "linear",
     apSatScale = as.numeric(cfg$apSatScale %||% 1),
+    fossilFloor = if (is.null(cfg$fossilFloor)) NULL else as.numeric(cfg$fossilFloor),
     interactionWeight = cfg$interactionWeight,
     modelDir = modelDir, updateIndex = FALSE, verbose = FALSE
   )

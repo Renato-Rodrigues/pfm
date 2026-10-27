@@ -145,6 +145,9 @@
 #' @param interactionWeights Character. Panel variables (0-1) that each add an interaction-weighted
 #'   twin of every spec with interactions, see \code{\link{pfmSpecs}} (design note 0007, O10). Empty
 #'   (default): none, as up to v6.
+#' @param fossilFloors The fossil lower-bound axis, see \code{\link{pfmSpecs}} (design note 0009 section
+#'   7.1): training quantiles in (0, 1), and \code{"none"} to keep the unbounded specs. Empty (default):
+#'   no bound, as up to v7.
 #' @param extraAccountability Character. Extra accountability channels added to the spec grid as a
 #'   further option of the accountability slot (\code{"OvAcc"}: V-Dem's overall accountability, the
 #'   PoliClim index; needs the panel key \code{overallAccountability}), see \code{\link{channelSpecs}}.
@@ -216,6 +219,7 @@ runPFMSweep <- function(group,
                         apExtrapolationSd = 1,
                         apExtrapolationWindow = c(2025, 2100),
                         interactionWeights = character(0),
+                        fossilFloors = character(0),
                         edgeGate = NULL,
                         theoryGate = NULL,
                         extraAccountability = character(0),
@@ -336,7 +340,8 @@ runPFMSweep <- function(group,
     specs <- yaml::read_yaml(configPath)
   }
   specs <- pfmSpecs(specs, verbose = verbose, apTransforms = apTransforms,
-                    dropCompositeAP = dropCompositeAP, interactionWeights = interactionWeights)
+                    dropCompositeAP = dropCompositeAP, interactionWeights = interactionWeights,
+                    fossilFloors = fossilFloors)
   say(length(specs), " PFM specs after adaptation.")
 
   # ── Fit grid: one stage, satP engine ─────────────────────────────────────────
@@ -572,6 +577,8 @@ runPFMSweep <- function(group,
                         softVifGate = softVifGate %||% Inf, inferenceTGate = inferenceTGate %||% 0,
                         # the interaction-weight axis and the edge-of-data gate (design note 0007)
                         interactionWeights = as.list(interactionWeights),
+                        # the fossil lower-bound axis (design note 0009 section 7.1)
+                        fossilFloors = as.list(as.character(unlist(fossilFloors))),
                         edgeGate = edgeGate %||% "off",
                         theoryGate = theoryGate %||% "off",
                         extraAccountability = as.list(extraAccountability)),
@@ -633,10 +640,16 @@ runPFMSweep <- function(group,
 #'   another variable gets \code{" iw:"} and its syntactic name. A variable followed by
 #'   \code{"@accRoL"} weights only the accountability and rule-of-law interactions (design note 0007
 #'   section 8, A7); its twins carry the scope in the suffix (\code{" iw:libdem@accRoL"}).
+#' @param fossilFloors The fossil lower-bound axis (design note 0009 section 7.1): training quantiles in
+#'   (0, 1) at which every spec with a fossil term gets its fossil terms bounded below
+#'   (\code{fossilFloor}; suffix \code{" fos5"} for 0.05). With \code{"none"} among them the bounded specs
+#'   are added as twins of the unbounded ones; without it they replace them, so the grid keeps its size.
+#'   Empty (default): no bound. Applied last, so the bound covers every twin of the other axes.
 #' @return The adapted, normalised spec list.
 #' @export
 pfmSpecs <- function(specs, verbose = TRUE, apTransforms = c("linear", "saturating"),
-                     dropCompositeAP = FALSE, interactionWeights = character(0)) {
+                     dropCompositeAP = FALSE, interactionWeights = character(0),
+                     fossilFloors = character(0)) {
   apTransforms <- match.arg(apTransforms, c("linear", "saturating", "saturating-innovator",
                                             "saturating-incumbent"), several.ok = TRUE)
   normalize <- function(cfg) {
@@ -753,6 +766,29 @@ pfmSpecs <- function(specs, verbose = TRUE, apTransforms = c("linear", "saturati
   if (length(wTwins)) {
     specs <- c(specs, wTwins)
     if (isTRUE(verbose)) message("[pfmSpecs] ", length(wTwins), " interaction-weighted variants appended",
+                                 " (total ", length(specs), " specs).")
+  }
+
+  # --- Fossil lower-bound axis (design note 0009 section 7.1) -------------------
+  # The linear fossil term is mis-specified at the low edge: below about the sample's 5th percentile,
+  # less fossil dependence no longer predicts a higher ceiling (Iceland, v7). preparePanelData bounds the
+  # fossil terms there and freezes the bound, so the projections hold them at it.
+  ff <- as.character(unlist(fossilFloors))
+  keepUnbounded <- "none" %in% ff
+  q <- suppressWarnings(as.numeric(setdiff(ff, c("none", ""))))
+  if (anyNA(q) || any(q <= 0 | q >= 1)) stop("pfmSpecs: 'fossilFloors' must be \"none\" or quantiles in (0, 1).", call. = FALSE)
+  if (length(q)) {
+    hasFossil <- function(cfg) any(grepl("^Incumbent Power", c(unlist(cfg$actorPowerIndex), unlist(cfg$actorPowerDrivers))))
+    bounded <- unlist(lapply(q, function(fq) lapply(Filter(hasFossil, specs), function(cfg) {
+      cfg$fossilFloor <- fq
+      cfg$name <- paste0(cfg$name, " fos", format(100 * fq))
+      cfg$description <- paste0(cfg$description %||% "", if (nzchar(cfg$description %||% "")) " " else "",
+                                "[fossil terms bounded below at the training ", format(100 * fq), "th percentile: design note 0009]")
+      cfg
+    })), recursive = FALSE)
+    specs <- c(if (keepUnbounded) specs else Filter(Negate(hasFossil), specs), bounded)
+    if (isTRUE(verbose)) message("[pfmSpecs] ", length(bounded), " fossil-bounded variants ",
+                                 if (keepUnbounded) "appended" else "in place of the unbounded ones",
                                  " (total ", length(specs), " specs).")
   }
   specs

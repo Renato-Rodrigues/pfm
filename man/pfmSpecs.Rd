@@ -9,7 +9,8 @@ pfmSpecs(
   verbose = TRUE,
   apTransforms = c("linear", "saturating"),
   dropCompositeAP = FALSE,
-  interactionWeights = character(0)
+  interactionWeights = character(0),
+  fossilFloors = character(0)
 )
 }
 \arguments{
@@ -35,6 +36,12 @@ The twins carry the suffix \code{" iw:poly"} (V-Dem electoral democracy), \code{
 another variable gets \code{" iw:"} and its syntactic name. A variable followed by
 \code{"@accRoL"} weights only the accountability and rule-of-law interactions (design note 0007
 section 8, A7); its twins carry the scope in the suffix (\code{" iw:libdem@accRoL"}).}
+
+\item{fossilFloors}{The fossil lower-bound axis (design note 0009 section 7.1): training quantiles in
+(0, 1) at which every spec with a fossil term gets its fossil terms bounded below
+(\code{fossilFloor}; suffix \code{" fos5"} for 0.05). With \code{"none"} among them the bounded specs
+are added as twins of the unbounded ones; without it they replace them, so the grid keeps its size.
+Empty (default): no bound. Applied last, so the bound covers every twin of the other axes.}
 }
 \value{
 The adapted, normalised spec list.

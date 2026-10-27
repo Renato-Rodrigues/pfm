@@ -36,6 +36,7 @@ estimatePolicyStringencyModel(
   yearFixedEffects = FALSE,
   apTransform = "linear",
   apSatScale = 1,
+  fossilFloor = NULL,
   interactionWeight = NULL,
   trendMidpoint = formals(preparePanelData)$trendMidpoint,
   trendSteepness = formals(preparePanelData)$trendSteepness
@@ -105,6 +106,9 @@ fits never collide.}
 \item{apSatScale}{Positive number, the half-saturation point of the saturating
 actor-power transform as a multiple of the training median (\code{1}, the default, is
 the selected form). See \code{\link{preparePanelData}}.}
+
+\item{fossilFloor}{Number in (0, 1) or \code{NULL} (default): the lower bound on the fossil terms at
+this training quantile (design note 0009 section 7.1). See \code{\link{preparePanelData}}.}
 
 \item{interactionWeight}{Character or \code{NULL}. A 0-1 panel variable that multiplies every
 actor-power x institution interaction (e.g. \code{"Electoral Democracy (VDem)"}; design note

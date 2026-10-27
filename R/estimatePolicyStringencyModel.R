@@ -90,6 +90,8 @@
 #' @param apSatScale Positive number, the half-saturation point of the saturating
 #'   actor-power transform as a multiple of the training median (\code{1}, the default, is
 #'   the selected form). See \code{\link{preparePanelData}}.
+#' @param fossilFloor Number in (0, 1) or \code{NULL} (default): the lower bound on the fossil terms at
+#'   this training quantile (design note 0009 section 7.1). See \code{\link{preparePanelData}}.
 #' @param interactionWeight Character or \code{NULL}. A 0-1 panel variable that multiplies every
 #'   actor-power x institution interaction (e.g. \code{"Electoral Democracy (VDem)"}; design note
 #'   0007, option O10). \code{NULL} (default) leaves the interactions unweighted. Stored with the
@@ -166,6 +168,7 @@ estimatePolicyStringencyModel <- function(
     yearFixedEffects = FALSE,
     apTransform = "linear",
     apSatScale = 1,
+    fossilFloor = NULL,
     interactionWeight = NULL,
     trendMidpoint = formals(preparePanelData)$trendMidpoint,
     trendSteepness = formals(preparePanelData)$trendSteepness) {
@@ -236,6 +239,7 @@ estimatePolicyStringencyModel <- function(
       outcomeVar = outcomeVar,
       apTransform = apTransform,
       apSatScale = apSatScale,
+      fossilFloor = fossilFloor,
       interactionWeight = interactionWeight,
       trendMidpoint = trendMidpoint,
       trendSteepness = trendSteepness
@@ -331,6 +335,8 @@ estimatePolicyStringencyModel <- function(
                               "saturating-incumbent" = "+satInc", ""),
                        # the curve's shape, only when not the default: every existing key stays valid
                        if (!isTRUE(all.equal(apSatScale, 1))) paste0("+satScale", apSatScale) else "",
+                       # the lower bound on the fossil terms, only when set: every existing key stays valid
+                       if (!is.null(fossilFloor)) paste0("+fosFloor", fossilFloor) else "",
                        # the interaction weight, only when set: every existing key stays valid
                        if (!is.null(interactionWeight) && !identical(interactionWeight, "none"))
                          paste0("+iw:", make.names(interactionWeight)) else "",

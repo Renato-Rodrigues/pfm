@@ -112,6 +112,7 @@ runPFMDonorAssumptions <- function(group,
       logisticTimeTrend = isTRUE(cf$logisticTimeTrend),
       apTransform = cf$apTransform %||% "linear",
       apSatScale = as.numeric(cf$apSatScale %||% 1),
+      fossilFloor = if (is.null(cf$fossilFloor)) NULL else as.numeric(cf$fossilFloor),
       interactionWeight = cf$interactionWeight,
       modelDir = modelDir, updateIndex = FALSE, verbose = FALSE)
     sDf <- preparePanelData(

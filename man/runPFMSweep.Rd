@@ -47,6 +47,7 @@ runPFMSweep(
   apExtrapolationSd = 1,
   apExtrapolationWindow = c(2025, 2100),
   interactionWeights = character(0),
+  fossilFloors = character(0),
   edgeGate = NULL,
   theoryGate = NULL,
   extraAccountability = character(0),
@@ -200,6 +201,10 @@ to v5.}
 \item{interactionWeights}{Character. Panel variables (0-1) that each add an interaction-weighted
 twin of every spec with interactions, see \code{\link{pfmSpecs}} (design note 0007, O10). Empty
 (default): none, as up to v6.}
+
+\item{fossilFloors}{The fossil lower-bound axis, see \code{\link{pfmSpecs}} (design note 0009 section
+7.1): training quantiles in (0, 1), and \code{"none"} to keep the unbounded specs. Empty (default):
+no bound, as up to v7.}
 
 \item{edgeGate}{\code{NULL} (default, as up to v6) or a list of thresholds for the edge-of-data
 gate of the sanity walk (\code{share}, \code{effect}, \code{capShift}, \code{cap},

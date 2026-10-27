@@ -22,6 +22,7 @@ preparePanelData(
   outcomeVar = "Effective Carbon Price",
   apTransform = "linear",
   apSatScale = 1,
+  fossilFloor = NULL,
   interactionWeight = NULL,
   excludeCountries = getOption("pfm.excludeCountries", "EST")
 )
@@ -107,6 +108,15 @@ transform as a multiple of the training median: \code{xBar = apSatScale * median
 note 0005 §7a decision 6): below 1 the curve flattens earlier, above 1 it stays closer
 to linear over the observed range. Fit mode only, like \code{apTransform}: the scaled
 \code{xBar} is what \code{"driverScaling"} stores.}
+
+\item{fossilFloor}{Number in (0, 1) or \code{NULL} (default: none). A lower bound on the fossil
+actor-power terms (the \code{Incumbent} columns, share and per person) at this quantile of the
+training rows, applied to the raw values before the saturating transform, the scaling and the
+interactions (design note 0009 section 7.1). Below it, less fossil dependence no longer predicts a
+higher ceiling. On Run-Group \code{v7} the bound at 0.05 improves the fit in both sectors (BIC 2699 ->
+2672, 1226 -> 1220). \strong{Fit mode only}, like \code{apTransform}: the bound is frozen in the
+\code{"driverScaling"} entry as the \code{floor} element (raw units), so apply-mode callers hold a
+scenario's fossil terms at the same bound, and the driver guard's training minimum is the bound.}
 
 \item{interactionWeight}{Character or \code{NULL}. A 0-1 panel variable (e.g.
 \code{"Electoral Democracy (VDem)"}) that multiplies every actor-power x institution

@@ -81,6 +81,14 @@
 #'   note 0005 §7a decision 6): below 1 the curve flattens earlier, above 1 it stays closer
 #'   to linear over the observed range. Fit mode only, like \code{apTransform}: the scaled
 #'   \code{xBar} is what \code{"driverScaling"} stores.
+#' @param fossilFloor Number in (0, 1) or \code{NULL} (default: none). A lower bound on the fossil
+#'   actor-power terms (the \code{Incumbent} columns, share and per person) at this quantile of the
+#'   training rows, applied to the raw values before the saturating transform, the scaling and the
+#'   interactions (design note 0009 section 7.1). Below it, less fossil dependence no longer predicts a
+#'   higher ceiling. On Run-Group \code{v7} the bound at 0.05 improves the fit in both sectors (BIC 2699 ->
+#'   2672, 1226 -> 1220). \strong{Fit mode only}, like \code{apTransform}: the bound is frozen in the
+#'   \code{"driverScaling"} entry as the \code{floor} element (raw units), so apply-mode callers hold a
+#'   scenario's fossil terms at the same bound, and the driver guard's training minimum is the bound.
 #' @param interactionWeight Character or \code{NULL}. A 0-1 panel variable (e.g.
 #'   \code{"Electoral Democracy (VDem)"}) that multiplies every actor-power x institution
 #'   interaction (design note 0007, O10), read with the drivers' lag and kept on its own scale
@@ -117,6 +125,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
                              outcomeVar = "Effective Carbon Price",
                              apTransform = "linear",
                              apSatScale = 1,
+                             fossilFloor = NULL,
                              interactionWeight = NULL,
                              excludeCountries = getOption("pfm.excludeCountries",
                                                           "EST")) {
@@ -531,6 +540,29 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
     stop("preparePanelData: 'apSatScale' must be one positive number.", call. = FALSE)
   }
   apVars <- intersect(make.names(unique(c(actorPowerDrivers, actorPowerIndex))), scaleVars)
+
+  # --- Lower bound on the fossil terms (design note 0009 section 7.1), BEFORE the transform ---
+  # Fit mode computes it from the training rows (those with an outcome) and freezes it in the
+  # driverScaling entry (`floor`, raw units); apply mode reads it from there. Absent: no bound,
+  # so every reference written before the option reproduces itself.
+  if (!is.null(fossilFloor) && (!is.numeric(fossilFloor) || length(fossilFloor) != 1 ||
+                                !is.finite(fossilFloor) || fossilFloor <= 0 || fossilFloor >= 1)) {
+    stop("preparePanelData: 'fossilFloor' must be one number in (0, 1) or NULL.", call. = FALSE)
+  }
+  floorOf <- function(col) {
+    if (!is.null(driverScaling) && !is.null(driverScaling[[col]])) {
+      s <- driverScaling[[col]]
+      return(if ("floor" %in% names(s)) unname(s[["floor"]]) else NA_real_)
+    }
+    if (is.null(fossilFloor) || !grepl("^Incumbent", col)) return(NA_real_)
+    unname(stats::quantile(df[[col]], fossilFloor, na.rm = TRUE))
+  }
+  floorPars <- stats::setNames(vapply(apVars, floorOf, numeric(1)), apVars)
+  for (col in apVars) {
+    fl <- floorPars[[col]]
+    if (is.finite(fl)) df[[col]] <- pmax(df[[col]], fl)
+  }
+
   satOf <- function(col) {
     if (!is.null(driverScaling) && !is.null(driverScaling[[col]])) {
       s <- driverScaling[[col]]
@@ -579,6 +611,7 @@ preparePanelData <- function(data, sector, actorPowerDrivers, # nolint: cyclocom
       if (!is.finite(s) || s < 1e-8) s <- 1
       scaling[[col]] <- c(mean = m, sd = s)
       if (col %in% apVars) scaling[[col]] <- c(scaling[[col]], sat = satPars[[col]])
+      if (col %in% apVars && is.finite(floorPars[[col]])) scaling[[col]] <- c(scaling[[col]], floor = floorPars[[col]])
     }
     df[[col]] <- (df[[col]] - m) / s
   }
