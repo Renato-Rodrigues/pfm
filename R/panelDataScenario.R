@@ -23,14 +23,14 @@
 #'   gender inequality). Must match the REMIND run's \code{cm_GDPpopScen}. Default \code{"SSP2"}.
 #' @param institutions how institution series without an SSP projection are projected:
 #'   \code{"storyline"} (default; for SSP2 identical to \code{"convergence"}), \code{"convergence"},
-#'   \code{"hold"} or \code{"gapclosure"}; see \code{\link{pfmInstitutionProjection}}. Under
-#'   \code{"gapclosure"} the rule series start from the history panel's last value, the democracy weight
+#'   \code{"hold"}, \code{"gapclosure"} or \code{"gapclosureAndrijevic"}; see \code{\link{pfmInstitutionProjection}}.
+#'   Under the gap-closure rules the rule series start from the history panel's last value, the democracy weight
 #'   moves smoothly to the higher of that value and its mean over the last ten panel years (reached at
 #'   \code{harmonizeScenarioYear}), and the harmonisation of every other series fades smoothly
 #'   (\code{harmonizeShape}).
 #' @param harmonizeShape how the harmonisation offset fades to zero by \code{harmonizeScenarioYear}:
 #'   \code{"linear"} or \code{"smooth"} (a half cosine: no kink where the fade starts or ends).
-#'   Default: \code{"smooth"} under \code{institutions = "gapclosure"}, else \code{"linear"} (every
+#'   Default: \code{"smooth"} under the gap-closure rules, else \code{"linear"} (every
 #'   Run-Group up to \code{v7}).
 #' @param histCache Path of a file caching the harmonisation's historical panel, or \code{NULL}
 #'   (default: none). The historical panel does not depend on the gdx, so a coupled run, which
@@ -77,8 +77,9 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
                               harmonizeScenarioYear = 2040,
                               harmonizeShape = NULL) {
   if (!ssp %in% paste0("SSP", 1:5)) stop("panelDataScenario: unknown ssp '", ssp, "'", call. = FALSE)
-  institutions <- match.arg(institutions, c("storyline", "convergence", "hold", "gapclosure"))
-  harmonizeShape <- match.arg(harmonizeShape %||% if (institutions == "gapclosure") "smooth" else "linear",
+  institutions <- match.arg(institutions, c("storyline", "convergence", "hold", "gapclosure", "gapclosureAndrijevic"))
+  gapRule <- institutions %in% c("gapclosure", "gapclosureAndrijevic")
+  harmonizeShape <- match.arg(harmonizeShape %||% if (gapRule) "smooth" else "linear",
                               c("linear", "smooth"))
   # "country" sentinel: see panelDataHistorical (identity mapping + scoped config)
   countryLevel <- identical(outputRegionMappingFile, "country")
@@ -334,14 +335,18 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
     # value, so the projection starts where the fitted history ends: the institution-rule series and the
     # democracy weights are replaced after the panel's last year (the state-capacity component below is
     # computed from them).
-    if (institutions == "gapclosure") {
+    # Under "gapclosure" the rule also replaces the SSP-extension series (government effectiveness, control of
+    # corruption, the Rule-of-Law Index); under "gapclosureAndrijevic" they keep Andrijevic et al.'s path.
+    if (gapRule) {
       ruleVars <- c("Voice and Accountability (WGI)", "Political Stability (WGI)", "Regulatory Quality (WGI)",
-                    magclass::getNames(vdemNorm), magclass::getNames(scNorm))
+                    magclass::getNames(vdemNorm), magclass::getNames(scNorm),
+                    if (institutions == "gapclosure") c("Government Effectiveness (WGI)", "Control of Corruption (WGI)",
+                                                        "Rule of Law (WGI)"))
       levelVars <- if (isTRUE(democracy)) magclass::getNames(demInt) else character(0)
       out <- .pfmGapClosurePanel(out, histPanel, ruleVars, levelVars, stitchYear, harmonizeScenarioYear)
     }
-  } else if (institutions == "gapclosure") {
-    stop("panelDataScenario: institutions = 'gapclosure' needs harmonizeScenario = TRUE (it starts from the history panel)",
+  } else if (gapRule) {
+    stop("panelDataScenario: institutions = '", institutions, "' needs harmonizeScenario = TRUE (it starts from the history panel)",
          call. = FALSE)
   }
 

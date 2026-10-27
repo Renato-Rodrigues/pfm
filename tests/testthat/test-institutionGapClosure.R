@@ -45,3 +45,10 @@ test_that("the smooth harmonisation fades without a kink and matches the linear 
   expect_lt(abs(s[2] - s[1]), abs(l[2] - l[1]))
   expect_lt(abs(s[18] - s[17]), abs(l[18] - l[17]))
 })
+
+test_that("both gap-closure rules are accepted and hold the raw series before the panel step", {
+  expect_identical(pfmInstitutionProjection("gapclosureAndrijevic")$mode, "gapclosure")
+  x <- magclass::new.magpie("C1", 2016:2025, "v", fill = seq(0.3, 0.5, length.out = 10))
+  o <- pfm:::.pfmProjectInstitutions(x, c(2025, 2050), "gapclosureAndrijevic", "SSP2")
+  expect_equal(as.numeric(o[, 2050, 1]), 0.5)
+})

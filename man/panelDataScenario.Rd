@@ -60,8 +60,8 @@ gender inequality). Must match the REMIND run's \code{cm_GDPpopScen}. Default \c
 
 \item{institutions}{how institution series without an SSP projection are projected:
 \code{"storyline"} (default; for SSP2 identical to \code{"convergence"}), \code{"convergence"},
-\code{"hold"} or \code{"gapclosure"}; see \code{\link{pfmInstitutionProjection}}. Under
-\code{"gapclosure"} the rule series start from the history panel's last value, the democracy weight
+\code{"hold"}, \code{"gapclosure"} or \code{"gapclosureAndrijevic"}; see \code{\link{pfmInstitutionProjection}}.
+Under the gap-closure rules the rule series start from the history panel's last value, the democracy weight
 moves smoothly to the higher of that value and its mean over the last ten panel years (reached at
 \code{harmonizeScenarioYear}), and the harmonisation of every other series fades smoothly
 (\code{harmonizeShape}).}
@@ -78,7 +78,7 @@ file with another key is rebuilt.}
 
 \item{harmonizeShape}{how the harmonisation offset fades to zero by \code{harmonizeScenarioYear}:
 \code{"linear"} or \code{"smooth"} (a half cosine: no kink where the fade starts or ends).
-Default: \code{"smooth"} under \code{institutions = "gapclosure"}, else \code{"linear"} (every
+Default: \code{"smooth"} under the gap-closure rules, else \code{"linear"} (every
 Run-Group up to \code{v7}).}
 }
 \value{

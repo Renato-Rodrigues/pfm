@@ -26,13 +26,18 @@
 #'     (\code{\link{pfmInstitutionGapClosureRates}}): the pace of the SSP2 convergence assumption of
 #'     Andrijevic et al. (2020), inside the range V-Dem history shows. No country declines; countries
 #'     further from the top improve faster. Applied inside \code{\link{panelDataScenario}}, after normalisation
-#'     (\code{.pfmGapClosurePanel}). The SSP2 central rule since 2026-10-27 (design note 0008).}
+#'     (\code{.pfmGapClosurePanel}). It covers every institution series, government effectiveness,
+#'     control of corruption and the Rule-of-Law Index included (whose published SSP projections,
+#'     Andrijevic et al. 2020, it then replaces). The SSP2 central rule since 2026-10-27 (design note 0008).}
+#'   \item{\code{"gapclosureAndrijevic"}}{as \code{"gapclosure"}, except that government effectiveness,
+#'     control of corruption and the Rule-of-Law Index keep their published SSP projection (Andrijevic
+#'     et al. 2020): the sensitivity to the literature series.}
 #' }
 #' In the convergence rules a country already above the target keeps its value rather than being
 #' pulled down (\code{keepIfAboveTarget}).
 #'
-#' @param rule \code{"storyline"} (default), \code{"convergence"}, \code{"hold"} or
-#'   \code{"gapclosure"}.
+#' @param rule \code{"storyline"} (default), \code{"convergence"}, \code{"hold"}, \code{"gapclosure"}
+#'   or \code{"gapclosureAndrijevic"}.
 #' @param ssp \code{"SSP1"} ... \code{"SSP5"}; only \code{"storyline"} depends on it.
 #' @return A list of \code{\link[mrpfm]{toolProjectScenario}} arguments (\code{mode},
 #'   \code{percentile}, \code{midpointYear}, \code{convergenceYear}, \code{shape},
@@ -40,7 +45,8 @@
 #' @seealso \code{\link{pfmInstitutionStorylines}} for the declared table.
 #' @export
 #' @author Renato Rodrigues
-pfmInstitutionProjection <- function(rule = c("storyline", "convergence", "hold", "gapclosure"), ssp = "SSP2") {
+pfmInstitutionProjection <- function(rule = c("storyline", "convergence", "hold", "gapclosure", "gapclosureAndrijevic"),
+                                     ssp = "SSP2") {
   rule <- match.arg(rule)
   if (!ssp %in% paste0("SSP", 1:5)) stop("pfmInstitutionProjection: unknown ssp '", ssp, "'", call. = FALSE)
   base <- list(mode = "global_percentile", shape = "logistic", keepIfAboveTarget = TRUE)
@@ -48,7 +54,8 @@ pfmInstitutionProjection <- function(rule = c("storyline", "convergence", "hold"
     convergence = c(base, list(percentile = 75, midpointYear = 2080, convergenceYear = 2150)),
     hold = list(mode = "constant", shape = "linear", keepIfAboveTarget = TRUE,
                 percentile = NA_real_, midpointYear = NULL, convergenceYear = 2150),
-    gapclosure = list(mode = "gapclosure", rates = pfmInstitutionGapClosureRates()),
+    gapclosure = ,
+    gapclosureAndrijevic = list(mode = "gapclosure", rates = pfmInstitutionGapClosureRates()),
     storyline = {
       s <- pfmInstitutionStorylines()
       r <- s[s$ssp == ssp, ]
@@ -56,7 +63,8 @@ pfmInstitutionProjection <- function(rule = c("storyline", "convergence", "hold"
                    convergenceYear = r$convergenceYear))
     })
   attr(out, "label") <- if (rule == "hold") "hold at the last observed value" else if (rule == "gapclosure")
-    "gap closure: 0.6% of the distance to the best observed value closed each year" else
+    "gap closure: 0.6% of the distance to the best observed value closed each year" else if (rule == "gapclosureAndrijevic")
+    "gap closure (0.6% a year), government effectiveness and the SSP-extension series from Andrijevic et al. 2020" else
     paste0(rule, " (", ssp, "): global ", out$percentile, "th percentile, half by ",
            out$midpointYear, ", complete by ", out$convergenceYear)
   out
@@ -117,7 +125,7 @@ pfmInstitutionGapClosureRates <- function() {
 # normalised scale, from the panel's last value (.pfmGapClosurePanel).
 #' @keywords internal
 .pfmProjectInstitutions <- function(x, y, rule, ssp) {
-  if (identical(rule, "gapclosure")) rule <- "hold"
+  if (rule %in% c("gapclosure", "gapclosureAndrijevic")) rule <- "hold"
   a <- pfmInstitutionProjection(rule, ssp)
   args <- list(x = x, y = y, mode = a$mode, shape = a$shape, convergenceYear = a$convergenceYear,
                keepIfAboveTarget = a$keepIfAboveTarget)

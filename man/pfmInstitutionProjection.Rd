@@ -5,13 +5,13 @@
 \title{How institution series without an SSP projection are projected}
 \usage{
 pfmInstitutionProjection(
-  rule = c("storyline", "convergence", "hold", "gapclosure"),
+  rule = c("storyline", "convergence", "hold", "gapclosure", "gapclosureAndrijevic"),
   ssp = "SSP2"
 )
 }
 \arguments{
-\item{rule}{\code{"storyline"} (default), \code{"convergence"}, \code{"hold"} or
-\code{"gapclosure"}.}
+\item{rule}{\code{"storyline"} (default), \code{"convergence"}, \code{"hold"}, \code{"gapclosure"}
+or \code{"gapclosureAndrijevic"}.}
 
 \item{ssp}{\code{"SSP1"} ... \code{"SSP5"}; only \code{"storyline"} depends on it.}
 }
@@ -45,7 +45,12 @@ with no step. One rate for every series, \eqn{\lambda = 0.6\%} a year
 (\code{\link{pfmInstitutionGapClosureRates}}): the pace of the SSP2 convergence assumption of
 Andrijevic et al. (2020), inside the range V-Dem history shows. No country declines; countries
 further from the top improve faster. Applied inside \code{\link{panelDataScenario}}, after normalisation
-(\code{.pfmGapClosurePanel}). The SSP2 central rule since 2026-10-27 (design note 0008).}
+(\code{.pfmGapClosurePanel}). It covers every institution series, government effectiveness,
+control of corruption and the Rule-of-Law Index included (whose published SSP projections,
+Andrijevic et al. 2020, it then replaces). The SSP2 central rule since 2026-10-27 (design note 0008).}
+\item{\code{"gapclosureAndrijevic"}}{as \code{"gapclosure"}, except that government effectiveness,
+control of corruption and the Rule-of-Law Index keep their published SSP projection (Andrijevic
+et al. 2020): the sensitivity to the literature series.}
 }
 In the convergence rules a country already above the target keeps its value rather than being
 pulled down (\code{keepIfAboveTarget}).
