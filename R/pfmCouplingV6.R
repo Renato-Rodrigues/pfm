@@ -25,7 +25,10 @@
 #'   \item{kappa}{declared closure on the strength, \eqn{k(t)(1-\kappa)^{t-t_0}} (D13); 0 = none. A
 #'     negative value is the growing limit sensitivity run: the strength grows above its path (with \code{hold = "ratio"},
 #'     above today's). The share is clipped at 0, so in a region with \eqn{\theta u = 0.5}, growth beyond
-#'     \eqn{k = 2} changes nothing.}
+#'     \eqn{k = 2} changes nothing. Per sector: a named value per sector (\code{c(Bulk = 0.011, Diffuse = 0.046)}),
+#'     or the text \code{"Bulk=0.011,Diffuse=0.046"} (the form a scenario row carries); a sector not named fades at 0.
+#'     The 2008-2023 narrowing of the gap spread, 1.1\% (power & industry) and 4.6\% (buildings & transport) a year
+#'     on Run-Group \code{v7}, is the data-consistent pair (design note 0009 section 6.2).}
 #'   \item{strength}{\code{"common"} (headline) or \code{"regional"}, \eqn{k_{r,s} = g_{r,s}(t)/g_{r,s}(t_0)} (D16).}
 #' }
 #' @return A named list of the defaults.
@@ -34,6 +37,24 @@
 pfmV6CouplingDefaults <- function() {
   list(holdYear = 2100, hold = "logit", spread = "k", ordering = "model", orderingSeed = 1L,
        kappa = 0, strength = "common")
+}
+
+# The erosion rate: one number, or one per sector (named values, or "Bulk=0.011,Diffuse=0.046").
+#' @keywords internal
+.pfmKappaParse <- function(x) {
+  if (is.list(x)) x <- unlist(x)
+  if (is.character(x) && length(x) == 1 && grepl("=", x, fixed = TRUE)) {
+    parts <- strsplit(strsplit(gsub("[[:space:]]", "", x), ",", fixed = TRUE)[[1]], "=", fixed = TRUE)
+    if (any(lengths(parts) != 2)) stop("v6 coupling: kappa per sector must read \"Bulk=<rate>,Diffuse=<rate>\"", call. = FALSE)
+    x <- stats::setNames(suppressWarnings(as.numeric(vapply(parts, `[`, "", 2))), vapply(parts, `[`, "", 1))
+  }
+  nm <- names(x); x <- suppressWarnings(as.numeric(x)); names(x) <- nm
+  if (!is.null(nm) && (length(x) == 1 && !nzchar(nm))) names(x) <- NULL
+  if (!is.null(names(x)) && !all(names(x) %in% c("Bulk", "Diffuse"))) {
+    stop("v6 coupling: kappa per sector names Bulk and Diffuse, not ", paste(setdiff(names(x), c("Bulk", "Diffuse")), collapse = ", "), call. = FALSE)
+  }
+  if (is.null(names(x)) && length(x) != 1) stop("v6 coupling: kappa must be one rate or one per named sector", call. = FALSE)
+  x
 }
 
 # Merge the option sources (later wins) and validate. Unknown keys are ignored here: the YAML files
@@ -46,14 +67,14 @@ pfmV6CouplingDefaults <- function() {
     for (k in intersect(names(o), names(src))) if (!is.null(src[[k]])) o[[k]] <- src[[k]]
   }
   o$holdYear <- as.numeric(o$holdYear)
-  o$kappa <- as.numeric(o$kappa)
+  o$kappa <- .pfmKappaParse(o$kappa)
   o$orderingSeed <- as.integer(o$orderingSeed)
   o$hold <- match.arg(as.character(o$hold), c("logit", "ratio"))
   o$spread <- match.arg(as.character(o$spread), c("k", "model"))
   o$ordering <- match.arg(as.character(o$ordering), c("model", "uniform", "reversed", "permuted"))
   o$strength <- match.arg(as.character(o$strength), c("common", "regional"))
   if (!is.finite(o$holdYear)) stop("v6 coupling: holdYear must be a year", call. = FALSE)
-  if (!is.finite(o$kappa) || o$kappa <= -1 || o$kappa >= 1) stop("v6 coupling: kappa must lie in (-1, 1)", call. = FALSE)
+  if (!length(o$kappa) || any(!is.finite(o$kappa) | o$kappa <= -1 | o$kappa >= 1)) stop("v6 coupling: kappa must lie in (-1, 1)", call. = FALSE)
   if (o$strength == "regional" && o$ordering != "model") {
     stop("v6 coupling: the regional strength sensitivity run (D16) is not combined with an ordering test (D15)", call. = FALSE)
   }
@@ -117,9 +138,20 @@ pfmV6Shares <- function(anchor, scenarioData, theta, options = pfmV6CouplingDefa
     anchor$regionWeights <- .pfmRegionWeights(weights, anchor$mapping)
   }
   st <- computeStrengthPath(anchor, scenarioData, holdYear = o$holdYear, theta = theta, hold = o$hold)
-  fade <- function(y) if (o$kappa != 0) (1 - o$kappa)^pmax(y - anchor$t0, 0) else 1
-  st$strength$k <- st$strength$k * fade(st$strength$year)
-  st$strength$d <- st$strength$d * fade(st$strength$year)
+  # one rate for every sector, or one per sector (a sector not named: 0)
+  kOf <- function(sec) if (is.null(names(o$kappa))) rep(o$kappa, length(sec)) else
+    vapply(as.character(sec), function(z) if (z %in% names(o$kappa)) o$kappa[[z]] else 0, numeric(1))
+  fade <- function(y, sec) { k <- kOf(sec); ifelse(k != 0, (1 - k)^pmax(y - anchor$t0, 0), 1) }
+  st$strength$k <- st$strength$k * fade(st$strength$year, st$strength$sector)
+  st$strength$d <- st$strength$d * fade(st$strength$year, st$strength$sector)
+  # the floor row ("min", when the strength carries one) follows its sectors
+  if (!is.null(names(o$kappa)) && "min" %in% st$strength$sector) {
+    mn <- st$strength$sector == "min"; secs <- setdiff(unique(st$strength$sector), "min")
+    for (i in which(mn)) {
+      yy <- st$strength$sector %in% secs & st$strength$year == st$strength$year[i]
+      st$strength$k[i] <- min(st$strength$k[yy]); st$strength$d[i] <- min(st$strength$d[yy])
+    }
+  }
   if (o$strength == "common") {
     sh <- computeSharePath(anchor, st, theta = theta, spread = o$spread, ordering = o$ordering, seed = o$orderingSeed)
     sh <- sh[sh$sector != "min", , drop = FALSE]
@@ -132,7 +164,7 @@ pfmV6Shares <- function(anchor, scenarioData, theta, options = pfmV6CouplingDefa
     held <- rg[rg$year == max(rg$year[rg$year <= o$holdYear]), c("sector", "region", "kr")]
     late <- rg$year > o$holdYear
     if (any(late)) rg$kr[late] <- held$kr[match(paste(rg$sector[late], rg$region[late]), paste(held$sector, held$region))]
-    rg$kr <- rg$kr * fade(rg$year)
+    rg$kr <- rg$kr * fade(rg$year, rg$sector)
     sh <- merge(rg[, c("sector", "region", "year", "kr")], anchor$region[, c("sector", "region", "u")], by = c("sector", "region"))
     sh$phiRaw <- 1 - theta * sh$kr * sh$u
     sh$phi <- pmin(pmax(sh$phiRaw, 0), 1)

@@ -23,7 +23,10 @@ is echoed in the log and stored in \code{pfm-phi-history.rds}.
 \item{kappa}{declared closure on the strength, \eqn{k(t)(1-\kappa)^{t-t_0}} (D13); 0 = none. A
 negative value is the growing limit sensitivity run: the strength grows above its path (with \code{hold = "ratio"},
 above today's). The share is clipped at 0, so in a region with \eqn{\theta u = 0.5}, growth beyond
-\eqn{k = 2} changes nothing.}
+\eqn{k = 2} changes nothing. Per sector: a named value per sector (\code{c(Bulk = 0.011, Diffuse = 0.046)}),
+or the text \code{"Bulk=0.011,Diffuse=0.046"} (the form a scenario row carries); a sector not named fades at 0.
+The 2008-2023 narrowing of the gap spread, 1.1\\% (power & industry) and 4.6\\% (buildings & transport) a year
+on Run-Group \code{v7}, is the data-consistent pair (design note 0009 section 6.2).}
 \item{strength}{\code{"common"} (headline) or \code{"regional"}, \eqn{k_{r,s} = g_{r,s}(t)/g_{r,s}(t_0)} (D16).}
 }
 }

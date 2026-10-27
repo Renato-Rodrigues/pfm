@@ -11,6 +11,10 @@ test_that("the v6 options have the headline defaults, merge in order and validat
   expect_error(pfm:::.pfmV6Options(list(kappa = 1)), "kappa")
   expect_error(pfm:::.pfmV6Options(list(kappa = -1)), "kappa")
   expect_identical(pfm:::.pfmV6Options(list(kappa = "-0.005"))$kappa, -0.005)
+  expect_identical(pfm:::.pfmV6Options(list(kappa = "Bulk=0.011, Diffuse=0.046"))$kappa, c(Bulk = 0.011, Diffuse = 0.046))
+  expect_identical(pfm:::.pfmV6Options(list(kappa = list(Bulk = 0.011, Diffuse = 0.046)))$kappa, c(Bulk = 0.011, Diffuse = 0.046))
+  expect_error(pfm:::.pfmV6Options(list(kappa = "Power=0.01")), "Bulk and Diffuse")
+  expect_error(pfm:::.pfmV6Options(list(kappa = "Bulk=1.2")), "kappa")
   expect_error(pfm:::.pfmV6Options(list(hold = "level")))
   expect_error(pfm:::.pfmV6Options(list(strength = "regional", ordering = "permuted")), "not combined")
   y <- pfm:::.pfmV6OptionsFromYaml(list(phiHoldYear = 2060, phiOrdering = "reversed", theta = 0.5, other = 1))
@@ -107,6 +111,11 @@ test_that("on the real v6 anchor, pfmV6Shares reproduces Phase 1 and its options
   kap <- pfmV6Shares(anc, scen, theta = 0.5, options = list(kappa = 0.02))
   r <- kap$strength$k / base$strength$k
   expect_equal(r[kap$strength$year == 2050], rep(0.98^25, 2), tolerance = 1e-9)
+  # one rate per sector (design note 0009 section 6.2), in the scenario-row text form
+  ks <- pfmV6Shares(anc, scen, theta = 0.5, options = list(kappa = "Bulk=0.011,Diffuse=0.046"))
+  r <- ks$strength$k / base$strength$k; at <- ks$strength$year == 2050
+  expect_equal(r[at & ks$strength$sector == "Bulk"], 0.989^25, tolerance = 1e-9)
+  expect_equal(r[at & ks$strength$sector == "Diffuse"], 0.954^25, tolerance = 1e-9)
   # a negative kappa (growing limit) grows it, and the share stays clipped at 0
   bk <- pfmV6Shares(anc, scen, theta = 0.5, options = list(kappa = -0.005))
   r <- bk$strength$k / base$strength$k
