@@ -22,10 +22,10 @@
 #'     the scale each year, \eqn{x(t) = 1 - (1 - x_a) e^{-\lambda (t - t_a)}}, on the panel's
 #'     normalised scale (0 = worst, 1 = best value observed), from its value \eqn{x_a} in the last
 #'     year of the estimation panel \eqn{t_a}: the projection starts where the fitted history ends,
-#'     with no step. The rate \eqn{\lambda} is the one that best reproduces PoliClim's SSP2 country
-#'     projections for the nearest PoliClim indicator (\code{\link{pfmInstitutionGapClosureRates}};
-#'     \code{analysis/checks/policlimRuleFit.R}). No country declines; countries further from the top
-#'     improve faster. Applied inside \code{\link{panelDataScenario}}, after normalisation
+#'     with no step. One rate for every series, \eqn{\lambda = 0.6\%} a year
+#'     (\code{\link{pfmInstitutionGapClosureRates}}): the pace of the SSP2 convergence assumption of
+#'     Andrijevic et al. (2020), inside the range V-Dem history shows. No country declines; countries
+#'     further from the top improve faster. Applied inside \code{\link{panelDataScenario}}, after normalisation
 #'     (\code{.pfmGapClosurePanel}). The SSP2 central rule since 2026-10-27 (design note 0008).}
 #' }
 #' In the convergence rules a country already above the target keeps its value rather than being
@@ -56,7 +56,7 @@ pfmInstitutionProjection <- function(rule = c("storyline", "convergence", "hold"
                    convergenceYear = r$convergenceYear))
     })
   attr(out, "label") <- if (rule == "hold") "hold at the last observed value" else if (rule == "gapclosure")
-    "gap closure: a fixed share of the distance to the top of the scale each year (PoliClim SSP2 rates)" else
+    "gap closure: 0.6% of the distance to the best observed value closed each year" else
     paste0(rule, " (", ssp, "): global ", out$percentile, "th percentile, half by ",
            out$midpointYear, ", complete by ", out$convergenceYear)
   out
@@ -84,22 +84,31 @@ pfmInstitutionStorylines <- function() {
 
 #' The rates of the gap-closure institution rule
 #'
-#' @description The yearly share of the distance to the top of the scale that every country closes
-#'   under rule \code{"gapclosure"} of \code{\link{pfmInstitutionProjection}}. Each rate is the
-#'   least-squares fit of that rule to PoliClim's SSP2 country projections, 2030-2100, for the nearest
-#'   PoliClim indicator (\code{analysis/checks/policlimRuleFit.R}): rule of law (V-Dem
-#'   \code{v2xcl_rol}) for V-Dem Rule of Law, overall accountability for every other series. The rate
-#'   is taken from PoliClim, the series is not. The top in the fit is the best value PoliClim observes (1996-2025), as in the rule. Rounded to two significant digits.
+#' @description The yearly share of the distance to the best observed value that every country
+#'   closes under rule \code{"gapclosure"} of \code{\link{pfmInstitutionProjection}}: one rate for every
+#'   series, 0.6\% a year (half-life 116 years; 36\% of the 2023 gap closed by 2100). It is a declared
+#'   value, justified by two sources that do not depend on unpublished projections (design note 0008
+#'   §3a; \code{analysis/checks/gapClosureHistory.R}):
+#'   \itemize{
+#'     \item Andrijevic et al. (2020) let country effects converge linearly to a common level by 2250
+#'       in SSP2. An exponential path represents that linear one at 0.54\% a year when it closes the
+#'       same share of the 2025 gap by 2100 (75/225), and at 0.62\% when it reaches half the gap in
+#'       the same year (2137); 0.6\% lies in that range.
+#'     \item V-Dem history: the same rule fitted to every country's rule of law and vertical
+#'       accountability gives 0.2-0.8\% a year over 1900-2025 and 0.5-1.1\% over 1975-2025.
+#'   }
+#'   PoliClim's SSP2 projections (unpublished) are a consistency check, not the source
+#'   (\code{analysis/checks/policlimRuleFit.R}: 0.56\% for accountability).
 #' @return A data frame: \code{series} (a regular expression on the series name, matched in order;
 #'   the last row matches everything), \code{rate} (per year), \code{halfLife} (years),
-#'   \code{fittedOn} (the PoliClim indicator).
+#'   \code{source}.
 #' @export
 #' @author Renato Rodrigues
 pfmInstitutionGapClosureRates <- function() {
-  data.frame(series   = c("^Rule of Law \\(VDem\\)$", "."),
-             rate     = c(0.0096, 0.0056),
-             halfLife = round(log(2) / c(0.0096, 0.0056)),
-             fittedOn = c("PoliClim SSP2 rule of law (V-Dem v2xcl_rol)", "PoliClim SSP2 overall accountability"),
+  data.frame(series   = ".",
+             rate     = 0.006,
+             halfLife = round(log(2) / 0.006),
+             source   = "declared: Andrijevic et al. 2020 SSP2 convergence pace (0.54-0.62%), inside V-Dem history (0.2-1.1%)",
              stringsAsFactors = FALSE)
 }
 

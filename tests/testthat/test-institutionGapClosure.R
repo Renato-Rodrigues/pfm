@@ -16,10 +16,10 @@ test_that("gap closure starts from the panel's last value and closes a fixed sha
   expect_lt(abs(as.numeric(res["C1", 2025, 1]) - 0.2), 0.02)             # no step: two years of the rule
 })
 
-test_that("each series takes its own rate: rule of law, then every other series", {
-  expect_equal(pfm:::.pfmGapClosureRate("Rule of Law (VDem)"), 0.0096)
-  expect_equal(pfm:::.pfmGapClosureRate("Vertical Accountability (VDem)"), 0.0056)
-  expect_equal(pfm:::.pfmGapClosureRate("Policy Implementation (VDem)"), 0.0056)
+test_that("one rate for every series: 0.6% a year", {
+  expect_equal(pfm:::.pfmGapClosureRate("Rule of Law (VDem)"), 0.006)
+  expect_equal(pfm:::.pfmGapClosureRate("Vertical Accountability (VDem)"), 0.006)
+  expect_equal(pfm:::.pfmGapClosureRate("Policy Implementation (VDem)"), 0.006)
 })
 
 test_that("the weight moves smoothly to the higher of its last value and its ten-year mean", {

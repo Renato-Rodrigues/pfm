@@ -41,10 +41,10 @@ Sensitivity, a bound.}
 the scale each year, \eqn{x(t) = 1 - (1 - x_a) e^{-\lambda (t - t_a)}}, on the panel's
 normalised scale (0 = worst, 1 = best value observed), from its value \eqn{x_a} in the last
 year of the estimation panel \eqn{t_a}: the projection starts where the fitted history ends,
-with no step. The rate \eqn{\lambda} is the one that best reproduces PoliClim's SSP2 country
-projections for the nearest PoliClim indicator (\code{\link{pfmInstitutionGapClosureRates}};
-\code{analysis/checks/policlimRuleFit.R}). No country declines; countries further from the top
-improve faster. Applied inside \code{\link{panelDataScenario}}, after normalisation
+with no step. One rate for every series, \eqn{\lambda = 0.6\%} a year
+(\code{\link{pfmInstitutionGapClosureRates}}): the pace of the SSP2 convergence assumption of
+Andrijevic et al. (2020), inside the range V-Dem history shows. No country declines; countries
+further from the top improve faster. Applied inside \code{\link{panelDataScenario}}, after normalisation
 (\code{.pfmGapClosurePanel}). The SSP2 central rule since 2026-10-27 (design note 0008).}
 }
 In the convergence rules a country already above the target keeps its value rather than being
