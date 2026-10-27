@@ -13,6 +13,7 @@ runPFMDonorAssumptions(
   basisOverride = c(USA = "median"),
   k = 3,
   qualityQuantiles = c(0.5, 0.9),
+  donorRule = c("donor", "median"),
   verbose = TRUE
 )
 }
@@ -39,6 +40,11 @@ far below the frontier its institutions could support.}
 nearest-neighbour distance quantiles bounding "close" and "far". The default
 \code{c(0.5, 0.9)} is the selected rule; \code{c(0.5, Inf)} matches every recipient to
 its nearest donors (the "nearest donors always" sensitivity run, design note 0005 §7a decision 3).}
+
+\item{donorRule}{\code{"donor"} (default) or \code{"median"}, passed to
+\code{\link{computeDonorAssignment}} as \code{rule}: every uncovered country at the covered median
+\eqn{E} (design note 0009 section 6.3; the \code{v8} rule). \code{pfmRun} sets it from config.yml
+\code{coverage: rule:} (per Run-Group under \code{coverage: groups:}).}
 
 \item{verbose}{Logical.}
 }

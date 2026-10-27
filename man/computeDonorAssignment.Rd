@@ -16,7 +16,8 @@ computeDonorAssignment(
   sector = NA_character_,
   drivers = NULL,
   weighting = c("beta", "equal"),
-  qualityQuantiles = c(0.5, 0.9)
+  qualityQuantiles = c(0.5, 0.9),
+  rule = c("donor", "median")
 )
 }
 \arguments{
@@ -74,6 +75,16 @@ matches on the full specification.}
 \item{qualityQuantiles}{The quantiles of the covered countries' nearest-neighbour distances
 that bound "close" and "far". Default \code{c(0.5, 0.9)}. A second value of \code{Inf}
 removes the "none" class: every recipient takes its nearest donors.}
+
+\item{rule}{\code{"donor"} (default, the rule above) or \code{"median"}: every recipient takes
+the covered countries' median \eqn{E} (basis \code{"median"}), whatever its donors. Out of
+sample, on Run-Group \code{v7}, the median predicts a covered country's \eqn{E} better than its
+donors do (mean absolute error 0.119 against 0.151 power & industry, 0.080 against 0.087
+buildings & transport; design note 0009 section 6.3): the frontier has already used what the
+drivers say, and the distance below the ceiling is what they do not explain. The donors are
+still found and reported (\code{donors}, \code{distance}, \code{donorQuality}) as diagnostics.
+\code{basisOverride} still applies: \code{"lowBand"} places a country in the low band,
+\code{"donor"} gives it its matched blend.}
 }
 \value{
 Data.frame, one row per recipient: \code{region, sector, donors}

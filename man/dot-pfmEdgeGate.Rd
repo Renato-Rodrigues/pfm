@@ -22,7 +22,7 @@
 defaults.}
 }
 \value{
-A list: \code{pass}, \code{against} (regions failing the direction criterion, with their
+A list: \code{pass} (\code{NA} when no country of the scenario has a final-energy weight: not evaluable), \code{against} (regions failing the direction criterion, with their
 share and drivers), \code{capShift} (the largest regional shift), \code{capRegion}, \code{detail}.
 }
 \description{
