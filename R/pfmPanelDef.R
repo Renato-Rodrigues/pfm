@@ -26,7 +26,7 @@
 #' Editing \code{config.yml} therefore never changes a group that has already been swept.
 #'
 #' @param def A panel definition (\code{firstYear}, \code{lastYear}, \code{movingAverage},
-#'   \code{ieaVersion}, \code{geothermal}, \code{democracy}, \code{overallAccountability}).
+#'   \code{ieaVersion}, \code{geothermal}, \code{democracy}, \code{overallAccountability}, \code{fossilRents}).
 #' @return \code{pfmPanelDef()}: the active definition (the \code{pfm.panel} option, else the
 #'   legacy one).
 #' @export
@@ -41,7 +41,7 @@ pfmPanelDef <- function() {
 #' @keywords internal
 .pfmPanelDefLegacy <- function() {
   list(firstYear = 2000L, lastYear = 2022L, movingAverage = 5L, ieaVersion = "default",
-       geothermal = FALSE, democracy = FALSE, overallAccountability = FALSE)
+       geothermal = FALSE, democracy = FALSE, overallAccountability = FALSE, fossilRents = FALSE)
 }
 
 # Accepts the config form (years = c(first, last) or a full vector) and the manifest form
@@ -69,6 +69,9 @@ pfmPanelDef <- function() {
   # V-Dem's overall accountability index in the panels, one more candidate for the accountability
   # channel of the search (the PoliClim index; v7). Off for every group up to v6.
   out$overallAccountability <- isTRUE(as.logical(out$overallAccountability))
+  # World Bank fossil rents, log(1 + % of GDP), in the panels: the size of the frontier's slack in a
+  # heteroscedastic frontier (slackDrivers; design note 0009 section 8.2). Off for every group up to v7.
+  out$fossilRents <- isTRUE(as.logical(out$fossilRents))
   if (out$lastYear < out$firstYear) {
     stop("panel definition: lastYear (", out$lastYear, ") < firstYear (", out$firstYear, ")",
          call. = FALSE)
@@ -103,7 +106,8 @@ pfmPanelDef <- function() {
          ", IEA ", if (identical(def$ieaVersion, "latest")) "2025 edition" else "2024 edition",
          if (isTRUE(def$geothermal)) ", geothermal in the baseload control" else "",
          if (isTRUE(def$democracy)) ", V-Dem democracy indices" else "",
-         if (isTRUE(def$overallAccountability)) ", V-Dem overall accountability" else "")
+         if (isTRUE(def$overallAccountability)) ", V-Dem overall accountability" else "",
+         if (isTRUE(def$fossilRents)) ", World Bank fossil rents" else "")
 }
 
 # The definition for a group, in the resolution order documented above, with where it came from.

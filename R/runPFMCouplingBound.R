@@ -216,7 +216,7 @@ runPFMCouplingBound <- function(group,
   paths <- lapply(stats::setNames(nm = sectors), function(sec) {
     ct <- fr$bySector[[sec]]$coefTable
     fb <- stats::setNames(ct$estimate, ct$term)
-    fb <- fb[!names(fb) %in% c("sigmaSq", "gamma")]
+    fb <- .pfmCeilingBeta(fb)
     p <- projectFeasiblePath(cfg[[sec]], sec, histData = panel, scenarioData = scen,
                              rule = "speed-limited", frontierBeta = fb,
                              modelDir = modelDir, verbose = FALSE)

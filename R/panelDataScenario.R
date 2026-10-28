@@ -15,6 +15,10 @@
 #'   (\code{\link{pfmPanelDef}}), which must be the one the Run-Group was fitted on.
 #' @param democracy add the V-Dem democracy indices (electoral, liberal, freedom of expression), each
 #'   held at its last observed value in every scenario year (design note 0007). Default: the active panel definition.
+#' @param fossilRents add "Fossil Rents" (log(1 + \% of GDP)): history from the harmonisation panel, then each
+#'   country's last value scaled by its REMIND region's rents relative to 2025, read from the gdx
+#'   (\code{.pfmScenarioFossilRents}; design note 0009 section 8.2). Needs \code{harmonizeScenario}. Default: the
+#'   active panel definition.
 #' @param overallAccountability add V-Dem's overall accountability index ("Overall Accountability (VDem)"),
 #'   projected by the \code{institutions} rule and normalised like the other V-Dem channels. Default: the
 #'   active panel definition.
@@ -59,6 +63,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
                               geothermal = pfmPanelDef()$geothermal,
                               democracy = pfmPanelDef()$democracy,
                               overallAccountability = pfmPanelDef()$overallAccountability,
+                              fossilRents = pfmPanelDef()$fossilRents,
                               ssp = "SSP2",
                               institutions = "storyline",
                               histCache = NULL,
@@ -307,6 +312,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
     # so the keys of caches built before they existed (every group up to v6) do not change.
     if (isTRUE(democracy)) histArgs$democracy <- TRUE
     if (isTRUE(overallAccountability)) histArgs$overallAccountability <- TRUE
+    if (isTRUE(fossilRents)) histArgs$fossilRents <- TRUE
     histPanel <- .pfmHistHarmonisationPanel(histArgs, histCache)
 
     # Use the latest historical year as the harmonization anchor so that recent
@@ -345,6 +351,13 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
       levelVars <- if (isTRUE(democracy)) magclass::getNames(demInt) else character(0)
       out <- .pfmGapClosurePanel(out, histPanel, ruleVars, levelVars, stitchYear, harmonizeScenarioYear)
     }
+    # fossil rents (design note 0009 section 8.2): history, then REMIND's regional rents relative to 2025
+    if (isTRUE(fossilRents)) {
+      out <- mbind(out, .pfmScenarioFossilRents(histPanel, gdxFile, gdxRegionMappingFile,
+                                                magclass::getYears(out, as.integer = TRUE), magclass::getItems(out, dim = 1)))
+    }
+  } else if (isTRUE(fossilRents)) {
+    stop("panelDataScenario: fossilRents needs harmonizeScenario = TRUE (its history comes from the history panel)", call. = FALSE)
   } else if (gapRule) {
     stop("panelDataScenario: institutions = '", institutions, "' needs harmonizeScenario = TRUE (it starts from the history panel)",
          call. = FALSE)

@@ -104,7 +104,7 @@ runPFMHistoricalReplay <- function(group,
     if (is.null(ct)) ct <- tryCatch(frontier[[sec]], error = function(e) NULL)
     if (is.null(ct) || !is.data.frame(ct)) return(NULL)
     b <- stats::setNames(ct$estimate, ct$term)
-    b[!names(b) %in% c("sigmaSq", "gamma")]
+    .pfmCeilingBeta(b)
   }
 
   norm <- function(s) {

@@ -25,15 +25,33 @@
 # estimation rows, the frozen driver scaling (saturation parameters included), the trend curve
 # and the guard ranges, exactly as the frontier saw them; the DEPLOYED frontier coefficients
 # (frontier.rds) supply eta. This is how projectFeasiblePath() builds its ceiling, without the ECM.
+# A heteroscedastic frontier (design note 0009 section 8.2) adds its slack terms `slack_<column>`: they are kept
+# out of the ceiling and carried as `slack` (the weights w, the raw panel variables, their frozen scaling from the
+# frontier fit), so the coupling can scale each country's distance by exp(w (z_t - z_anchor)).
 #' @keywords internal
-.pfmAnchorDesign <- function(cfg, sector, histData, frontierBeta, modelDir = NULL, indexMax = 10) {
+.pfmAnchorDesign <- function(cfg, sector, histData, frontierBeta, modelDir = NULL, indexMax = 10,
+                             slackScaling = NULL) {
   cfg <- .pfmNormSpec(cfg)
   fit <- do.call(estimatePolicyStringencyModel, c(
     list(data = histData, sector = sector, estimator = "satP", indexMax = indexMax,
          modelDir = modelDir, updateIndex = FALSE, verbose = FALSE),
     .pfmSpecArgs(cfg)))
-  fb <- frontierBeta[!names(frontierBeta) %in% c("sigmaSq", "gamma")]
-  list(cfg = cfg, sector = sector, fit = fit, beta = fb, indexMax = indexMax,
+  isSlack <- startsWith(names(frontierBeta), "slack_")
+  fb <- frontierBeta[!names(frontierBeta) %in% c("sigmaSq", "gamma") & !isSlack]
+  sw <- frontierBeta[isSlack & names(frontierBeta) != "slack_(Intercept)"]
+  slack <- NULL
+  if (length(sw)) {
+    names(sw) <- sub("^slack_", "", names(sw))
+    vars <- .pfmSlackDriversFor(cfg$slackDrivers, sector)
+    vars <- vars[make.names(vars) %in% names(sw)]
+    sc <- slackScaling[names(sw)]
+    if (length(vars) != length(sw) || any(vapply(sc, is.null, logical(1)))) {
+      stop(".pfmAnchorDesign: the frontier's slack terms (", paste(names(sw), collapse = ", "), ") have no ",
+           "slackDrivers in the spec or no frozen scaling in frontier.rds", call. = FALSE)
+    }
+    slack <- list(w = sw, vars = vars, scaling = sc)
+  }
+  list(cfg = cfg, sector = sector, fit = fit, beta = fb, indexMax = indexMax, slack = slack,
        lastHist = suppressWarnings(max(fit$data$year, na.rm = TRUE)),
        ranges = .driverSupportRanges(fit$data, fit$driverScaling),
        nSqueeze = fit$squeeze$n %||% sum(is.finite(fit$data$ecp)),
@@ -51,14 +69,18 @@
   # countries - and eta is needed for every country (as in runPFMDonorAssumptions).
   ps <- grep("Policy Stringency", magclass::getNames(data), value = TRUE)
   if (length(ps)) data <- data[, , setdiff(magclass::getNames(data), ps)]
+  # the slack drivers ride along as prep-only controls with the frontier's frozen scaling (not in the formula)
+  sl <- design$slack
+  ds <- fit$driverScaling
+  if (!is.null(sl)) for (k in names(sl$scaling)) ds[[k]] <- sl$scaling[[k]]
   df <- preparePanelData(
     data = data, sector = design$sector,
     actorPowerDrivers = unl(cfg$actorPowerDrivers), actorPowerIndex = unl(cfg$actorPowerIndex),
     instQualityDrivers = unl(cfg$instQualityDrivers),
-    controlDrivers = setdiff(unl(cfg$controlDrivers), "lagged_ecp"),
+    controlDrivers = c(setdiff(unl(cfg$controlDrivers), "lagged_ecp"), sl$vars),
     regionMappingFixedEffects = if (isTRUE(cfg$useMundlak)) NULL else cfg$regionMappingFixedEffects,
     useMundlak = isTRUE(cfg$useMundlak), gdpGovInteraction = isTRUE(cfg$gdpGovInteraction),
-    driverScaling = fit$driverScaling,
+    driverScaling = ds,
     trendMidpoint = design$trend[["midpoint"]], trendSteepness = design$trend[["steepness"]],
     trendFreezeYear = if (is.finite(design$lastHist)) design$lastHist else NULL,
     outcomeVar = fit$outcomeVar %||% "Policy Stringency")
@@ -78,8 +100,12 @@
     stop(".pfmFrontierEta: frontier terms absent from the design: ", paste(missing, collapse = ", "),
          call. = FALSE)
   }
+  # the slack shift w'z of each row (0 without a heteroscedastic slack; NA where a slack driver is missing)
+  slackShift <- if (is.null(sl)) rep(0, nrow(df)) else
+    as.numeric(as.matrix(df[, names(sl$w), drop = FALSE]) %*% sl$w)
   data.frame(region = as.character(df$region), year = df$year,
              eta = as.numeric(mm[, names(design$beta), drop = FALSE] %*% design$beta),
+             slackShift = slackShift,
              driverOutOfSupport = g$outOfSupport, apExcess = g$apExcess,
              stringsAsFactors = FALSE)
 }
@@ -226,13 +252,15 @@ computeAnchorGap <- function(group, resultsDir = getOption("pfm.resultsDir", "ou
     cfg <- Filter(function(x) identical(x$model_type, paste0("PolicyStringency: ", sec)), sel)[[1]]
     ct <- fr$bySector[[sec]]$coefTable
     des <- .pfmAnchorDesign(cfg, sec, histData, stats::setNames(ct$estimate, ct$term),
-                              modelDir = modelDir, indexMax = indexMax)
+                              modelDir = modelDir, indexMax = indexMax,
+                              slackScaling = fr$bySector[[sec]]$driverScaling)
     designs[[sec]] <- des
     ta <- anchorYear %||% des$lastHist
     sq <- function(p) .pfmSqueeze(pmin(pmax(p, 0), 1), des$nSqueeze)
     eh <- .pfmFrontierEta(des, histData)
     eh <- eh[eh$year == ta & is.finite(eh$eta), , drop = FALSE]
     etaA <- stats::setNames(eh$eta, eh$region)
+    slackA <- stats::setNames(eh$slackShift, eh$region)
     # covered: the estimation rows at the anchor year (y on the squeezed logit scale)
     fd <- des$fit$data
     cov <- fd[fd$year == ta & is.finite(fd$ecp), c("region", "ecp")]
@@ -266,6 +294,7 @@ computeAnchorGap <- function(group, resultsDir = getOption("pfm.resultsDir", "ou
     }
     countries[[sec]] <- data.frame(sector = sec, region = reg, basis = basis, etaAnchor = as.numeric(etaA[reg]),
                                    yAnchor = as.numeric(y), q = as.numeric(q),
+                                   slackShiftAnchor = as.numeric(slackA[reg]),
                                    ceilingAnchor = as.numeric(sStar),
                                    indexAnchor = indexMax * stats::plogis(as.numeric(etaA[reg] - q)),
                                    stringsAsFactors = FALSE)
@@ -343,6 +372,13 @@ computeStrengthPath <- function(anchor, scenarioData, holdYear = 2100, theta = 0
     cc <- anchor$country[anchor$country$sector == sec & is.finite(anchor$country$q), , drop = FALSE]
     es <- es[es$region %in% cc$region & is.finite(es$eta), , drop = FALSE]
     q <- stats::setNames(cc$q, cc$region)[es$region]
+    # a heteroscedastic slack (design note 0009 section 8.2): the distance kept scales with the slack's size,
+    # q_c(t) = q_c exp(w'(z_c(t) - z_c(anchor))); 1 where a slack driver is missing (the distance as anchored)
+    if (!is.null(cc$slackShiftAnchor)) {
+      sA <- stats::setNames(cc$slackShiftAnchor, cc$region)[es$region]
+      m <- exp(es$slackShift - sA); m[!is.finite(m)] <- 1
+      q <- q * m
+    }
     sStar <- indexMax * stats::plogis(es$eta)
     S <- if (hold == "logit") indexMax * stats::plogis(es$eta - q) else {
       e0 <- stats::setNames(pmin(cc$indexAnchor / cc$ceilingAnchor, 1), cc$region)[es$region]

@@ -13,6 +13,7 @@ panelDataHistorical(
   geothermal = pfmPanelDef()$geothermal,
   democracy = pfmPanelDef()$democracy,
   overallAccountability = pfmPanelDef()$overallAccountability,
+  fossilRents = pfmPanelDef()$fossilRents,
   coeff = list(bulk = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
     list(vre = 1, elec = 0.6), incumbents_power = list(coal = 1, oilgas = 1, fossilInd =
     0.5)), diffuse = list(actor_power = list(innov = 1, incumb = 1), innovators_power =
@@ -51,6 +52,10 @@ democracy-weighted spec (design note 0007). Default: the active panel definition
 \code{v2x_accountability_osp}, the accountability index of the PoliClim projections), min-max normalised
 like the other V-Dem channels: a candidate for the accountability channel of the search (v7). Default:
 the active panel definition.}
+
+\item{fossilRents}{add World Bank fossil rents ("Fossil Rents", log(1 + oil, gas and coal rents in \\% of GDP);
+mrpfm calcFossilRents), the size of the frontier's slack in a heteroscedastic frontier (design note 0009
+section 8.2). Default: the active panel definition.}
 
 \item{coeff}{list of coefficients for actor power index calculation}
 

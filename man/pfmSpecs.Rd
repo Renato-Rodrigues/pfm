@@ -10,7 +10,8 @@ pfmSpecs(
   apTransforms = c("linear", "saturating"),
   dropCompositeAP = FALSE,
   interactionWeights = character(0),
-  fossilFloors = character(0)
+  fossilFloors = character(0),
+  slackDrivers = NULL
 )
 }
 \arguments{
@@ -42,6 +43,9 @@ section 8, A7); its twins carry the scope in the suffix (\code{" iw:libdem@accRo
 (\code{fossilFloor}; suffix \code{" fos5"} for 0.05). With \code{"none"} among them the bounded specs
 are added as twins of the unbounded ones; without it they replace them, so the grid keeps its size.
 Empty (default): no bound. Applied last, so the bound covers every twin of the other axes.}
+
+\item{slackDrivers}{\code{NULL} (default) or a list of panel variables named by sector: set on every spec as
+\code{slackDrivers}, read by the frontier estimator only (design note 0009 section 8.2). Not a grid axis.}
 }
 \value{
 The adapted, normalised spec list.

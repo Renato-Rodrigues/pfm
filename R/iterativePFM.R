@@ -305,7 +305,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     # there, while the estimation read the 2025 edition: silent (PITFALLS 32). Restored on exit.
     oldPanelOpt <- getOption("pfm.panel")
     on.exit(options(pfm.panel = oldPanelOpt), add = TRUE)
-    options(pfm.panel = panelDef[c("firstYear", "lastYear", "movingAverage", "ieaVersion", "geothermal", "democracy", "overallAccountability")])
+    options(pfm.panel = panelDef[c("firstYear", "lastYear", "movingAverage", "ieaVersion", "geothermal", "democracy", "overallAccountability", "fossilRents")])
     scen <- panelDataScenario(gdxFile = gdx, aggregate = TRUE,
                               gdxRegionMappingFile = gdxRegionMapping,
                               outputRegionMappingFile = "country",
@@ -476,7 +476,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
         identical(x$model_type, paste0("PolicyStringency: ", sec)), sel)[[1]])
       ct <- fr$bySector[[sec]]$coefTable
       fb <- stats::setNames(ct$estimate, ct$term)
-      fb <- fb[!names(fb) %in% c("sigmaSq", "gamma")]
+      fb <- .pfmCeilingBeta(fb)
       # The ECM fit depends only on the historical panel and the spec - neither changes
       # across the coupling loop - so it is fitted ONCE and cached. Every later iteration
       # reads it back. This was the dominant cost: two refits per call, ~20 calls per run,
@@ -515,6 +515,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
           apTransform = cfg$apTransform %||% "linear",
           apSatScale = as.numeric(cfg$apSatScale %||% 1),
           fossilFloor = if (is.null(cfg$fossilFloor)) NULL else as.numeric(cfg$fossilFloor),
+          slackDrivers = cfg$slackDrivers,
           interactionWeight = cfg$interactionWeight,
           modelDir = modelDir, updateIndex = FALSE, verbose = FALSE)
         saveRDS(ecm, fitCache)

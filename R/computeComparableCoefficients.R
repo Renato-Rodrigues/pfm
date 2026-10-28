@@ -61,7 +61,7 @@ computeComparableCoefficients <- function(fit, scenarioValues = NULL, digits = 4
   b <- tryCatch(stats::coef(fit$model), error = function(e) NULL)
   if (is.null(b) && inherits(fit$model, "merMod")) b <- lme4::fixef(fit$model)
   if (is.null(b)) stop("computeComparableCoefficients: could not extract coefficients.")
-  b <- b[!names(b) %in% c("sigmaSq", "gamma")]
+  b <- .pfmCeilingBeta(b)
 
   tt <- stats::delete.response(stats::terms(fit$formula))
   mm <- stats::model.matrix(

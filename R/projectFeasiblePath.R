@@ -127,6 +127,7 @@ projectFeasiblePath <- function(spec, sector, histData, scenarioData,
     apTransform = spec$apTransform %||% "linear",
     apSatScale = as.numeric(spec$apSatScale %||% 1),
     fossilFloor = if (is.null(spec$fossilFloor)) NULL else as.numeric(spec$fossilFloor),
+    slackDrivers = spec$slackDrivers,
     interactionWeight = spec$interactionWeight,
     trendMidpoint = spec$trendMidpoint %||% formals(preparePanelData)$trendMidpoint,
     trendSteepness = spec$trendSteepness %||% formals(preparePanelData)$trendSteepness,
@@ -191,7 +192,7 @@ projectFeasiblePath <- function(spec, sector, histData, scenarioData,
   # --- 4. Ceiling from the frontier (bound + exhibit only) ---------------------
   etaCeil <- rep(NA_real_, nrow(sDf))
   if (!is.null(frontierBeta)) {
-    fb <- frontierBeta[!names(frontierBeta) %in% c("sigmaSq", "gamma")]
+    fb <- .pfmCeilingBeta(frontierBeta)
     missing <- setdiff(names(fb), colnames(mm))
     if (length(missing)) {
       stop("projectFeasiblePath: frontier terms absent from the scenario design: ",

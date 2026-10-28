@@ -64,6 +64,7 @@ projectPFMSpecScenario <- function(cfg, sector, histData, scenarioData,
     apTransform = cfg$apTransform %||% "linear",
     apSatScale = as.numeric(cfg$apSatScale %||% 1),
     fossilFloor = if (is.null(cfg$fossilFloor)) NULL else as.numeric(cfg$fossilFloor),
+    slackDrivers = cfg$slackDrivers,
     interactionWeight = cfg$interactionWeight,
     modelDir = modelDir, updateIndex = FALSE, verbose = FALSE
   )
@@ -793,7 +794,7 @@ computePolicyStringencySanity <- function(proj, histIndex = NULL, regionBlocks =
          indexMax = indexMax, modelDir = modelDir, updateIndex = FALSE, verbose = FALSE),
     .pfmSpecArgs(cfg)))
   b <- stats::coef(ff$model)
-  b <- b[!names(b) %in% c("sigmaSq", "gamma")]
+  b <- .pfmCeilingBeta(b)
   covered <- unique(as.character(ff$data$region))
 
   sDf <- preparePanelData(

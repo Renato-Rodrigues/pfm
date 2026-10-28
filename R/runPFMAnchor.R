@@ -135,7 +135,7 @@ pfmAnchorFor <- function(x, resolution = "EU21") {
   fml <- f$formula
   environment(fml) <- baseenv()
   list(cfg = d$cfg, sector = d$sector, beta = d$beta, indexMax = d$indexMax, lastHist = d$lastHist,
-       ranges = d$ranges, nSqueeze = d$nSqueeze, trend = d$trend,
+       ranges = d$ranges, nSqueeze = d$nSqueeze, trend = d$trend, slack = d$slack,
        fit = list(driverScaling = f$driverScaling, outcomeVar = f$outcomeVar, formula = fml,
                   model = list(xlevels = list(regionFE = f$model$xlevels$regionFE))))
 }

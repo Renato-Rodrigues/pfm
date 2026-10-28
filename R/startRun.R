@@ -281,9 +281,9 @@ startRun <- function(group,
   panelLine <- if (!is.null(pd)) {
     pd <- .pfmPanelDefNormalise(pd)
     sprintf(paste0("options(pfm.panel = list(firstYear = %dL, lastYear = %dL, movingAverage = %dL, ",
-                   "ieaVersion = %s, geothermal = %s, democracy = %s, overallAccountability = %s))"),
+                   "ieaVersion = %s, geothermal = %s, democracy = %s, overallAccountability = %s, fossilRents = %s))"),
             pd$firstYear, pd$lastYear, pd$movingAverage, .rlit(pd$ieaVersion), .rlit(pd$geothermal),
-            .rlit(pd$democracy), .rlit(pd$overallAccountability))
+            .rlit(pd$democracy), .rlit(pd$overallAccountability), .rlit(pd$fossilRents))
   } else NULL
   writeLines(c("suppressMessages(library(pfm))", optLine, panelLine, call), jobR)
 

@@ -49,6 +49,7 @@
         apTransform = cfg$apTransform %||% "linear",
         apSatScale = as.numeric(cfg$apSatScale %||% 1),
         fossilFloor = if (is.null(cfg$fossilFloor)) NULL else as.numeric(cfg$fossilFloor),
+        slackDrivers = cfg$slackDrivers,
         interactionWeight = cfg$interactionWeight,
         modelDir = modelDir, updateIndex = FALSE, ignoreCache = forceRefit,
         verbose = verbose, prepared = prepared

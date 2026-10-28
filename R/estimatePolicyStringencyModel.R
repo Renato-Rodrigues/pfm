@@ -92,6 +92,11 @@
 #'   the selected form). See \code{\link{preparePanelData}}.
 #' @param fossilFloor Number in (0, 1) or \code{NULL} (default): the lower bound on the fossil terms at
 #'   this training quantile (design note 0009 section 7.1). See \code{\link{preparePanelData}}.
+#' @param slackDrivers \code{NULL} (default), a character vector of panel variables, or a list of them named by
+#'   sector (\code{list(Diffuse = "Fossil Rents")}). \strong{Frontier only}: the size of the slack depends on them,
+#'   \eqn{\log \sigma_{u,it} = c + z_{it}'w} (heteroscedastic half-normal; design note 0009 section 8.2). The
+#'   variables are read with the drivers' lag and standardised on the training rows (frozen in
+#'   \code{driverScaling}), but they do not enter the ceiling. Ignored by every other estimator.
 #' @param interactionWeight Character or \code{NULL}. A 0-1 panel variable that multiplies every
 #'   actor-power x institution interaction (e.g. \code{"Electoral Democracy (VDem)"}; design note
 #'   0007, option O10). \code{NULL} (default) leaves the interactions unweighted. Stored with the
@@ -169,6 +174,7 @@ estimatePolicyStringencyModel <- function(
     apTransform = "linear",
     apSatScale = 1,
     fossilFloor = NULL,
+    slackDrivers = NULL,
     interactionWeight = NULL,
     trendMidpoint = formals(preparePanelData)$trendMidpoint,
     trendSteepness = formals(preparePanelData)$trendSteepness) {
@@ -221,6 +227,10 @@ estimatePolicyStringencyModel <- function(
     # preparePanelData like any driver (lagged, standardized) via a prep-only
     # control that is NEVER in the structural formula.
     prepControls <- controlDrivers
+    # the slack drivers of a heteroscedastic frontier ride through like the instrument: read, lagged and
+    # standardised with the drivers, never in the ceiling's formula (design note 0009 section 8.2)
+    slackSec <- if (estimator == "frontier") .pfmSlackDriversFor(slackDrivers, sector) else character(0)
+    prepControls <- c(prepControls, setdiff(slackSec, prepControls))
     if (estimator == "satP-iv") {
       data <- .pfmAddShiftShareIV(data, sector)
       prepControls <- c(prepControls, "ShiftShare IV")
@@ -445,7 +455,8 @@ estimatePolicyStringencyModel <- function(
     # The frontier is the estimand — the maximum attainable transformed stringency
     # given political-economy fundamentals; u is political slack. MLE needs
     # complete cases explicitly.
-    keepVars <- intersect(all.vars(fml), colnames(df))
+    slackSec <- if (exists("slackSec", inherits = FALSE)) slackSec else .pfmSlackDriversFor(slackDrivers, sector)
+    keepVars <- intersect(c(all.vars(fml), make.names(slackSec)), colnames(df))
     df <- df[stats::complete.cases(df[, keepVars, drop = FALSE]), , drop = FALSE]
     # regionFE keeps mapping levels with no estimation rows (out-of-coverage H12
     # regions); glm silently NA-drops their dummies but frontier::sfa refuses
@@ -459,10 +470,15 @@ estimatePolicyStringencyModel <- function(
                                conditionMessage(e))
     )
     familyLabel <- "normal-halfnormal frontier (satP)"
+    if (length(slackSec)) {
+      # the heteroscedastic slack, started at the homoscedastic fit (design note 0009 section 8.2)
+      fit <- .pfmHetFrontierFit(fml, df, make.names(slackSec), start = fit, maxit = max(frontierMaxit, 5000L))
+      familyLabel <- paste0("normal-halfnormal frontier, slack size on ", paste(slackSec, collapse = ", "), " (satP)")
+    }
     # Hitting the cap is NOT convergence. sfa returns the last iterate either way, so
     # without this a capped fit is indistinguishable from a converged one.
     hitCap <- isTRUE(tryCatch(fit$nIter >= fit$maxit, error = function(e) FALSE))
-    convergedFlag <- all(is.finite(stats::coef(fit))) && !hitCap
+    convergedFlag <- all(is.finite(stats::coef(fit))) && !hitCap && (!inherits(fit, "pfmHetFrontier") || isTRUE(fit$converged))
     if (hitCap && isTRUE(verbose)) {
       message("  [pfm] frontier::sfa hit its iteration cap (", fit$maxit,
               ") for ", sector, " - treating as NOT converged.")
@@ -530,9 +546,15 @@ estimatePolicyStringencyModel <- function(
     # log-likelihood, the estimates and `converged` were all correct (TODO 14f).
     # .pfmFrontierVcov() recomputes the information matrix from the likelihood
     # that was actually maximised and reports which matrix it handed back.
-    frontierVcov <- .pfmFrontierVcov(fit, fml, df)
+    frontierVcov <- if (inherits(fit, "pfmHetFrontier")) {
+      # the Hessian of the likelihood maximised here: no FRONTIER 4.1 matrix to check
+      list(vcov = stats::vcov(fit), source = "hessian", status = if (isTRUE(fit$converged)) "ok" else "flat",
+           ratio = NA_real_, logLikReported = fit$logLikValue, logLikCheck = fit$logLikValue)
+    } else .pfmFrontierVcov(fit, fml, df)
     b <- stats::coef(fit)
-    if (identical(frontierVcov$source, "recomputed")) {
+    if (identical(frontierVcov$source, "hessian")) {
+      se <- sqrt(pmax(diag(frontierVcov$vcov), 0)); se[!is.finite(se)] <- NA_real_
+    } else if (identical(frontierVcov$source, "recomputed")) {
       # The recomputed matrix carries log(sigmaSq) and qlogis(gamma); map those two
       # back to the natural scale by the delta method so the table keeps its shape.
       k <- length(b) - 2L

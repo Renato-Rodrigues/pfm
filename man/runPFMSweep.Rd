@@ -48,6 +48,7 @@ runPFMSweep(
   apExtrapolationWindow = c(2025, 2100),
   interactionWeights = character(0),
   fossilFloors = character(0),
+  slackDrivers = NULL,
   edgeGate = NULL,
   theoryGate = NULL,
   extraAccountability = character(0),
@@ -205,6 +206,12 @@ twin of every spec with interactions, see \code{\link{pfmSpecs}} (design note 00
 \item{fossilFloors}{The fossil lower-bound axis, see \code{\link{pfmSpecs}} (design note 0009 section
 7.1): training quantiles in (0, 1), and \code{"none"} to keep the unbounded specs. Empty (default):
 no bound, as up to v7.}
+
+\item{slackDrivers}{Panel variables that set the size of the frontier's slack, by sector (a list named by
+sector, e.g. \code{list(Diffuse = "Fossil Rents")}; design note 0009 section 8.2): carried into every spec
+(\code{\link{pfmSpecs}}), so every frontier fit of the sanity walk and of the frontier step uses them. They
+do not enter the ceiling, so the satP selection fits are unchanged. Empty (default): none, as up to v7.
+Needs the variables in the panel (\code{"Fossil Rents"}: the panel key \code{fossilRents}).}
 
 \item{edgeGate}{\code{NULL} (default, as up to v6) or a list of thresholds for the edge-of-data
 gate of the sanity walk (\code{share}, \code{effect}, \code{capShift}, \code{cap},

@@ -18,6 +18,9 @@
 #' @param democracy add the V-Dem democracy indices ("Electoral Democracy (VDem)", "Liberal Democracy
 #'   (VDem)", "Freedom of Expression (VDem)"; 0-1, not normalised), the candidate weights of a
 #'   democracy-weighted spec (design note 0007). Default: the active panel definition.
+#' @param fossilRents add World Bank fossil rents ("Fossil Rents", log(1 + oil, gas and coal rents in \% of GDP);
+#'   mrpfm calcFossilRents), the size of the frontier's slack in a heteroscedastic frontier (design note 0009
+#'   section 8.2). Default: the active panel definition.
 #' @param overallAccountability add V-Dem's overall accountability index ("Overall Accountability (VDem)",
 #'   \code{v2x_accountability_osp}, the accountability index of the PoliClim projections), min-max normalised
 #'   like the other V-Dem channels: a candidate for the accountability channel of the search (v7). Default:
@@ -52,6 +55,7 @@ panelDataHistorical <- function(aggregate = TRUE,
                                 geothermal = pfmPanelDef()$geothermal,
                                 democracy = pfmPanelDef()$democracy,
                                 overallAccountability = pfmPanelDef()$overallAccountability,
+                                fossilRents = pfmPanelDef()$fossilRents,
                                 coeff = list(
                                   bulk = list(
                                     actor_power = list(innov = 1, incumb = 1),
@@ -193,6 +197,15 @@ panelDataHistorical <- function(aggregate = TRUE,
     dem <- calcOutput("VDem", subtype = "democracy", aggregate = aggregate, regionmapping = outputRegionMappingFile)
     demInt <- mrpfm::toolImputeMedians(toolTimeInterpolation(dem, y))
     out <- mbind(out, demInt[, y, ])
+  }
+
+  # World Bank fossil rents (design note 0009 section 8.2): log(1 + % of GDP), as the offline test. Not imputed: a
+  # country without a series has none in the panel (every CAPMF country has one), and the coupling then leaves its
+  # slack where it was.
+  if (isTRUE(fossilRents)) {
+    fr <- calcOutput("FossilRents", aggregate = aggregate, regionmapping = outputRegionMappingFile)
+    fr <- fr[, intersect(getYears(fr), y), ]
+    out <- mbind(out, setNames(log1p(pmax(fr, 0)), "Fossil Rents"))
   }
 
   # V-Dem state-capacity indicators (replace WGI Government Effectiveness)

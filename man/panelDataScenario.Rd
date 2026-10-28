@@ -17,6 +17,7 @@ panelDataScenario(
   geothermal = pfmPanelDef()$geothermal,
   democracy = pfmPanelDef()$democracy,
   overallAccountability = pfmPanelDef()$overallAccountability,
+  fossilRents = pfmPanelDef()$fossilRents,
   ssp = "SSP2",
   institutions = "storyline",
   histCache = NULL,
@@ -52,6 +53,11 @@ held at its last observed value in every scenario year (design note 0007). Defau
 
 \item{overallAccountability}{add V-Dem's overall accountability index ("Overall Accountability (VDem)"),
 projected by the \code{institutions} rule and normalised like the other V-Dem channels. Default: the
+active panel definition.}
+
+\item{fossilRents}{add "Fossil Rents" (log(1 + \\% of GDP)): history from the harmonisation panel, then each
+country's last value scaled by its REMIND region's rents relative to 2025, read from the gdx
+(\code{.pfmScenarioFossilRents}; design note 0009 section 8.2). Needs \code{harmonizeScenario}. Default: the
 active panel definition.}
 
 \item{ssp}{\code{"SSP1"} ... \code{"SSP5"}: the SSP of GDP, population and the SSP-extension

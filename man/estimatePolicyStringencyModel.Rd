@@ -37,6 +37,7 @@ estimatePolicyStringencyModel(
   apTransform = "linear",
   apSatScale = 1,
   fossilFloor = NULL,
+  slackDrivers = NULL,
   interactionWeight = NULL,
   trendMidpoint = formals(preparePanelData)$trendMidpoint,
   trendSteepness = formals(preparePanelData)$trendSteepness
@@ -109,6 +110,12 @@ the selected form). See \code{\link{preparePanelData}}.}
 
 \item{fossilFloor}{Number in (0, 1) or \code{NULL} (default): the lower bound on the fossil terms at
 this training quantile (design note 0009 section 7.1). See \code{\link{preparePanelData}}.}
+
+\item{slackDrivers}{\code{NULL} (default), a character vector of panel variables, or a list of them named by
+sector (\code{list(Diffuse = "Fossil Rents")}). \strong{Frontier only}: the size of the slack depends on them,
+\eqn{\log \sigma_{u,it} = c + z_{it}'w} (heteroscedastic half-normal; design note 0009 section 8.2). The
+variables are read with the drivers' lag and standardised on the training rows (frozen in
+\code{driverScaling}), but they do not enter the ceiling. Ignored by every other estimator.}
 
 \item{interactionWeight}{Character or \code{NULL}. A 0-1 panel variable that multiplies every
 actor-power x institution interaction (e.g. \code{"Electoral Democracy (VDem)"}; design note

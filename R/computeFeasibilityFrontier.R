@@ -58,6 +58,12 @@ computeFeasibilityFrontier <- function(fit) {
   #   sigma_u^2 = gamma * sigmaSq, sigma_v^2 = (1 - gamma) * sigmaSq
   #   mu*_i = -eps_i * gamma, sigma*^2 = gamma (1 - gamma) sigmaSq
   #   E[u_i | eps_i] = mu*_i + sigma* dnorm(mu*_i/sigma*) / pnorm(mu*_i/sigma*)
+  # With a heteroscedastic slack (design note 0009 section 8.2) sigma_u, and so gamma and sigmaSq, differ by row;
+  # for the homoscedastic frontier these vectors are the two constants above.
+  if (inherits(fit$model, "pfmHetFrontier")) {
+    sU <- .pfmSlackSigma(fit$model, df[rownames(mm), , drop = FALSE]); sV <- exp(fit$model$logSigmaV)
+    sigmaSq <- sV^2 + sU^2; gamma <- sU^2 / sigmaSq
+  }
   sigmaStar <- sqrt(pmax(gamma * (1 - gamma) * sigmaSq, 1e-12))
   muStar <- -eps * gamma
   zed <- muStar / sigmaStar

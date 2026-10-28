@@ -251,6 +251,15 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
   if (!is.null(o$interactionWeights)) o$interactionWeights <- as.character(unlist(o$interactionWeights))
   # the fossil lower-bound axis (design note 0009 section 7.1): "none" and quantiles, kept as text
   if (!is.null(o$fossilFloors)) o$fossilFloors <- as.character(unlist(o$fossilFloors))
+  # the frontier's slack drivers by sector (design note 0009 section 8.2): a list named Bulk / Diffuse
+  if (!is.null(o$slackDrivers)) {
+    sd <- o$slackDrivers
+    if (length(sd) && (!is.list(sd) || is.null(names(sd)) || !all(names(sd) %in% c("Bulk", "Diffuse")))) {
+      stop("sweep options: 'slackDrivers' must be a mapping by sector (Bulk, Diffuse) of panel variables", call. = FALSE)
+    }
+    o$slackDrivers <- if (length(sd)) lapply(sd, function(v) as.character(unlist(v))) else NULL
+    if (is.null(o$slackDrivers)) o["slackDrivers"] <- list(NULL)
+  }
   # extra accountability channels of the grid ("OvAcc"; v7)
   if (!is.null(o$extraAccountability)) o$extraAccountability <- as.character(unlist(o$extraAccountability))
   if (!is.null(o$edgeGate)) {
@@ -284,7 +293,7 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
                          "apExtrapolationSd", "apExtrapolationWindow",
                          "softVifGate", "inferenceTGate",
                          "interactionWeights", "edgeGate", "extraAccountability", "theoryGate",
-                         "fossilFloors")
+                         "fossilFloors", "slackDrivers")
 
 # A group's sweep options: the manifest record > none for a group swept before the record
 # (runPFMSweep's defaults, the v5 grid) > config.yml sweep: > none. As .pfmPanelDefForGroup.
@@ -330,6 +339,8 @@ pfmResolveConfig <- function(config = NULL, group = NULL, verbose = TRUE) {
          {fq <- setdiff(as.character(unlist(o$fossilFloors)), c("none", ""))
           if (length(fq)) paste0("; fossil terms bounded below at the training ", paste(fq, collapse = "/"), " quantile",
                                  if ("none" %in% unlist(o$fossilFloors)) " (with the unbounded twins)" else "") else ""},
+         {sd <- o$slackDrivers
+          if (length(sd)) paste0("; frontier slack size on ", paste(names(sd), vapply(sd, paste, "", collapse = "+"), sep = ": ", collapse = ", ")) else ""},
          {ea <- as.character(unlist(o$extraAccountability))
           if (length(ea)) paste0("; extra accountability channels: ", paste(ea, collapse = ", ")) else ""},
          if (is.list(o$edgeGate)) paste0("; edge-of-data gate (share ", o$edgeGate$share, ", effect ",

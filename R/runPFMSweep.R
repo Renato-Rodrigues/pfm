@@ -148,6 +148,11 @@
 #' @param fossilFloors The fossil lower-bound axis, see \code{\link{pfmSpecs}} (design note 0009 section
 #'   7.1): training quantiles in (0, 1), and \code{"none"} to keep the unbounded specs. Empty (default):
 #'   no bound, as up to v7.
+#' @param slackDrivers Panel variables that set the size of the frontier's slack, by sector (a list named by
+#'   sector, e.g. \code{list(Diffuse = "Fossil Rents")}; design note 0009 section 8.2): carried into every spec
+#'   (\code{\link{pfmSpecs}}), so every frontier fit of the sanity walk and of the frontier step uses them. They
+#'   do not enter the ceiling, so the satP selection fits are unchanged. Empty (default): none, as up to v7.
+#'   Needs the variables in the panel (\code{"Fossil Rents"}: the panel key \code{fossilRents}).
 #' @param extraAccountability Character. Extra accountability channels added to the spec grid as a
 #'   further option of the accountability slot (\code{"OvAcc"}: V-Dem's overall accountability, the
 #'   PoliClim index; needs the panel key \code{overallAccountability}), see \code{\link{channelSpecs}}.
@@ -220,6 +225,7 @@ runPFMSweep <- function(group,
                         apExtrapolationWindow = c(2025, 2100),
                         interactionWeights = character(0),
                         fossilFloors = character(0),
+                        slackDrivers = NULL,
                         edgeGate = NULL,
                         theoryGate = NULL,
                         extraAccountability = character(0),
@@ -341,7 +347,7 @@ runPFMSweep <- function(group,
   }
   specs <- pfmSpecs(specs, verbose = verbose, apTransforms = apTransforms,
                     dropCompositeAP = dropCompositeAP, interactionWeights = interactionWeights,
-                    fossilFloors = fossilFloors)
+                    fossilFloors = fossilFloors, slackDrivers = slackDrivers)
   say(length(specs), " PFM specs after adaptation.")
 
   # ── Fit grid: one stage, satP engine ─────────────────────────────────────────
@@ -579,6 +585,8 @@ runPFMSweep <- function(group,
                         interactionWeights = as.list(interactionWeights),
                         # the fossil lower-bound axis (design note 0009 section 7.1)
                         fossilFloors = as.list(as.character(unlist(fossilFloors))),
+                        # the slack drivers of the frontier, by sector (design note 0009 section 8.2)
+                        slackDrivers = if (length(slackDrivers)) lapply(slackDrivers, function(v) as.list(as.character(unlist(v)))) else list(),
                         edgeGate = edgeGate %||% "off",
                         theoryGate = theoryGate %||% "off",
                         extraAccountability = as.list(extraAccountability)),
@@ -588,7 +596,8 @@ runPFMSweep <- function(group,
     panelDef = list(firstYear = min(y), lastYear = max(y), movingAverage = movingAverage %||% 1L,
                     ieaVersion = pfmPanelDef()$ieaVersion, geothermal = pfmPanelDef()$geothermal,
                     democracy = pfmPanelDef()$democracy,
-                    overallAccountability = pfmPanelDef()$overallAccountability)
+                    overallAccountability = pfmPanelDef()$overallAccountability,
+                    fossilRents = pfmPanelDef()$fossilRents)
   )
   # Which scenario gates the selection actually saw, in the audit: a skipped gate has no
   # error, so its absence must be readable after the fact (PITFALLS 18, 28).
@@ -645,11 +654,13 @@ runPFMSweep <- function(group,
 #'   (\code{fossilFloor}; suffix \code{" fos5"} for 0.05). With \code{"none"} among them the bounded specs
 #'   are added as twins of the unbounded ones; without it they replace them, so the grid keeps its size.
 #'   Empty (default): no bound. Applied last, so the bound covers every twin of the other axes.
+#' @param slackDrivers \code{NULL} (default) or a list of panel variables named by sector: set on every spec as
+#'   \code{slackDrivers}, read by the frontier estimator only (design note 0009 section 8.2). Not a grid axis.
 #' @return The adapted, normalised spec list.
 #' @export
 pfmSpecs <- function(specs, verbose = TRUE, apTransforms = c("linear", "saturating"),
                      dropCompositeAP = FALSE, interactionWeights = character(0),
-                     fossilFloors = character(0)) {
+                     fossilFloors = character(0), slackDrivers = NULL) {
   apTransforms <- match.arg(apTransforms, c("linear", "saturating", "saturating-innovator",
                                             "saturating-incumbent"), several.ok = TRUE)
   normalize <- function(cfg) {
@@ -790,6 +801,17 @@ pfmSpecs <- function(specs, verbose = TRUE, apTransforms = c("linear", "saturati
     if (isTRUE(verbose)) message("[pfmSpecs] ", length(bounded), " fossil-bounded variants ",
                                  if (keepUnbounded) "appended" else "in place of the unbounded ones",
                                  " (total ", length(specs), " specs).")
+  }
+
+  # --- Slack drivers of the frontier (design note 0009 section 8.2): a property of every spec, not an axis ---
+  if (length(slackDrivers)) {
+    if (!is.list(slackDrivers) || is.null(names(slackDrivers)) || !all(names(slackDrivers) %in% c("Bulk", "Diffuse"))) {
+      stop("pfmSpecs: 'slackDrivers' must be a list named by sector (Bulk, Diffuse).", call. = FALSE)
+    }
+    sd <- lapply(slackDrivers, function(v) as.character(unlist(v)))
+    specs <- lapply(specs, function(cfg) { cfg$slackDrivers <- sd; cfg })
+    if (isTRUE(verbose)) message("[pfmSpecs] frontier slack drivers: ",
+                                 paste(names(sd), vapply(sd, paste, "", collapse = "+"), sep = " = ", collapse = "; "))
   }
   specs
 }
