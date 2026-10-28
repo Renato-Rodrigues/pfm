@@ -19,6 +19,8 @@
 #'   country's last value scaled by its REMIND region's rents relative to 2025, read from the gdx
 #'   (\code{.pfmScenarioFossilRents}; design note 0009 section 8.2). Needs \code{harmonizeScenario}. Default: the
 #'   active panel definition.
+#' @param fossilRentsPrice how REMIND's rents are valued: \code{"regional"} (default, the region's own price) or
+#'   \code{"world"} (the world-market price; the sensitivity of ADR 0061).
 #' @param overallAccountability add V-Dem's overall accountability index ("Overall Accountability (VDem)"),
 #'   projected by the \code{institutions} rule and normalised like the other V-Dem channels. Default: the
 #'   active panel definition.
@@ -64,6 +66,7 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
                               democracy = pfmPanelDef()$democracy,
                               overallAccountability = pfmPanelDef()$overallAccountability,
                               fossilRents = pfmPanelDef()$fossilRents,
+                              fossilRentsPrice = "regional",
                               ssp = "SSP2",
                               institutions = "storyline",
                               histCache = NULL,
@@ -354,7 +357,8 @@ panelDataScenario <- function(gdxFile = "fulldata.gdx", aggregate = TRUE,
     # fossil rents (design note 0009 section 8.2): history, then REMIND's regional rents relative to 2025
     if (isTRUE(fossilRents)) {
       out <- mbind(out, .pfmScenarioFossilRents(histPanel, gdxFile, gdxRegionMappingFile,
-                                                magclass::getYears(out, as.integer = TRUE), magclass::getItems(out, dim = 1)))
+                                                magclass::getYears(out, as.integer = TRUE), magclass::getItems(out, dim = 1),
+                                                price = fossilRentsPrice))
     }
   } else if (isTRUE(fossilRents)) {
     stop("panelDataScenario: fossilRents needs harmonizeScenario = TRUE (its history comes from the history panel)", call. = FALSE)

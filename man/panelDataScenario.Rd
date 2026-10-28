@@ -18,6 +18,7 @@ panelDataScenario(
   democracy = pfmPanelDef()$democracy,
   overallAccountability = pfmPanelDef()$overallAccountability,
   fossilRents = pfmPanelDef()$fossilRents,
+  fossilRentsPrice = "regional",
   ssp = "SSP2",
   institutions = "storyline",
   histCache = NULL,
@@ -59,6 +60,9 @@ active panel definition.}
 country's last value scaled by its REMIND region's rents relative to 2025, read from the gdx
 (\code{.pfmScenarioFossilRents}; design note 0009 section 8.2). Needs \code{harmonizeScenario}. Default: the
 active panel definition.}
+
+\item{fossilRentsPrice}{how REMIND's rents are valued: \code{"regional"} (default, the region's own price) or
+\code{"world"} (the world-market price; the sensitivity of ADR 0061).}
 
 \item{ssp}{\code{"SSP1"} ... \code{"SSP5"}: the SSP of GDP, population and the SSP-extension
 series (Government Effectiveness, Control of Corruption, Rule of Law, urban share, Gini,

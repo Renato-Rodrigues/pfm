@@ -4,10 +4,15 @@
 \alias{.pfmREMINDFossilRents}
 \title{REMIND's regional fossil rents}
 \usage{
-.pfmREMINDFossilRents(gdxFile)
+.pfmREMINDFossilRents(gdxFile, price = c("regional", "world"))
 }
 \arguments{
 \item{gdxFile}{A REMIND gdx.}
+
+\item{price}{\code{"regional"} (default): \code{pm_PEPrice}, the price inside the region (for an exporter, the world
+price less the trade costs; levels about half the World Bank's, ratios stable for every region). \code{"world"}:
+\code{pm_pvp(fuel) / pm_pvp("good")}, the world-market price the World Bank values rents at (the exporters' levels
+match it from 2015 on; importers turn noisy). The sensitivity of ADR 0061; design note 0009 section 10.}
 }
 \value{
 A matrix, regions x periods (2005-2150), \\% of GDP.

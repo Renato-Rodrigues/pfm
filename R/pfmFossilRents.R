@@ -10,9 +10,14 @@
 #' from \code{pm_PEPrice}, \code{vm_fuExtr} (summed over grades), \code{vm_costFuEx} and \code{vm_cesIO("inco")}.
 #'
 #' @param gdxFile A REMIND gdx.
+#' @param price \code{"regional"} (default): \code{pm_PEPrice}, the price inside the region (for an exporter, the world
+#'   price less the trade costs; levels about half the World Bank's, ratios stable for every region). \code{"world"}:
+#'   \code{pm_pvp(fuel) / pm_pvp("good")}, the world-market price the World Bank values rents at (the exporters' levels
+#'   match it from 2015 on; importers turn noisy). The sensitivity of ADR 0061; design note 0009 section 10.
 #' @return A matrix, regions x periods (2005-2150), \% of GDP.
 #' @keywords internal
-.pfmREMINDFossilRents <- function(gdxFile) {
+.pfmREMINDFossilRents <- function(gdxFile, price = c("regional", "world")) {
+  price <- match.arg(price)
   rd <- function(s, ...) suppressWarnings(gdx::readGDX(gdxFile, s, react = "silent", restore_zeros = FALSE, ...))
   ex <- rd("vm_fuExtr", field = "l"); pr <- rd("pm_PEPrice"); co <- rd("vm_costFuEx", field = "l")
   gdp <- rd("vm_cesIO", field = "l")
@@ -23,8 +28,15 @@
   yy <- Reduce(intersect, list(magclass::getYears(ex, as.integer = TRUE), magclass::getYears(pr, as.integer = TRUE),
                                magclass::getYears(gdp, as.integer = TRUE)))
   yy <- yy[yy >= 2005 & yy <= 2150]
+  fu <- c("pecoal", "peoil", "pegas")
+  if (price == "world") {
+    pv <- rd("pm_pvp")
+    if (is.null(pv)) stop(".pfmREMINDFossilRents: price = 'world' needs pm_pvp in the gdx", call. = FALSE)
+    yy <- intersect(yy, magclass::getYears(pv, as.integer = TRUE))
+    for (f in fu) for (r in magclass::getItems(pr, dim = 1)) pr[r, yy, f] <- as.numeric(pv[, yy, f] / pv[, yy, "good"])
+  }
   rent <- 0
-  for (f in c("pecoal", "peoil", "pegas")) {
+  for (f in fu) {
     e <- magclass::dimSums(ex[, yy, grep(paste0("^", f, "\\."), magclass::getNames(ex), value = TRUE)], dim = 3)
     rent <- rent + pr[, yy, f] * e - co[, yy, f]
   }
@@ -47,9 +59,11 @@
 #' @param years The scenario panel's years.
 #' @param units The scenario panel's units (countries).
 #' @param t0 The REMIND period the regional ratio is taken against.
+#' @param price How REMIND's rents are valued, \code{"regional"} (default) or \code{"world"} (\code{.pfmREMINDFossilRents}).
 #' @return A magpie object, \code{units} x \code{years} x \code{"Fossil Rents"} (log(1 + \% of GDP)).
 #' @keywords internal
-.pfmScenarioFossilRents <- function(histPanel, gdxFile, gdxRegionMappingFile, years, units, t0 = 2025) {
+.pfmScenarioFossilRents <- function(histPanel, gdxFile, gdxRegionMappingFile, years, units, t0 = 2025,
+                                    price = "regional") {
   if (!"Fossil Rents" %in% magclass::getNames(histPanel)) {
     stop(".pfmScenarioFossilRents: the historical panel has no 'Fossil Rents' (panel key fossilRents)", call. = FALSE)
   }
@@ -59,7 +73,7 @@
   h <- as.array(histPanel[hu, , "Fossil Rents"])[, , 1, drop = TRUE]
   if (is.null(dim(h))) h <- matrix(h, nrow = length(hu), dimnames = list(hu, paste0("y", hy)))
   last <- h[, paste0("y", th)]
-  rr <- .pfmREMINDFossilRents(gdxFile)
+  rr <- .pfmREMINDFossilRents(gdxFile, price = price)
   base <- rr[, as.character(t0)]
   ratio <- sweep(rr, 1, base, "/"); ratio[!is.finite(ratio)] <- 1; ratio <- pmin(pmax(ratio, 0), 3)
   map <- pfmGetMapping(gdxRegionMappingFile, type = "regional")

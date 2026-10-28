@@ -70,6 +70,9 @@
 #'   in the scenario panel: \code{"storyline"} (default), \code{"convergence"}, \code{"hold"} or
 #'   \code{"gapclosure"} (\code{\link{pfmInstitutionProjection}}). Inside a REMIND run it comes
 #'   from \code{pfm-coupling.yml} (\code{cfg$pfmInstitutions}).
+#' @param rentsPrice How REMIND's fossil rents are valued in the scenario panel of a group with the panel key
+#'   \code{fossilRents}: \code{"regional"} (default) or \code{"world"} (the sensitivity of ADR 0061). Inside a REMIND
+#'   run it comes from \code{pfm-coupling.yml} (\code{cfg$pfmRentsPrice}).
 #' @param couplingConfig Path to the run-local YAML written by REMIND's
 #'   \code{scripts/start/preparePFM.R}, holding the \strong{static} settings with
 #'   \strong{relative} paths so the run folder is self-contained. Absent outside a
@@ -140,6 +143,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
                                                    "pfm-coupling-runtime.yml"),
                          tierYear = getOption("pfm.couplingTierYear", NULL),
                          institutions = getOption("pfm.couplingInstitutions", "storyline"),
+                         rentsPrice = getOption("pfm.couplingRentsPrice", "regional"),
                          formulation = getOption("pfm.couplingFormulation", "auto"),
                          verbose = TRUE) {
   say <- function(...) if (isTRUE(verbose)) message("[iterativePFM] ", ...)
@@ -170,6 +174,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       if (!is.null(sc$weightScenario)) weightScenario <- sc$weightScenario
       if (!is.null(sc$weightYear)) weightYear <- as.numeric(sc$weightYear)
       if (!is.null(sc$institutions)) institutions <- sc$institutions
+      if (!is.null(sc$rentsPrice)) rentsPrice <- sc$rentsPrice
       if (!is.null(sc$cachefolder)) madratCache <- sc$cachefolder
       if (!is.null(sc$formulation)) formulation <- sc$formulation
       v6Static <- .pfmV6OptionsFromYaml(sc)
@@ -298,7 +303,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
     # EU21 gdx through the H12 mapping silently mis-assigns every region.
     panelDef <- .pfmPanelDefForGroup(gd)
     say("panel: ", .pfmPanelDefLabel(panelDef), "; SSP ", weightScenario,
-        "; institutions ", institutions)
+        "; institutions ", institutions, if (isTRUE(panelDef$fossilRents)) paste0("; rents valued at the ", rentsPrice, " price") else "")
     # The group's panel definition is ALSO the default of every nested call that reads IEA data by
     # pfmPanelDef() - the coupling weights and the downscaling of REMIND results - so it is set for
     # this call. Without it a v6 group's run reads the v5 definition (2024 edition, no geothermal)
@@ -318,7 +323,8 @@ iterativePFM <- function(gdx = "fulldata.gdx",
                               # (0005 E17/F7); offline calls build it each time and write nothing.
                               histCache = if (file.exists(couplingConfig))
                                 file.path(gd, "hist-harmonisation-cache.rds") else NULL,
-                              ssp = weightScenario, institutions = institutions)
+                              ssp = weightScenario, institutions = institutions,
+                              fossilRentsPrice = match.arg(rentsPrice, c("regional", "world")))
     # D9: one SSP per run. The runtime file carries GAMS's own cm_GDPpopScen; the scenario panel
     # and the weights were built for weightScenario (pfm-coupling.yml). A mismatch would mix two
     # worlds in one call, so it stops.

@@ -89,7 +89,7 @@ test_that("the scenario rents follow history, then the REMIND region's rents rel
   hp <- magclass::new.magpie(c("AAA", "BBB", "CCC"), 2019:2023, "Fossil Rents", fill = NA)
   hp["AAA", , ] <- log1p(20); hp["BBB", , ] <- log1p(2); hp["CCC", , ] <- NA
   rr <- rbind(MEA = c(`2025` = 10, `2050` = 5, `2100` = 0.5), EUR = c(`2025` = 0.001, `2050` = 0.5, `2100` = 0))
-  local_mocked_bindings(.pfmREMINDFossilRents = function(gdxFile) rr,
+  local_mocked_bindings(.pfmREMINDFossilRents = function(gdxFile, price = "regional") rr,
                         pfmGetMapping = function(...) data.frame(CountryCode = c("AAA", "BBB", "CCC"), RegionCode = c("MEA", "EUR", "MEA")))
   s <- pfm:::.pfmScenarioFossilRents(hp, "x.gdx", "map.csv", c(2020, 2025, 2050, 2100), c("AAA", "BBB", "CCC"))
   v <- function(c, y) as.numeric(s[c, y, 1])
@@ -99,4 +99,17 @@ test_that("the scenario rents follow history, then the REMIND region's rents rel
   expect_equal(v("AAA", 2100), log1p(20 * 0.05))
   expect_equal(v("BBB", 2050), log1p(2 * 3))                 # a tiny base: the ratio is bounded at 3
   expect_true(is.na(v("CCC", 2050)))                         # no history, no value
+})
+
+test_that("the valuation of REMIND's rents reaches the reader, regional by default", {
+  hp <- magclass::new.magpie("AAA", 2023, "Fossil Rents", fill = log1p(10))
+  seen <- character(0)
+  local_mocked_bindings(.pfmREMINDFossilRents = function(gdxFile, price = "regional") {
+    seen <<- c(seen, price); rbind(MEA = c(`2025` = 10, `2050` = if (price == "world") 2 else 5)) },
+    pfmGetMapping = function(...) data.frame(CountryCode = "AAA", RegionCode = "MEA"))
+  a <- pfm:::.pfmScenarioFossilRents(hp, "x.gdx", "map.csv", 2050, "AAA")
+  b <- pfm:::.pfmScenarioFossilRents(hp, "x.gdx", "map.csv", 2050, "AAA", price = "world")
+  expect_identical(seen, c("regional", "world"))
+  expect_equal(as.numeric(a["AAA", 2050, 1]), log1p(10 * 0.5))
+  expect_equal(as.numeric(b["AAA", 2050, 1]), log1p(10 * 0.2))
 })

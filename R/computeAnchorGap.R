@@ -61,8 +61,10 @@
 
 # eta (logit-scale ceiling) for every country-year of `data`, a historical or scenario panel,
 # with the frozen scaling, the trend frozen at the last training year and the driver guard.
+# `returnDesign = TRUE` also returns the design matrix (columns of the ceiling), so a caller that varies the
+# coefficients (analysis/v8/couplingBand.R) can recompute eta without rebuilding the panel.
 #' @keywords internal
-.pfmFrontierEta <- function(design, data) {
+.pfmFrontierEta <- function(design, data, returnDesign = FALSE) {
   cfg <- design$cfg; fit <- design$fit
   unl <- function(x) if (is.null(x)) NULL else unlist(x)
   # Strip the outcome: preparePanelData drops rows without it, which would leave only the covered
@@ -103,11 +105,12 @@
   # the slack shift w'z of each row (0 without a heteroscedastic slack; NA where a slack driver is missing)
   slackShift <- if (is.null(sl)) rep(0, nrow(df)) else
     as.numeric(as.matrix(df[, names(sl$w), drop = FALSE]) %*% sl$w)
-  data.frame(region = as.character(df$region), year = df$year,
-             eta = as.numeric(mm[, names(design$beta), drop = FALSE] %*% design$beta),
-             slackShift = slackShift,
-             driverOutOfSupport = g$outOfSupport, apExcess = g$apExcess,
-             stringsAsFactors = FALSE)
+  out <- data.frame(region = as.character(df$region), year = df$year,
+                    eta = as.numeric(mm[, names(design$beta), drop = FALSE] %*% design$beta),
+                    slackShift = slackShift,
+                    driverOutOfSupport = g$outOfSupport, apExcess = g$apExcess,
+                    stringsAsFactors = FALSE)
+  if (isTRUE(returnDesign)) list(frame = out, mm = mm[, names(design$beta), drop = FALSE]) else out
 }
 
 # Region weights: each region's share of world final energy (the coupling weights summed).

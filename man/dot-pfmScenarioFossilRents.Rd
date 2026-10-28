@@ -10,7 +10,8 @@
   gdxRegionMappingFile,
   years,
   units,
-  t0 = 2025
+  t0 = 2025,
+  price = "regional"
 )
 }
 \arguments{
@@ -25,6 +26,8 @@
 \item{units}{The scenario panel's units (countries).}
 
 \item{t0}{The REMIND period the regional ratio is taken against.}
+
+\item{price}{How REMIND's rents are valued, \code{"regional"} (default) or \code{"world"} (\code{.pfmREMINDFossilRents}).}
 }
 \value{
 A magpie object, \code{units} x \code{years} x \code{"Fossil Rents"} (log(1 + \\% of GDP)).

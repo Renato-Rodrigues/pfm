@@ -26,6 +26,7 @@ iterativePFM(
   runtimeConfig = getOption("pfm.couplingRuntimeConfig", "pfm-coupling-runtime.yml"),
   tierYear = getOption("pfm.couplingTierYear", NULL),
   institutions = getOption("pfm.couplingInstitutions", "storyline"),
+  rentsPrice = getOption("pfm.couplingRentsPrice", "regional"),
   formulation = getOption("pfm.couplingFormulation", "auto"),
   verbose = TRUE
 )
@@ -108,6 +109,10 @@ would freeze the mild-progression price at its seed. See the note beside
 in the scenario panel: \code{"storyline"} (default), \code{"convergence"}, \code{"hold"} or
 \code{"gapclosure"} (\code{\link{pfmInstitutionProjection}}). Inside a REMIND run it comes
 from \code{pfm-coupling.yml} (\code{cfg$pfmInstitutions}).}
+
+\item{rentsPrice}{How REMIND's fossil rents are valued in the scenario panel of a group with the panel key
+\code{fossilRents}: \code{"regional"} (default) or \code{"world"} (the sensitivity of ADR 0061). Inside a REMIND
+run it comes from \code{pfm-coupling.yml} (\code{cfg$pfmRentsPrice}).}
 
 \item{formulation}{\code{"auto"} (default), \code{"v6-anchor"} or \code{"v5-tier"}. \code{"auto"}
 couples a Run-Group whose export carries \code{phi-anchor.rds} by the v6 formulation (design
