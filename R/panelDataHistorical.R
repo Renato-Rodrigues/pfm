@@ -204,7 +204,9 @@ panelDataHistorical <- function(aggregate = TRUE,
   # slack where it was.
   if (isTRUE(fossilRents)) {
     fr <- calcOutput("FossilRents", aggregate = aggregate, regionmapping = outputRegionMappingFile)
-    fr <- fr[, intersect(getYears(fr), y), ]
+    # indexed by the panel's years like every other column (`y` holds integer years; getYears() gives "y2000" strings,
+    # so an intersect() of the two is empty and the series would vanish without an error)
+    fr <- fr[, y, ]
     out <- mbind(out, setNames(log1p(pmax(fr, 0)), "Fossil Rents"))
   }
 
