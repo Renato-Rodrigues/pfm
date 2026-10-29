@@ -1294,7 +1294,7 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 .pfmV6OptionsFromYaml <- function(x) {
   if (is.null(x)) return(NULL)
   map <- c(phiHoldYear = "holdYear", phiHold = "hold", phiSpread = "spread", phiOrdering = "ordering",
-           phiOrderingSeed = "orderingSeed", phiKappa = "kappa", phiStrength = "strength")
+           phiOrderingSeed = "orderingSeed", phiKappa = "kappa", phiStrength = "strength", phiWindowEnd = "windowEnd")
   hit <- intersect(names(map), names(x))
   if (!length(hit)) return(NULL)
   stats::setNames(lapply(hit, function(k) x[[k]]), unname(map[hit]))

@@ -17,6 +17,12 @@ test_that("the v6 options have the headline defaults, merge in order and validat
   expect_error(pfm:::.pfmV6Options(list(kappa = "Bulk=1.2")), "kappa")
   expect_error(pfm:::.pfmV6Options(list(hold = "level")))
   expect_error(pfm:::.pfmV6Options(list(strength = "regional", ordering = "permuted")), "not combined")
+  expect_error(pfm:::.pfmV6Options(list(strength = "gapfirst", ordering = "uniform")), "not combined")
+  expect_identical(pfm:::.pfmV6Options(list(strength = "gapfirst"))$strength, "gapfirst")
+  expect_identical(d$windowEnd, Inf); expect_identical(pfm:::.pfmV6Options(list(windowEnd = "2045"))$windowEnd, 2045)
+  expect_error(pfm:::.pfmV6Options(list(windowEnd = "soon")), "windowEnd")
+  expect_identical(pfm:::.pfmV6OptionsFromYaml(list(phiWindowEnd = 2035, phiStrength = "gapfirst")),
+                   list(strength = "gapfirst", windowEnd = 2035))
   y <- pfm:::.pfmV6OptionsFromYaml(list(phiHoldYear = 2060, phiOrdering = "reversed", theta = 0.5, other = 1))
   expect_identical(y, list(holdYear = 2060, ordering = "reversed"))
   expect_null(pfm:::.pfmV6OptionsFromYaml(list(theta = 0.5)))
@@ -134,6 +140,31 @@ test_that("on the real v6 anchor, pfmV6Shares reproduces Phase 1 and its options
   h60 <- pfmV6Shares(anc, scen, theta = 0.5, options = list(holdYear = 2060))$strength
   b <- h60[h60$sector == "Bulk", ]
   expect_equal(b$k[b$year == 2100], b$k[b$year == 2060])
+})
+
+test_that("on the v8 anchor, the gap-first strength and the sequential window act as declared", {
+  root <- normalizePath(file.path(testthat::test_path(), "..", "..", "..", ".."), mustWork = FALSE)
+  exp <- file.path(root, "output", "remind-inputs", "v8")
+  scenF <- file.path(root, "output", "pfm", "v8", "coupling", "scen-v7Bfix-gapclosure-v8panel.rds")
+  skip_if_not(file.exists(file.path(exp, "phi-anchor.rds")) && file.exists(scenF), "v8 artifacts not present (workstation only)")
+  anc <- pfmAnchorFor(exp, "EU21"); scen <- readRDS(scenF)
+  reg <- pfmV6Shares(anc, scen, theta = 0.5, options = list(strength = "regional"))
+  # gap first: 1 - theta * clip((g_r(t) f(t) - min g_a) / (max g_a - min g_a)), the range of the anchor year held
+  gf <- pfmV6Shares(anc, scen, theta = 0.5, options = list(strength = "gapfirst", kappa = 0.027))
+  st <- computeStrengthPath(anc, scen, holdYear = 2100, theta = 0.5, hold = "logit")$regions
+  x <- merge(gf$shares, st[, c("sector", "region", "year", "g")], by = c("sector", "region", "year"))
+  rng <- tapply(anc$region$g, anc$region$sector, range)
+  lo <- vapply(rng, `[`, 0, 1)[x$sector]; hi <- vapply(rng, `[`, 0, 2)[x$sector]
+  want <- 1 - 0.5 * pmin(pmax((x$g * 0.973^pmax(x$year - 2025, 0) - lo) / (hi - lo), 0), 1)
+  expect_equal(x$phi, unname(pmin(pmax(want, 0), 1)), tolerance = 1e-12)
+  expect_true(all(gf$shares$phi >= 0 & gf$shares$phi <= 1))
+  # the window: unchanged before windowEnd, 1 from it on, in every sector and region
+  w <- pfmV6Shares(anc, scen, theta = 0.5, options = list(strength = "regional", windowEnd = 2045))
+  m <- merge(w$shares, reg$shares, by = c("sector", "region", "year"))
+  expect_equal(m$phi.x[m$year < 2045], m$phi.y[m$year < 2045])
+  expect_true(all(m$phi.x[m$year >= 2045] == 1))
+  expect_true(any(m$phi.y[m$year >= 2045] < 1))
+  expect_true(all(w$floor$phi[w$floor$year >= 2045] == 1))
 })
 
 test_that("a v6 call told cm_pfmPhiPath = 0 stops, and preparePFM writes the v6 options", {

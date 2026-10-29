@@ -29,14 +29,22 @@
 #'     or the text \code{"Bulk=0.011,Diffuse=0.046"} (the form a scenario row carries); a sector not named fades at 0.
 #'     The 2008-2023 narrowing of the gap spread, 1.1\% (power & industry) and 4.6\% (buildings & transport) a year
 #'     on Run-Group \code{v7}, is the data-consistent pair (design note 0009 section 6.2).}
-#'   \item{strength}{\code{"common"} (headline) or \code{"regional"}, \eqn{k_{r,s} = g_{r,s}(t)/g_{r,s}(t_0)} (D16).}
+#'   \item{strength}{\code{"common"} (headline), \code{"regional"}, \eqn{k_{r,s} = g_{r,s}(t)/g_{r,s}(t_0)} (D16; central
+#'     from \code{v8}), or \code{"gapfirst"}: each region's projected gap, eroded, is normalised with the ANCHOR-year range
+#'     held fixed, \eqn{\varphi = 1 - \theta\,\mathrm{clip}_{[0,1]}((g_{r,s}(t)f(t) - \min_r g_{s}(t_a))/(\max_r g_{s}(t_a) -
+#'     \min_r g_{s}(t_a)))}: the order of the steps proposed on 2026-10-09 (gap first, then the normalisation, then
+#'     \eqn{\theta}); a region that closes its gap to the anchor-year minimum is no longer constrained.}
+#'   \item{windowEnd}{the first year the share no longer applies (\eqn{\varphi = 1} from it on); \code{Inf} (default) = the
+#'     whole horizon. Set by the sequential ("shrinking future") runs: each step caps the price only in its own window
+#'     and plans the rest of the future unconstrained, the past being fixed by REMIND (\code{cm_startyear},
+#'     \code{path_gdx_ref} = the previous step).}
 #' }
 #' @return A named list of the defaults.
 #' @export
 #' @author Renato Rodrigues
 pfmV6CouplingDefaults <- function() {
   list(holdYear = 2100, hold = "logit", spread = "k", ordering = "model", orderingSeed = 1L,
-       kappa = 0, strength = "common")
+       kappa = 0, strength = "common", windowEnd = Inf)
 }
 
 # The erosion rate: one number, or one per sector (named values, or "Bulk=0.011,Diffuse=0.046").
@@ -72,11 +80,15 @@ pfmV6CouplingDefaults <- function() {
   o$hold <- match.arg(as.character(o$hold), c("logit", "ratio"))
   o$spread <- match.arg(as.character(o$spread), c("k", "model"))
   o$ordering <- match.arg(as.character(o$ordering), c("model", "uniform", "reversed", "permuted"))
-  o$strength <- match.arg(as.character(o$strength), c("common", "regional"))
+  o$strength <- match.arg(as.character(o$strength), c("common", "regional", "gapfirst"))
+  o$windowEnd <- suppressWarnings(as.numeric(o$windowEnd))
   if (!is.finite(o$holdYear)) stop("v6 coupling: holdYear must be a year", call. = FALSE)
+  if (length(o$windowEnd) != 1 || is.na(o$windowEnd) || o$windowEnd < 2025) {
+    stop("v6 coupling: windowEnd must be a year from 2025 on, or Inf", call. = FALSE)
+  }
   if (!length(o$kappa) || any(!is.finite(o$kappa) | o$kappa <= -1 | o$kappa >= 1)) stop("v6 coupling: kappa must lie in (-1, 1)", call. = FALSE)
-  if (o$strength == "regional" && o$ordering != "model") {
-    stop("v6 coupling: the regional strength sensitivity run (D16) is not combined with an ordering test (D15)", call. = FALSE)
+  if (o$strength != "common" && o$ordering != "model") {
+    stop("v6 coupling: the regional and gap-first strengths are not combined with an ordering test (D15)", call. = FALSE)
   }
   o
 }
@@ -155,6 +167,22 @@ pfmV6Shares <- function(anchor, scenarioData, theta, options = pfmV6CouplingDefa
   if (o$strength == "common") {
     sh <- computeSharePath(anchor, st, theta = theta, spread = o$spread, ordering = o$ordering, seed = o$orderingSeed)
     sh <- sh[sh$sector != "min", , drop = FALSE]
+  } else if (o$strength == "gapfirst") {
+    # The gap first, then the normalisation, then theta (2026-10-09): each region's projected gap, held after holdYear and
+    # eroded, normalised with the anchor-year range of the regional gaps (the range of u), not re-normalised each year.
+    rg <- st$regions
+    held <- rg[rg$year == max(rg$year[rg$year <= o$holdYear]), c("sector", "region", "g")]
+    late <- rg$year > o$holdYear
+    if (any(late)) rg$g[late] <- held$g[match(paste(rg$sector[late], rg$region[late]), paste(held$sector, held$region))]
+    ga <- anchor$region[, c("sector", "region", "g", "u")]
+    rng <- do.call(rbind, lapply(split(ga, ga$sector), function(d) data.frame(sector = d$sector[1], gmin = min(d$g), gmax = max(d$g))))
+    sh <- merge(merge(rg[, c("sector", "region", "year", "g")], ga[, c("sector", "region", "u")], by = c("sector", "region")),
+                rng, by = "sector")
+    uHat <- pmin(pmax((sh$g * fade(sh$year, sh$sector) - sh$gmin) / (sh$gmax - sh$gmin), 0), 1)
+    sh$phiRaw <- 1 - theta * uHat
+    sh$phi <- pmin(pmax(sh$phiRaw, 0), 1)
+    sh$clipped <- sh$phiRaw < 0 | sh$phiRaw > 1
+    sh <- sh[, c("sector", "region", "year", "u", "phiRaw", "phi", "clipped")]
   } else {
     # D16: each region's own strength, k_r(t) = g_r(t)/g_r(t0), held after holdYear like k.
     rg <- st$regions
@@ -170,6 +198,11 @@ pfmV6Shares <- function(anchor, scenarioData, theta, options = pfmV6CouplingDefa
     sh$phi <- pmin(pmax(sh$phiRaw, 0), 1)
     sh$clipped <- sh$phiRaw < 0 | sh$phiRaw > 1
     sh <- sh[, c("sector", "region", "year", "u", "phiRaw", "phi", "clipped")]
+  }
+  # The sequential runs' window: from windowEnd on the share no longer applies (the step plans that future unconstrained).
+  if (is.finite(o$windowEnd)) {
+    after <- sh$year >= o$windowEnd
+    sh$phiRaw[after] <- 1; sh$phi[after] <- 1; sh$clipped[after] <- FALSE
   }
   sh <- sh[order(sh$sector, sh$region, sh$year), , drop = FALSE]
   rownames(sh) <- NULL
