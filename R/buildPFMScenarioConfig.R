@@ -17,7 +17,9 @@
 #'   \item{\code{ssps}}{the SSPs to build (\code{SSP2}); the canonical parents are looked up as
 #'     \code{<ssp>-<from>}.}
 #'   \item{\code{thetaDefault}}{the θ that carries no title suffix; any other θ adds
-#'     \code{Th<digits>} (0.325 → \code{Th325}).}
+#'     \code{<thetaPrefix><digits>} (0.325 → \code{Th325}).}
+#'   \item{\code{thetaPrefix}, \code{markupLabel}}{optional: the θ suffix's prefix (default \code{Th}; \code{v8}
+#'     writes \code{-theta}, so 0.325 → \code{-theta325}) and the markup-off suffix (default \code{Min}).}
 #'   \item{\code{resolutions}}{per resolution: \code{infix} (\code{SSP2-<infix>-...}, empty for
 #'     none), \code{set} (switches on every row of that resolution), \code{baseStart} (start tags of
 #'     its parents and uncoupled references).}
@@ -97,8 +99,8 @@ buildPFMScenarioConfig <- function(matrix, remindDir, out = NULL, write = TRUE, 
   recs
 }
 
-.pfmThetaLabel <- function(theta, default) {
-  if (identical(as.numeric(theta), as.numeric(default))) "" else paste0("Th", sub("^0?\\.", "", theta))
+.pfmThetaLabel <- function(theta, default, prefix = "Th") {
+  if (identical(as.numeric(theta), as.numeric(default))) "" else paste0(prefix, sub("^0?\\.", "", theta))
 }
 
 # Expand the matrix to an ordered list of rows. Each row: list(key, title, section, res, ssp,
@@ -108,6 +110,7 @@ buildPFMScenarioConfig <- function(matrix, remindDir, out = NULL, write = TRUE, 
     if (is.logical(v)) (if (isTRUE(v)) "on" else "off") else as.character(v) }, ""), names(x))
   version <- as.character(m$version %||% "")
   thetaDefault <- as.character(m$thetaDefault %||% "0.50")
+  thetaPrefix <- as.character(m$thetaPrefix %||% "Th"); markupLabel <- as.character(m$markupLabel %||% "Min")
   out <- list()
   for (ssp in unlist(m$ssps %||% "SSP2")) for (resName in names(m$resolutions)) {
     res <- m$resolutions[[resName]]
@@ -158,9 +161,9 @@ buildPFMScenarioConfig <- function(matrix, remindDir, out = NULL, write = TRUE, 
         if (!is.null(r$set)) vals[names(chr(r$set))] <- chr(r$set)
         if (!is.null(r$warm)) vals[["path_gdx"]] <- as.character(r$warm)
         stem <- r$stem %||% rule$stem
-        thLab <- if (is.na(th)) "" else .pfmThetaLabel(th, thetaDefault)
+        thLab <- if (is.na(th)) "" else .pfmThetaLabel(th, thetaDefault, thetaPrefix)
         title <- paste0(prefix, "-", m$parents[[r$parent]]$from, "-", stem, thLab,
-                        if (identical(as.character(r$markup), "0")) "Min" else "",
+                        if (identical(as.character(r$markup), "0")) markupLabel else "",
                         if (!is.null(r$variant)) paste0("-", r$variant) else "",
                         if (coupled && nzchar(version)) paste0("-", version) else "")
         key <- paste0(r$key, thLab)

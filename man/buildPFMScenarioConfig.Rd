@@ -44,7 +44,9 @@ The matrix (format \code{pfm-scenario-matrix/1}) has these blocks:
 \item{\code{ssps}}{the SSPs to build (\code{SSP2}); the canonical parents are looked up as
 \code{<ssp>-<from>}.}
 \item{\code{thetaDefault}}{the θ that carries no title suffix; any other θ adds
-\code{Th<digits>} (0.325 → \code{Th325}).}
+\code{<thetaPrefix><digits>} (0.325 → \code{Th325}).}
+\item{\code{thetaPrefix}, \code{markupLabel}}{optional: the θ suffix's prefix (default \code{Th}; \code{v8}
+writes \code{-theta}, so 0.325 → \code{-theta325}) and the markup-off suffix (default \code{Min}).}
 \item{\code{resolutions}}{per resolution: \code{infix} (\code{SSP2-<infix>-...}, empty for
 none), \code{set} (switches on every row of that resolution), \code{baseStart} (start tags of
 its parents and uncoupled references).}
