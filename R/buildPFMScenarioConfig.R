@@ -214,6 +214,12 @@ buildPFMScenarioConfig <- function(matrix, remindDir, out = NULL, write = TRUE, 
   if (length(bad)) stop("illegal title(s) for REMIND: ", paste(bad, collapse = ", "), call. = FALSE)
   dup <- titles[duplicated(titles)]
   if (length(dup)) stop("duplicate title(s): ", paste(unique(dup), collapse = ", "), call. = FALSE)
+  # REMIND writes the title into a GAMS set element (c_expname), and GAMS limits an element to 63 characters: a longer
+  # title passes start.R --test and --gamscompile but fails the run's own compile ($109 Identifier/Element too long;
+  # 33 rows of the v8 batch, 2026-11-23).
+  long <- Filter(function(r) nchar(r$title) > 63, rr)
+  if (length(long)) stop("title(s) longer than GAMS's 63 characters: ",
+                         paste(vapply(long, function(r) sprintf("%s (%d)", r$title, nchar(r$title)), ""), collapse = ", "), call. = FALSE)
   for (r in rr) {
     if ("cm_iteration_max" %in% names(r$values) && nzchar(r$values[["cm_iteration_max"]])) {
       stop(r$title, ": the generator never writes cm_iteration_max (author's rule, 2026-10-01)", call. = FALSE)

@@ -89,3 +89,9 @@ test_that("the theta label", {
   expect_identical(pfm:::.pfmThetaLabel("0.325", "0.50"), "Th325")
   expect_identical(pfm:::.pfmThetaLabel("0.675", "0.50"), "Th675")
 })
+
+test_that("a title longer than GAMS's 63 characters is refused (REMIND's c_expname; the v8 batch of 2026-11-23)", {
+  row <- function(t) list(title = t, values = c(path_gdx = ""), start = "TAG", description = "", coupled = FALSE, separator = FALSE)
+  expect_true(pfm:::.pfmCheckGenerated(list(row(strrep("a", 63)))))
+  expect_error(pfm:::.pfmCheckGenerated(list(row(strrep("a", 64)))), "63 characters")
+})
