@@ -142,8 +142,14 @@ pfmPreflight <- function(config = "config.yml", startGroup = NULL, scenarioConfi
     rows <- tryCatch(.pfmCoupledRows(scenarioConfig, startGroup, remindDirs[1]),
                      error = function(e) { add("groups", basename(scenarioConfig %||% "?"), FALSE, conditionMessage(e)); NULL })
     if (!is.null(rows) && !nrow(rows)) {
-      add("groups", basename(scenarioConfig), FALSE,
-          paste0("no coupled row (cm_taxCO2_regiDiff = 11) in start group '", startGroup %||% "*", "'"))
+      # an uncoupled start group (the Option N0 test, 2026-11-23) is fine: it needs no Run-Group, and
+      # the repository, installation, mapping and replay checks still apply. A group with no row at all
+      # is a typo in the start tag.
+      nIn <- attr(rows, "inGroup") %||% 0L
+      add("groups", basename(scenarioConfig), nIn > 0,
+          if (nIn > 0) paste0(nIn, " uncoupled row(s), no coupled row in start group '", startGroup %||% "*",
+                              "': the Run-Group and SSP checks do not apply") else
+            paste0("no row in start group '", startGroup %||% "*", "'"))
     }
   }
   if ("groups" %in% checks && length(rows) && nrow(rows)) {
@@ -310,9 +316,11 @@ pfmPreflight <- function(config = "config.yml", startGroup = NULL, scenarioConfi
   grp <- fill(sc, "pfmGroup")[keep]
   pp <- fill(sc, "cm_pfmPhiPath")[keep]
   pp[is.na(pp)] <- "0"   # main.gms default
-  data.frame(title = sc$title[keep], pfmGroup = ifelse(is.na(grp), "(default)", grp),
-             ssp = ssp(sc)[keep], ref = ref, refSsp = pool$ssp[match(ref, pool$title)],
-             phiPath = trimws(pp), stringsAsFactors = FALSE)
+  out <- data.frame(title = sc$title[keep], pfmGroup = ifelse(is.na(grp), "(default)", grp),
+                    ssp = ssp(sc)[keep], ref = ref, refSsp = pool$ssp[match(ref, pool$title)],
+                    phiPath = trimws(pp), stringsAsFactors = FALSE)
+  attr(out, "inGroup") <- sum(inGroup)   # every row of the start group, coupled or not
+  out
 }
 
 # A $setglobal default from REMIND's main.gms.

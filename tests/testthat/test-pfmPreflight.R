@@ -107,6 +107,24 @@ test_that("coupled rows: start group, copyConfigFrom, default SSP and the refere
   expect_identical(pfm:::.pfmRemindDefault(rd, "cm_GDPpopScen"), "SSP2")
 })
 
+test_that("an uncoupled start group passes the groups check; an empty one fails (Option N0, 2026-11-23)", {
+  rd <- withr::local_tempdir()
+  dir.create(file.path(rd, "config"))
+  pfmCsv <- file.path(rd, "config", "scenario_config_PFM.csv")
+  writeConf(pfmCsv, data.frame(title = c("A", "N0"), start = c("G1", "GN"), cm_taxCO2_regiDiff = c(11, 0),
+                               path_gdx_ref = NA, pfmGroup = c("v6", NA)))
+  root <- withr::local_tempdir(); writeLines("group: v6", file.path(root, "config.yml"))
+  pf <- function(g) suppressMessages(pfmPreflight(config = file.path(root, "config.yml"), startGroup = g,
+                                                  scenarioConfig = pfmCsv, remindDirs = rd, checks = c("groups", "ssp"),
+                                                  stopOnFail = FALSE, verbose = FALSE))
+  r <- pf("GN")
+  expect_true(all(r$ok))
+  expect_match(r$detail, "1 uncoupled row")
+  r <- pf("TYPO")
+  expect_false(any(r$ok))
+  expect_match(r$detail, "no row in start group 'TYPO'")
+})
+
 test_that("Run-Group export: everything preparePFM copies, the panel named by the manifest", {
   gd <- withr::local_tempdir()
   expect_true("manifest.json" %in% pfm:::.pfmGroupExportMissing(gd))
