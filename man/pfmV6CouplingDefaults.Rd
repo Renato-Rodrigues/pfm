@@ -36,6 +36,11 @@ held fixed, \eqn{\varphi = 1 - \theta\,\mathrm{clip}_{[0,1]}((g_{r,s}(t)f(t) - \
 whole horizon. Set by the sequential ("shrinking future") runs: each step caps the price only in its own window
 and plans the rest of the future unconstrained, the past being fixed by REMIND (\code{cm_startyear},
 \code{path_gdx_ref} = the previous step).}
+\item{strengthGdx}{\code{""} (default): the strength \eqn{k(t)} is recomputed at every call from the run's own
+current solution (the two-way coupling). A path to another run's \code{fulldata.gdx} (absolute, or relative to
+the run folder): the strength is computed once from THAT pathway's energy system and held for the whole run - an
+open-loop limit (e.g. a limit computed on the current-policies pathway and applied to a 1000 Gt pathway). The
+model paper's review v03 point M4 (2026-11-21).}
 }
 }
 \author{

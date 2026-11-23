@@ -38,13 +38,18 @@
 #'     whole horizon. Set by the sequential ("shrinking future") runs: each step caps the price only in its own window
 #'     and plans the rest of the future unconstrained, the past being fixed by REMIND (\code{cm_startyear},
 #'     \code{path_gdx_ref} = the previous step).}
+#'   \item{strengthGdx}{\code{""} (default): the strength \eqn{k(t)} is recomputed at every call from the run's own
+#'     current solution (the two-way coupling). A path to another run's \code{fulldata.gdx} (absolute, or relative to
+#'     the run folder): the strength is computed once from THAT pathway's energy system and held for the whole run - an
+#'     open-loop limit (e.g. a limit computed on the current-policies pathway and applied to a 1000 Gt pathway). The
+#'     model paper's review v03 point M4 (2026-11-21).}
 #' }
 #' @return A named list of the defaults.
 #' @export
 #' @author Renato Rodrigues
 pfmV6CouplingDefaults <- function() {
   list(holdYear = 2100, hold = "logit", spread = "k", ordering = "model", orderingSeed = 1L,
-       kappa = 0, strength = "common", windowEnd = Inf)
+       kappa = 0, strength = "common", windowEnd = Inf, strengthGdx = "")
 }
 
 # The erosion rate: one number, or one per sector (named values, or "Bulk=0.011,Diffuse=0.046").
@@ -82,6 +87,8 @@ pfmV6CouplingDefaults <- function() {
   o$ordering <- match.arg(as.character(o$ordering), c("model", "uniform", "reversed", "permuted"))
   o$strength <- match.arg(as.character(o$strength), c("common", "regional", "gapfirst"))
   o$windowEnd <- suppressWarnings(as.numeric(o$windowEnd))
+  o$strengthGdx <- if (is.null(o$strengthGdx) || is.na(o$strengthGdx)) "" else as.character(o$strengthGdx)
+  if (length(o$strengthGdx) != 1) stop("v6 coupling: strengthGdx must be one path, or empty", call. = FALSE)
   if (!is.finite(o$holdYear)) stop("v6 coupling: holdYear must be a year", call. = FALSE)
   if (length(o$windowEnd) != 1 || is.na(o$windowEnd) || o$windowEnd < 2025) {
     stop("v6 coupling: windowEnd must be a year from 2025 on, or Inf", call. = FALSE)

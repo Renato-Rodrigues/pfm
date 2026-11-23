@@ -468,7 +468,26 @@ iterativePFM <- function(gdx = "fulldata.gdx",
       # when either differs (u and q are history and do not change).
       reweight <- !identical(as.character(art$ssp), as.character(weightScenario)) ||
         !isTRUE(all.equal(as.numeric(weightYear), as.numeric(art$t0)))
-      v6 <- pfmV6Shares(anc, scen, theta = theta, options = v6opts,
+      # An open-loop limit (option strengthGdx): the strength from ANOTHER pathway's energy system, built once and kept
+      # in the run folder (pfm-strength-panel.rds), the same for every call of the run. Default: this solution's panel.
+      scenK <- scen
+      if (nzchar(v6opts$strengthGdx)) {
+        sg <- v6opts$strengthGdx
+        if (!grepl("^(/|[A-Za-z]:)", sg)) sg <- file.path(dirname(gdx), sg)   # relative: to the run folder
+        if (!file.exists(sg)) stop("v6 coupling: strengthGdx '", v6opts$strengthGdx, "' not found (resolved: ", sg, ")", call. = FALSE)
+        sg <- normalizePath(sg, winslash = "/")
+        kc <- file.path(dirname(gdx), "pfm-strength-panel.rds")
+        scenK <- if (file.exists(kc) && identical(attr(readRDS(kc), "gdx"), sg)) readRDS(kc) else {
+          say("open-loop strength: building the scenario panel of ", sg)
+          s <- panelDataScenario(gdxFile = sg, aggregate = TRUE, gdxRegionMappingFile = gdxRegionMapping,
+                                 outputRegionMappingFile = "country", histYears = .pfmPanelYears(panelDef),
+                                 movingAverage = .pfmPanelMA(panelDef), ieaVersion = panelDef$ieaVersion,
+                                 geothermal = panelDef$geothermal, ssp = weightScenario, institutions = institutions,
+                                 fossilRentsPrice = match.arg(rentsPrice, c("regional", "world")))
+          attr(s, "gdx") <- sg; saveRDS(s, kc); s }
+        say("open-loop strength: k(t) from ", sg, ", not from this solution")
+      }
+      v6 <- pfmV6Shares(anc, scenK, theta = theta, options = v6opts,
                         weights = if (reweight && !is.null(wts)) wts else NULL)
       say("v6 anchor: ", res, ", anchor year ", art$anchorYear, ", t0 ", art$t0, ", SSP ", weightScenario,
           if (reweight) " (weights recomputed for this run)" else " (anchor weights)")
@@ -1294,7 +1313,8 @@ iterativePFM <- function(gdx = "fulldata.gdx",
 .pfmV6OptionsFromYaml <- function(x) {
   if (is.null(x)) return(NULL)
   map <- c(phiHoldYear = "holdYear", phiHold = "hold", phiSpread = "spread", phiOrdering = "ordering",
-           phiOrderingSeed = "orderingSeed", phiKappa = "kappa", phiStrength = "strength", phiWindowEnd = "windowEnd")
+           phiOrderingSeed = "orderingSeed", phiKappa = "kappa", phiStrength = "strength", phiWindowEnd = "windowEnd",
+           phiStrengthGdx = "strengthGdx")
   hit <- intersect(names(map), names(x))
   if (!length(hit)) return(NULL)
   stats::setNames(lapply(hit, function(k) x[[k]]), unname(map[hit]))
