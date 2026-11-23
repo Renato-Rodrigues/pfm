@@ -39,6 +39,11 @@
 #'   are judged against the remote as it is now. Default \code{TRUE}: without it a checkout that
 #'   was never updated passes as "clean and pushed" against its stale view of the remote (the
 #'   cluster, 2026-10-02). A fetch that fails is a failed check.
+#' @param settle Seconds to wait before looking again at a checked-out repository whose only
+#'   problem is uncommitted or untracked files: \code{start.R} leaves short-lived files in a REMIND
+#'   checkout while it submits, so a batch submitted right after another can see them
+#'   (2026-11-23). Default 30; 0 looks once. A REMIND checkout that is not in \code{remindDirs}
+#'   (not the one being submitted from) never fails on such files, only on being behind or unpushed.
 #' @param stopOnFail Logical. Raise an error when any check fails. Default \code{TRUE}.
 #' @param verbose Logical.
 #' @return Invisibly, a data frame with one row per check: \code{check}, \code{target},
@@ -49,7 +54,7 @@
 pfmPreflight <- function(config = "config.yml", startGroup = NULL, scenarioConfig = NULL,
                          remindDirs = NULL, remindInputs = NULL,
                          checks = c("repos", "installed", "groups", "mappings", "ssp", "replay"),
-                         fetch = TRUE, stopOnFail = TRUE, verbose = TRUE) {
+                         fetch = TRUE, settle = 30, stopOnFail = TRUE, verbose = TRUE) {
   checks <- match.arg(checks, several.ok = TRUE)
   say <- function(...) if (isTRUE(verbose)) message("[preflight] ", ...)
   root <- normalizePath(dirname(config), winslash = "/", mustWork = TRUE)
@@ -66,8 +71,18 @@ pfmPreflight <- function(config = "config.yml", startGroup = NULL, scenarioConfi
   }
 
   if ("repos" %in% checks) {
+    used <- normalizePath(remindDirs, winslash = "/", mustWork = FALSE)
     for (i in seq_len(nrow(repos))) {
-      r <- .pfmGitState(repos$path[i], fetch = fetch)
+      # a REMIND checkout this submission does not start from: its files do not run, and start.R leaves
+      # short-lived files in it while a batch is submitted from there (2026-11-23). Only being behind
+      # or unpushed still fails, as a reminder to update.
+      other <- grepl("^remind_pfm", repos$name[i]) &&
+        !normalizePath(repos$path[i], winslash = "/", mustWork = FALSE) %in% used
+      r <- .pfmGitState(repos$path[i], fetch = fetch, settle = if (other) 0 else settle)
+      if (other && !r$ok && isTRUE(r$dirtyOnly)) {
+        r$ok <- TRUE
+        r$detail <- paste0(r$detail, " - not this submission's checkout, ignored")
+      }
       add("repos", repos$name[i], r$ok, r$detail)
     }
   }
@@ -198,11 +213,18 @@ pfmPreflight <- function(config = "config.yml", startGroup = NULL, scenarioConfi
   out
 }
 
+.pfmSleep <- function(s) Sys.sleep(s)   # its own function, so a test can stand in for the wait
+
 # Clean and pushed? Untracked files count: a new source file not committed does not run either.
-.pfmGitState <- function(path, fetch = TRUE) {
+.pfmGitState <- function(path, fetch = TRUE, settle = 0) {
   git <- function(...) suppressWarnings(system2("git", c("-C", shQuote(path), ...), stdout = TRUE, stderr = TRUE))
   st <- git("status", "--porcelain")
   if (!is.null(attr(st, "status"))) return(list(ok = FALSE, detail = paste(st, collapse = " ")))
+  # short-lived files (start.R while it submits): look once more after `settle` seconds
+  if (length(st) && settle > 0) {
+    .pfmSleep(settle)
+    st <- git("status", "--porcelain")
+  }
   up <- git("rev-parse", "--abbrev-ref", "@{u}")
   if (!is.null(attr(up, "status"))) return(list(ok = FALSE, detail = "no upstream branch"))
   if (isTRUE(fetch)) {
@@ -214,10 +236,12 @@ pfmPreflight <- function(config = "config.yml", startGroup = NULL, scenarioConfi
   cnt <- git("rev-list", "--left-right", "--count", "@{u}...HEAD")
   n <- as.integer(strsplit(trimws(cnt[1]), "[[:space:]]+")[[1]])
   branch <- git("rev-parse", "--abbrev-ref", "HEAD")[1]
-  problems <- c(if (length(st)) paste0(length(st), " uncommitted/untracked file(s)"),
+  files <- substring(st, 4)
+  problems <- c(if (length(st)) paste0(length(st), " uncommitted/untracked file(s): ",
+                                       paste(utils::head(files, 3), collapse = ", "), if (length(st) > 3) ", ..."),
                 if (n[2] > 0) paste0(n[2], " commit(s) not pushed"),
-                if (n[1] > 0) paste0(n[1], " commit(s) behind the remote - update (setup.sh --update)"))
-  list(ok = !length(problems),
+                if (n[1] > 0) paste0(n[1], " commit(s) behind the remote - update (git pull in the workspace, setup.sh --update for the rest)"))
+  list(ok = !length(problems), dirtyOnly = length(st) > 0 && n[1] == 0 && n[2] == 0,
        detail = if (length(problems)) paste(problems, collapse = "; ") else
          paste0(branch, ", clean, pushed and up to date", if (!isTRUE(fetch)) " (as of the last fetch)" else ""))
 }

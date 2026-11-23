@@ -12,6 +12,7 @@ pfmPreflight(
   remindInputs = NULL,
   checks = c("repos", "installed", "groups", "mappings", "ssp", "replay"),
   fetch = TRUE,
+  settle = 30,
   stopOnFail = TRUE,
   verbose = TRUE
 )
@@ -37,6 +38,12 @@ as REMIND's \code{startgroup}). \code{NULL} checks every coupled row.}
 are judged against the remote as it is now. Default \code{TRUE}: without it a checkout that
 was never updated passes as "clean and pushed" against its stale view of the remote (the
 cluster, 2026-10-02). A fetch that fails is a failed check.}
+
+\item{settle}{Seconds to wait before looking again at a checked-out repository whose only
+problem is uncommitted or untracked files: \code{start.R} leaves short-lived files in a REMIND
+checkout while it submits, so a batch submitted right after another can see them
+(2026-11-23). Default 30; 0 looks once. A REMIND checkout that is not in \code{remindDirs}
+(not the one being submitted from) never fails on such files, only on being behind or unpushed.}
 
 \item{stopOnFail}{Logical. Raise an error when any check fails. Default \code{TRUE}.}
 

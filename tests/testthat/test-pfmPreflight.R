@@ -50,6 +50,36 @@ test_that("repository state: clean and pushed, dirty, ahead, no upstream", {
   expect_match(s$detail, "1 commit\\(s\\) behind the remote")
 })
 
+test_that("short-lived files: settle looks again; the checkout not submitted from does not fail on them (2026-11-23)", {
+  skipNoGit()
+  root <- withr::local_tempdir()
+  pushed <- function(name) {
+    remote <- file.path(root, "remotes", name); dir.create(remote, recursive = TRUE)
+    suppressWarnings(system2("git", c("init", "-q", "--bare", shQuote(remote)), stdout = TRUE, stderr = TRUE))
+    d <- file.path(root, "models", name); dir.create(d, recursive = TRUE)
+    g <- gitRepo(d); g("remote", "add", "origin", remote); g("push", "-q", "-u", "origin", "HEAD")
+    d
+  }
+  eu <- pushed("remind_pfm-EU21"); h12 <- pushed("remind_pfm-H12")
+  writeLines(c("remind_pfm-EU21 cluster models/remind_pfm-EU21 https://x/remind.git pfm",
+               "remind_pfm-H12  cluster models/remind_pfm-H12  https://x/remind.git pfm"),
+             { dir.create(file.path(root, "tools")); file.path(root, "tools", "repos.txt") })
+  writeLines("group: v8", file.path(root, "config.yml"))
+  writeLines("tmp", file.path(eu, "start-tmp.txt"))           # left behind by a submission from EU21
+  res <- suppressMessages(pfmPreflight(config = file.path(root, "config.yml"), remindDirs = h12, checks = "repos",
+                                       fetch = FALSE, settle = 0, stopOnFail = FALSE, verbose = FALSE))
+  expect_true(res$ok[res$target == "remind_pfm-EU21"])
+  expect_match(res$detail[res$target == "remind_pfm-EU21"], "start-tmp.txt.*ignored")
+  expect_true(res$ok[res$target == "remind_pfm-H12"])
+  # the same file in the checkout submitted from fails ...
+  res <- suppressMessages(pfmPreflight(config = file.path(root, "config.yml"), remindDirs = eu, checks = "repos",
+                                       fetch = FALSE, settle = 0, stopOnFail = FALSE, verbose = FALSE))
+  expect_false(res$ok[res$target == "remind_pfm-EU21"])
+  # ... unless it is gone when settle looks again
+  testthat::local_mocked_bindings(.pfmSleep = function(s) unlink(file.path(eu, "start-tmp.txt")))
+  expect_true(pfm:::.pfmGitState(eu, fetch = FALSE, settle = 30)$ok)
+})
+
 writeConf <- function(path, df) utils::write.table(df, path, sep = ";", row.names = FALSE, quote = FALSE, na = "")
 
 test_that("coupled rows: start group, copyConfigFrom, default SSP and the reference's SSP", {
