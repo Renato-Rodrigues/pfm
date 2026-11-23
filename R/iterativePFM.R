@@ -491,6 +491,8 @@ iterativePFM <- function(gdx = "fulldata.gdx",
                         weights = if (reweight && !is.null(wts)) wts else NULL)
       say("v6 anchor: ", res, ", anchor year ", art$anchorYear, ", t0 ", art$t0, ", SSP ", weightScenario,
           if (reweight) " (weights recomputed for this run)" else " (anchor weights)")
+      if (NROW(v6$zeroBaseGap)) say("regional strength: zero t0 gap, k_r = 1 for ",
+                                    paste(v6$zeroBaseGap$sector, v6$zeroBaseGap$region, collapse = ", "))
       kk <- v6$strength[v6$strength$year %in% c(2035, 2050, 2070, 2100), ]
       say("strength k: ", paste(sprintf("%s %d %.3f", kk$sector, kk$year, kk$k), collapse = " | "))
       feas <- data.frame(region = v6$shares$region, year = v6$shares$year, phi = v6$shares$phi,

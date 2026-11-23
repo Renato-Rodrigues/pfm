@@ -30,7 +30,8 @@
 #'     The 2008-2023 narrowing of the gap spread, 1.1\% (power & industry) and 4.6\% (buildings & transport) a year
 #'     on Run-Group \code{v7}, is the data-consistent pair (design note 0009 section 6.2).}
 #'   \item{strength}{\code{"common"} (headline), \code{"regional"}, \eqn{k_{r,s} = g_{r,s}(t)/g_{r,s}(t_0)} (D16; central
-#'     from \code{v8}), or \code{"gapfirst"}: each region's projected gap, eroded, is normalised with the ANCHOR-year range
+#'     from \code{v8}; a region whose \eqn{t_0} gap is zero keeps its \eqn{t_0} limit, \eqn{k_{r,s} = 1}, listed in the
+#'     result's \code{zeroBaseGap}), or \code{"gapfirst"}: each region's projected gap, eroded, is normalised with the ANCHOR-year range
 #'     held fixed, \eqn{\varphi = 1 - \theta\,\mathrm{clip}_{[0,1]}((g_{r,s}(t)f(t) - \min_r g_{s}(t_a))/(\max_r g_{s}(t_a) -
 #'     \min_r g_{s}(t_a)))}: the order of the steps proposed on 2026-10-09 (gap first, then the normalisation, then
 #'     \eqn{\theta}); a region that closes its gap to the anchor-year minimum is no longer constrained.}
@@ -196,6 +197,13 @@ pfmV6Shares <- function(anchor, scenarioData, theta, options = pfmV6CouplingDefa
     g0 <- rg[rg$year == anchor$t0, c("sector", "region", "g")]
     rg <- merge(rg, g0, by = c("sector", "region"), suffixes = c("", "0"))
     rg$kr <- rg$g / rg$g0
+    # A region whose t0 gap is zero (its countries at or above their ceiling) has no base to fade from: g/g0 is 0/0 or
+    # infinite, and 1 - theta k u became NaN for the least constrained region (u = 0), in 124 of the 184 country-bootstrap
+    # resamples of v8 (design note 0012 section 12). Such a region keeps its t0 limit, k_r = 1, so a region with u = 0
+    # takes the full step (phi = 1). No coupled run of v8 has a zero t0 gap.
+    zero <- !is.finite(rg$kr) | !(rg$g0 > 0)
+    zeroBaseGap <- unique(rg[zero, c("sector", "region")])
+    rg$kr[zero] <- 1
     held <- rg[rg$year == max(rg$year[rg$year <= o$holdYear]), c("sector", "region", "kr")]
     late <- rg$year > o$holdYear
     if (any(late)) rg$kr[late] <- held$kr[match(paste(rg$sector[late], rg$region[late]), paste(held$sector, held$region))]
@@ -214,7 +222,9 @@ pfmV6Shares <- function(anchor, scenarioData, theta, options = pfmV6CouplingDefa
   sh <- sh[order(sh$sector, sh$region, sh$year), , drop = FALSE]
   rownames(sh) <- NULL
   fl <- stats::aggregate(phi ~ region + year, data = sh, FUN = min)
-  list(shares = sh, floor = fl[order(fl$region, fl$year), ], strength = st$strength, options = o)
+  if (!exists("zeroBaseGap", inherits = FALSE)) zeroBaseGap <- data.frame(sector = character(0), region = character(0))
+  rownames(zeroBaseGap) <- NULL
+  list(shares = sh, floor = fl[order(fl$region, fl$year), ], strength = st$strength, options = o, zeroBaseGap = zeroBaseGap)
 }
 
 # Largest |change| in phi between two calls: over sectors (hence markets) and the floor, at the

@@ -28,7 +28,8 @@ or the text \code{"Bulk=0.011,Diffuse=0.046"} (the form a scenario row carries);
 The 2008-2023 narrowing of the gap spread, 1.1\\% (power & industry) and 4.6\\% (buildings & transport) a year
 on Run-Group \code{v7}, is the data-consistent pair (design note 0009 section 6.2).}
 \item{strength}{\code{"common"} (headline), \code{"regional"}, \eqn{k_{r,s} = g_{r,s}(t)/g_{r,s}(t_0)} (D16; central
-from \code{v8}), or \code{"gapfirst"}: each region's projected gap, eroded, is normalised with the ANCHOR-year range
+from \code{v8}; a region whose \eqn{t_0} gap is zero keeps its \eqn{t_0} limit, \eqn{k_{r,s} = 1}, listed in the
+result's \code{zeroBaseGap}), or \code{"gapfirst"}: each region's projected gap, eroded, is normalised with the ANCHOR-year range
 held fixed, \eqn{\varphi = 1 - \theta\,\mathrm{clip}_{[0,1]}((g_{r,s}(t)f(t) - \min_r g_{s}(t_a))/(\max_r g_{s}(t_a) -
     \min_r g_{s}(t_a)))}: the order of the steps proposed on 2026-10-09 (gap first, then the normalisation, then
 \eqn{\theta}); a region that closes its gap to the anchor-year minimum is no longer constrained.}

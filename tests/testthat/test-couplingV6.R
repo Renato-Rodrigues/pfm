@@ -167,6 +167,33 @@ test_that("on the v8 anchor, the gap-first strength and the sequential window ac
   expect_true(all(w$floor$phi[w$floor$year >= 2045] == 1))
 })
 
+test_that("under the regional strength a region with a zero t0 gap keeps its t0 limit (no NaN share)", {
+  root <- normalizePath(file.path(testthat::test_path(), "..", "..", "..", ".."), mustWork = FALSE)
+  exp <- file.path(root, "output", "remind-inputs", "v8")
+  scenF <- file.path(root, "output", "pfm", "v8", "coupling", "scen-PFMlevelBfix-v8.rds")
+  skip_if_not(file.exists(file.path(exp, "phi-anchor.rds")) && file.exists(scenF), "v8 artifacts not present (workstation only)")
+  anc <- pfmAnchorFor(exp, "EU21"); scen <- readRDS(scenF)
+  base <- pfmV6Shares(anc, scen, theta = 0.5, options = list(strength = "regional"))
+  expect_equal(nrow(base$zeroBaseGap), 0)                     # the coupled anchor has no zero t0 gap: nothing changes
+  expect_true(all(is.finite(base$shares$phi)))
+  # the least constrained region of each sector (u = 0) at its ceiling from t0 on: g = 0 (the bootstrap's case)
+  u0 <- anc$region[anc$region$u == 0, c("sector", "region")]
+  orig <- computeStrengthPath
+  local_mocked_bindings(computeStrengthPath = function(...) {
+    st <- orig(...)
+    hit <- paste(st$regions$sector, st$regions$region) %in% paste(u0$sector, u0$region)
+    st$regions$g[hit] <- 0
+    st
+  })
+  z <- pfmV6Shares(anc, scen, theta = 0.5, options = list(strength = "regional"))
+  expect_true(all(is.finite(z$shares$phi)))
+  expect_setequal(paste(z$zeroBaseGap$sector, z$zeroBaseGap$region), paste(u0$sector, u0$region))
+  at <- paste(z$shares$sector, z$shares$region) %in% paste(u0$sector, u0$region)
+  expect_true(all(z$shares$phi[at] == 1))                     # u = 0: the full step
+  m <- merge(z$shares[!at, ], base$shares, by = c("sector", "region", "year"))
+  expect_equal(m$phi.x, m$phi.y)                              # every other region unchanged
+})
+
 test_that("a v6 call told cm_pfmPhiPath = 0 stops, and preparePFM writes the v6 options", {
   src <- paste(deparse(iterativePFM), collapse = " ")
   expect_true(grepl("rtPhiPath == 0", src, fixed = TRUE))
